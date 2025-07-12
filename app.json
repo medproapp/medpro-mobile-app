@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "MedPro",
+    "slug": "medpro-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/medpro-logo.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/medpro-logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F5F5F5"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.medpro.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/medpro-logo.png",
+        "backgroundColor": "#F5F5F5"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.medpro.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    }
+  }
+}

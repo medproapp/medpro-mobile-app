@@ -1,0 +1,1 @@
+export { DuotoneIcon } from './DuotoneIcon';
