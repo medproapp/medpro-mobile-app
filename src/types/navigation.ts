@@ -12,8 +12,8 @@ export type MainTabParamList = {
   Dashboard: undefined;
   Patients: undefined;
   Chat: undefined;
-  Notifications: undefined;
-  Profile: undefined;
+  Messages: undefined;
+  More: undefined;
 };
 
 // Dashboard Stack
@@ -21,6 +21,7 @@ export type DashboardStackParamList = {
   DashboardHome: undefined;
   AppointmentDetails: { appointmentId: string };
   PatientDetails: { patientId: string };
+  EncounterList: { filterStatus?: 'OPEN' | 'ALL' };
 };
 
 // Patients Stack
@@ -38,6 +39,14 @@ export type PatientsStackParamList = {
 export type ChatStackParamList = {
   ChatList: undefined;
   ChatRoom: { chatId: string; patientName: string };
+};
+
+// Messages Stack
+export type MessagesStackParamList = {
+  MessagesList: undefined;
+  Conversation: { threadId: string; threadSubject: string };
+  NewMessage: undefined;
+  ContactSelect: { onContactsSelected: (contacts: any[]) => void };
 };
 
 // Root Navigator

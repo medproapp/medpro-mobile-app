@@ -6,13 +6,19 @@ import {
   ScrollView,
   RefreshControl,
   TouchableOpacity,
+  Dimensions,
+  StatusBar,
+  Image,
 } from 'react-native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import { Card, Loading } from '@components/common';
+import { Card, Loading, InProgressEncountersAlert } from '@components/common';
 import { theme } from '@theme/index';
 import { useAuthStore } from '@store/authStore';
 import { apiService } from '@services/api';
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { DashboardStackParamList } from '@types/navigation';
 
 interface Appointment {
   id: string;
@@ -24,10 +30,14 @@ interface Appointment {
 
 interface DashboardData {
   nextAppointments: Appointment[];
+  inProgressEncountersCount: number;
 }
+
+type DashboardNavigationProp = StackNavigationProp<DashboardStackParamList, 'DashboardHome'>;
 
 export const DashboardScreen: React.FC = () => {
   const { user, logout } = useAuthStore();
+  const navigation = useNavigation<DashboardNavigationProp>();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -38,8 +48,11 @@ export const DashboardScreen: React.FC = () => {
         throw new Error('User email not available');
       }
 
-      // Call real API for next appointments
-      const appointmentsData = await apiService.getNextAppointments(user.email, 7);
+      // Fetch appointments and in-progress encounters in parallel
+      const [appointmentsData, inProgressData] = await Promise.all([
+        apiService.getNextAppointments(user.email, 7),
+        apiService.getInProgressEncounters(user.email).catch(() => ({ data: [] })) // Handle errors gracefully
+      ]);
       
       // Transform API response to match our interface
       const appointments = await Promise.all(
@@ -68,8 +81,12 @@ export const DashboardScreen: React.FC = () => {
         })
       );
 
+      // Count in-progress encounters
+      const inProgressCount = inProgressData?.data?.length || 0;
+
       setData({
-        nextAppointments: appointments
+        nextAppointments: appointments,
+        inProgressEncountersCount: inProgressCount
       });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -112,7 +129,8 @@ export const DashboardScreen: React.FC = () => {
             type: 'Retorno',
             status: 'confirmed'
           }
-        ]
+        ],
+        inProgressEncountersCount: 0
       });
     } finally {
       setLoading(false);
@@ -127,6 +145,28 @@ export const DashboardScreen: React.FC = () => {
   const handleRefresh = () => {
     setRefreshing(true);
     fetchDashboardData();
+  };
+
+  const getTimeBasedGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Bom dia';
+    if (hour < 18) return 'Boa tarde';
+    return 'Boa noite';
+  };
+
+  const getCurrentDate = () => {
+    const today = new Date();
+    const options: Intl.DateTimeFormatOptions = { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    };
+    return today.toLocaleDateString('pt-BR', options);
+  };
+
+  const handleInProgressEncountersPress = () => {
+    navigation.navigate('EncounterList', { filterStatus: 'OPEN' });
   };
 
   if (loading) {
@@ -144,72 +184,139 @@ export const DashboardScreen: React.FC = () => {
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-      }
-    >
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Bom dia,</Text>
-          <Text style={styles.userName}>{user?.name || 'Doutor'}</Text>
-        </View>
-        <TouchableOpacity onPress={logout} style={styles.logoutButton}>
-          <Text style={styles.logoutText}>Sair</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Next Appointments */}
-      <Card style={styles.appointmentsCard}>
-        <View style={styles.cardHeader}>
-          <View style={styles.iconContainer}>
-            <FontAwesome name="calendar" size={20} color={theme.colors.primary} />
-            <FontAwesome name="calendar" size={20} color={theme.colors.primaryLight} style={styles.iconShadow} />
+    <>
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={handleRefresh}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
+          />
+        }
+      >
+        {/* Header with gradient background */}
+        <View style={styles.headerBackground}>
+          {/* Background Logo */}
+          <Image
+            source={require('../../assets/medpro-logo.png')}
+            style={styles.backgroundLogo}
+            resizeMode="contain"
+          />
+          <View style={styles.header}>
+            <View style={styles.headerContent}>
+              <Text style={styles.greeting}>{getTimeBasedGreeting()},</Text>
+              <Text style={styles.userName}>{user?.name || 'Doutor'}</Text>
+              <Text style={styles.dateText}>{getCurrentDate()}</Text>
+            </View>
+            <TouchableOpacity onPress={logout} style={styles.logoutButton}>
+              <FontAwesome name="sign-out" size={20} color={theme.colors.white} />
+            </TouchableOpacity>
           </View>
-          <Text style={styles.cardTitle}>Próximas Consultas</Text>
         </View>
-        {data?.nextAppointments.map((appointment) => (
-          <View key={appointment.id} style={styles.appointmentRow}>
-            <View style={styles.appointmentTime}>
-              <Text style={styles.timeText}>{appointment.time}</Text>
+
+        {/* Quick Stats */}
+        <View style={styles.statsContainer}>
+          <View style={styles.statCard}>
+            <FontAwesome name="calendar-check-o" size={24} color={theme.colors.primary} />
+            <Text style={styles.statNumber}>{data?.nextAppointments.length || 0}</Text>
+            <Text style={styles.statLabel}>Hoje</Text>
+          </View>
+          <View style={styles.statCard}>
+            <FontAwesome name="clock-o" size={24} color={theme.colors.info} />
+            <Text style={styles.statNumber}>
+              {data?.nextAppointments.filter(apt => apt.status === 'scheduled').length || 0}
+            </Text>
+            <Text style={styles.statLabel}>Pendentes</Text>
+          </View>
+          <View style={styles.statCard}>
+            <FontAwesome name="check-circle" size={24} color={theme.colors.success} />
+            <Text style={styles.statNumber}>
+              {data?.nextAppointments.filter(apt => apt.status === 'confirmed').length || 0}
+            </Text>
+            <Text style={styles.statLabel}>Confirmadas</Text>
+          </View>
+        </View>
+
+        {/* In-Progress Encounters Alert */}
+        <InProgressEncountersAlert
+          encounterCount={data?.inProgressEncountersCount || 0}
+          onPress={handleInProgressEncountersPress}
+        />
+
+        {/* Next Appointments */}
+        <Card style={styles.appointmentsCard}>
+          <View style={styles.cardHeader}>
+            <View style={styles.iconContainer}>
+              <FontAwesome name="calendar" size={22} color={theme.colors.primary} />
             </View>
-            <View style={styles.appointmentInfo}>
-              <Text style={styles.patientName}>{appointment.patientName}</Text>
-              <Text style={styles.appointmentType}>{appointment.type}</Text>
-            </View>
-            <View style={styles.statusContainer}>
-              <View style={styles.iconContainer}>
-                <FontAwesome 
-                  name={appointment.status === 'confirmed' ? 'check-circle' : 
-                        appointment.status === 'scheduled' ? 'clock-o' : 
-                        'circle'} 
-                  size={16} 
-                  color={getStatusColor(appointment.status)} 
-                />
-                <FontAwesome 
-                  name={appointment.status === 'confirmed' ? 'check-circle' : 
-                        appointment.status === 'scheduled' ? 'clock-o' : 
-                        'circle'} 
-                  size={16} 
-                  color={getStatusColor(appointment.status)} 
-                  style={[styles.iconShadow, { opacity: 0.2 }]} 
-                />
-              </View>
-              <Text style={[styles.statusText, { color: getStatusColor(appointment.status) }]}>
-                {appointment.status === 'confirmed' ? 'Confirmada' :
-                 appointment.status === 'scheduled' ? 'Agendada' :
-                 appointment.status === 'in_progress' ? 'Em andamento' : 'Concluída'}
+            <Text style={styles.cardTitle}>Próximas Consultas</Text>
+            <View style={styles.cardHeaderBadge}>
+              <Text style={styles.cardHeaderBadgeText}>
+                {data?.nextAppointments.length || 0}
               </Text>
             </View>
           </View>
-        ))}
-      </Card>
-    </ScrollView>
+          
+          {data?.nextAppointments && data.nextAppointments.length > 0 ? (
+            data.nextAppointments.map((appointment, index) => (
+              <TouchableOpacity 
+                key={appointment.id} 
+                style={[
+                  styles.appointmentRow,
+                  index === data.nextAppointments.length - 1 && styles.lastAppointmentRow
+                ]}
+                activeOpacity={0.7}
+              >
+                <View style={styles.appointmentTimeContainer}>
+                  <Text style={styles.timeText}>{appointment.time}</Text>
+                  <View style={[styles.timeIndicator, { backgroundColor: getStatusColor(appointment.status) }]} />
+                </View>
+                <View style={styles.appointmentInfo}>
+                  <Text style={styles.patientName}>{appointment.patientName}</Text>
+                  <Text style={styles.appointmentType}>{appointment.type}</Text>
+                </View>
+                <View style={styles.statusContainer}>
+                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(appointment.status) + '20' }]}>
+                    <FontAwesome 
+                      name={appointment.status === 'confirmed' ? 'check-circle' : 
+                            appointment.status === 'scheduled' ? 'clock-o' : 
+                            'circle'} 
+                      size={14} 
+                      color={getStatusColor(appointment.status)} 
+                    />
+                    <Text style={[styles.statusText, { color: getStatusColor(appointment.status) }]}>
+                      {appointment.status === 'confirmed' ? 'Confirmada' :
+                       appointment.status === 'scheduled' ? 'Agendada' :
+                       appointment.status === 'in_progress' ? 'Em andamento' : 'Concluída'}
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <FontAwesome name="calendar-o" size={48} color={theme.colors.textSecondary} style={styles.emptyIcon} />
+              <Text style={styles.emptyTitle}>Nenhuma consulta agendada</Text>
+              <Text style={styles.emptySubtitle}>
+                Você não possui consultas marcadas para hoje.
+              </Text>
+              <TouchableOpacity style={styles.emptyAction} activeOpacity={0.7}>
+                <FontAwesome name="plus" size={16} color={theme.colors.primary} />
+                <Text style={styles.emptyActionText}>Agendar nova consulta</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </Card>
+      </ScrollView>
+    </>
   );
 };
+
+const { width } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
   container: {
@@ -217,67 +324,167 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   content: {
-    padding: theme.spacing.md,
+    paddingBottom: theme.spacing.xl,
+  },
+  headerBackground: {
+    backgroundColor: theme.colors.primary,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    paddingTop: StatusBar.currentHeight || 44,
+    paddingBottom: theme.spacing.lg,
+    marginBottom: -theme.spacing.md,
+    shadowColor: theme.colors.primary,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  backgroundLogo: {
+    position: 'absolute',
+    right: -20,
+    top: '50%',
+    width: 120,
+    height: 120,
+    opacity: 0.1,
+    transform: [{ translateY: -60 }],
+    tintColor: theme.colors.white,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: theme.spacing.xl,
-    paddingTop: theme.spacing.lg,
+    alignItems: 'flex-start',
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.md,
+  },
+  headerContent: {
+    flex: 1,
   },
   greeting: {
     ...theme.typography.body,
-    color: theme.colors.textSecondary,
+    color: theme.colors.white + 'CC',
+    fontSize: 16,
   },
   userName: {
-    ...theme.typography.h2,
-    color: theme.colors.text,
+    ...theme.typography.h1,
+    color: theme.colors.white,
+    fontSize: 24,
+    fontWeight: '700',
+    marginTop: theme.spacing.xs,
+  },
+  dateText: {
+    ...theme.typography.caption,
+    color: theme.colors.white + 'AA',
+    fontSize: 14,
+    marginTop: theme.spacing.xs,
+    textTransform: 'capitalize',
   },
   logoutButton: {
     padding: theme.spacing.sm,
+    backgroundColor: theme.colors.white + '20',
+    borderRadius: 8,
+    marginTop: theme.spacing.xs,
   },
-  logoutText: {
-    ...theme.typography.button,
-    color: theme.colors.error,
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: theme.spacing.lg,
+    marginTop: theme.spacing.xl,
+    marginBottom: theme.spacing.lg,
+  },
+  statCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 16,
+    padding: theme.spacing.md,
+    alignItems: 'center',
+    flex: 1,
+    marginHorizontal: theme.spacing.xs,
+    shadowColor: theme.colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  statNumber: {
+    ...theme.typography.h1,
+    fontSize: 28,
+    fontWeight: '700',
+    color: theme.colors.text,
+    marginTop: theme.spacing.sm,
+  },
+  statLabel: {
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    marginTop: theme.spacing.xs,
   },
   appointmentsCard: {
+    marginHorizontal: theme.spacing.lg,
     marginBottom: theme.spacing.md,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
   },
   iconContainer: {
-    position: 'relative',
     marginRight: theme.spacing.sm,
   },
-  iconShadow: {
-    position: 'absolute',
-    top: 1,
-    left: 1,
-    opacity: 0.3,
-  },
   cardTitle: {
-    ...theme.typography.h3,
+    ...theme.typography.h2,
     color: theme.colors.text,
+    fontSize: 20,
+    fontWeight: '600',
+    flex: 1,
+  },
+  cardHeaderBadge: {
+    backgroundColor: theme.colors.primary + '20',
+    borderRadius: 12,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+  },
+  cardHeaderBadgeText: {
+    ...theme.typography.caption,
+    color: theme.colors.primary,
+    fontSize: 12,
+    fontWeight: '600',
   },
   appointmentRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: theme.spacing.md,
+    paddingVertical: theme.spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderLight,
+    borderRadius: 8,
+    marginBottom: theme.spacing.xs,
   },
-  appointmentTime: {
-    width: 60,
-    marginRight: theme.spacing.md,
+  lastAppointmentRow: {
+    borderBottomWidth: 0,
+    marginBottom: 0,
+  },
+  appointmentTimeContainer: {
+    alignItems: 'center',
+    marginRight: theme.spacing.lg,
+    position: 'relative',
   },
   timeText: {
     ...theme.typography.h3,
-    color: theme.colors.primary,
-    fontWeight: '600',
+    color: theme.colors.text,
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  timeIndicator: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    marginTop: theme.spacing.xs,
   },
   appointmentInfo: {
     flex: 1,
@@ -286,21 +493,70 @@ const styles = StyleSheet.create({
   patientName: {
     ...theme.typography.body,
     color: theme.colors.text,
-    fontWeight: '500',
+    fontWeight: '600',
+    fontSize: 16,
     marginBottom: theme.spacing.xs,
   },
   appointmentType: {
     ...theme.typography.caption,
     color: theme.colors.textSecondary,
+    fontSize: 14,
   },
   statusContainer: {
+    alignItems: 'flex-end',
+  },
+  statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: 12,
   },
   statusText: {
     ...theme.typography.caption,
-    fontWeight: '500',
-    fontSize: 12,
+    fontWeight: '600',
+    fontSize: 11,
     marginLeft: theme.spacing.xs,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: theme.spacing.xxl,
+    paddingHorizontal: theme.spacing.lg,
+  },
+  emptyIcon: {
+    opacity: 0.5,
+    marginBottom: theme.spacing.lg,
+  },
+  emptyTitle: {
+    ...theme.typography.h3,
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: theme.spacing.sm,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    ...theme.typography.body,
+    color: theme.colors.textSecondary,
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: theme.spacing.xl,
+  },
+  emptyAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.primary + '15',
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.primary + '30',
+  },
+  emptyActionText: {
+    ...theme.typography.button,
+    color: theme.colors.primary,
+    fontWeight: '600',
+    marginLeft: theme.spacing.sm,
   },
 });

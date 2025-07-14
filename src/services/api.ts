@@ -1,6 +1,17 @@
 import { useAuthStore } from '../store/authStore';
+import { 
+  NewMessageData, 
+  MessagingApiResponse, 
+  MessageThread, 
+  Message, 
+  Contact, 
+  MessageStats,
+  PaginationParams,
+  ThreadsFilter,
+  ContactsFilter 
+} from '../types/messaging';
 
-const API_BASE_URL = 'https://16e8e8e1dbf2.ngrok-free.app';
+const API_BASE_URL = 'https://4909416febdc.ngrok-free.app';
 
 interface ApiConfig {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -89,6 +100,17 @@ class ApiService {
     return this.request(`/api/dashboard/stats/satisfaction/${email}`);
   }
 
+  // Get user info (used by web app after login)
+  async getUserInfo(email: string) {
+    return this.request(`/login/getUserInfo?email=${encodeURIComponent(email)}`);
+  }
+
+  // Get user to organization mapping
+  async getUserToOrg(email: string, role?: string) {
+    const queryParam = role ? `?role=${role}` : '';
+    return this.request(`/login/getusertoorg/${email}${queryParam}`);
+  }
+
   // Get next appointments for practitioner
   async getNextAppointments(email: string, days: number = 7) {
     const { user } = useAuthStore.getState();
@@ -169,6 +191,38 @@ class ApiService {
         'practid': user?.email || '',
       }
     });
+  }
+
+  // Get encounters with in-progress or on-hold status for practitioner
+  async getInProgressEncounters(practId: string) {
+    const { user } = useAuthStore.getState();
+    const statusFilter = {
+      filter1: 'in-progress',
+      filter2: 'on-hold',
+      filter3: ''
+    };
+    
+    const params = new URLSearchParams({
+      page: '1',
+      limit: '10',
+      status: JSON.stringify(statusFilter)
+    });
+
+    console.log('[API] getInProgressEncounters called for practitioner:', practId);
+    
+    try {
+      const result = await this.request(`/encounter/getencounters/practitioner/${practId}?${params}`, {
+        headers: {
+          'managingorg': user?.organization || 'ORG-000006',
+          'practid': practId,
+        }
+      });
+      console.log('[API] getInProgressEncounters success:', result);
+      return result;
+    } catch (error) {
+      console.error('[API] getInProgressEncounters error:', error);
+      throw error;
+    }
   }
 
   // Patient History/Encounters APIs
@@ -252,7 +306,100 @@ class ApiService {
       }
     });
   }
+
+  // === MESSAGING ENDPOINTS ===
+
+  // Get user's message threads
+  async getMessageThreads(params: ThreadsFilter & PaginationParams = {}): Promise<MessagingApiResponse<MessageThread[]>> {
+    const queryParams = new URLSearchParams({
+      filter: params.filter || 'all',
+      limit: (params.limit || 20).toString(),
+      offset: (params.offset || 0).toString(),
+    });
+
+    return this.request(`/api/internal-comm/messages/threads?${queryParams}`);
+  }
+
+  // Get messages in a specific thread
+  async getThreadMessages(threadId: string, params: PaginationParams = {}): Promise<MessagingApiResponse<{ messages: Message[]; thread_info: MessageThread }>> {
+    const queryParams = new URLSearchParams({
+      limit: (params.limit || 50).toString(),
+      offset: (params.offset || 0).toString(),
+    });
+
+    return this.request(`/api/internal-comm/messages/thread/${threadId}?${queryParams}`);
+  }
+
+  // Send a new message or reply
+  async sendMessage(data: NewMessageData): Promise<MessagingApiResponse<{ message_id: string; thread_id: string }>> {
+    return this.request('/api/internal-comm/messages', {
+      method: 'POST',
+      body: data,
+    });
+  }
+
+  // Mark message as read
+  async markMessageAsRead(messageId: string): Promise<MessagingApiResponse<void>> {
+    return this.request(`/api/internal-comm/messages/${messageId}/read`, {
+      method: 'PUT',
+    });
+  }
+
+  // Get available contacts
+  async getContacts(params: ContactsFilter & PaginationParams = {}): Promise<MessagingApiResponse<Contact[]>> {
+    const queryParams = new URLSearchParams({
+      limit: (params.limit || 50).toString(),
+      offset: (params.offset || 0).toString(),
+      ...(params.search && { search: params.search }),
+    });
+
+    return this.request(`/api/internal-comm/contacts?${queryParams}`);
+  }
+
+  // Get messaging statistics
+  async getMessagingStats(): Promise<MessagingApiResponse<MessageStats>> {
+    return this.request('/api/internal-comm/stats');
+  }
+
+  // Search messages and users
+  async searchMessages(query: string, type: 'all' | 'messages' | 'users' = 'all', limit: number = 20): Promise<MessagingApiResponse<any[]>> {
+    const queryParams = new URLSearchParams({
+      query,
+      type,
+      limit: limit.toString(),
+    });
+
+    return this.request(`/api/internal-comm/search?${queryParams}`);
+  }
+
+  // Upload attachment for messages
+  async uploadMessageAttachment(file: FormData): Promise<MessagingApiResponse<{ attachment_id: string; attachment_url: string }>> {
+    const { token } = useAuthStore.getState();
+    
+    return fetch(`${API_BASE_URL}/api/internal-comm/upload-attachment`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+        // Don't set Content-Type for FormData, let the browser set it
+      },
+      body: file,
+    }).then(async (response) => {
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Upload failed: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+      return response.json();
+    });
+  }
+
+  // Delete a message
+  async deleteMessage(messageId: string): Promise<MessagingApiResponse<void>> {
+    return this.request(`/api/internal-comm/messages/${messageId}`, {
+      method: 'DELETE',
+    });
+  }
 }
 
 export const api = new ApiService();
-export const apiService = new ApiService();
+export const apiService = api;
+export default api;

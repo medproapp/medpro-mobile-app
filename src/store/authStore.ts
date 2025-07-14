@@ -31,8 +31,8 @@ export const useAuthStore = create<AuthStore>()(
         
         try {
           // TODO: Replace with actual API call
-          console.log('📡 Calling API:', 'https://16e8e8e1dbf2.ngrok-free.app/login');
-          const response = await fetch('https://16e8e8e1dbf2.ngrok-free.app/login', {
+          // console.log('📡 Calling API:', 'https://ae4c4558a808.ngrok-free.app/login');
+          const response = await fetch('https://4909416febdc.ngrok-free.app/login', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -54,23 +54,62 @@ export const useAuthStore = create<AuthStore>()(
           const data = await response.json();
           console.log('✅ Login successful, token received');
           
-          // Mock user data - replace with actual API response
-          const user: User = {
-            id: '1',
+          // Create initial user object with basic login info
+          let user: User = {
+            id: data.user || credentials.email,
             email: credentials.email,
             username: credentials.email,
-            name: 'Dr. Fabio Garcia',
-            role: 'practitioner',
+            name: credentials.email, // Will be updated with real name
+            role: data.role === 'pract' ? 'practitioner' : data.role,
             organization: 'ORG-000006',
           };
 
+          // Set initial state with token
           set({
             user,
-            token: data.token || 'mock-token',
+            token: data.token,
             isAuthenticated: true,
             isLoading: false,
             error: null,
           });
+
+          // Fetch detailed user info in the background
+          try {
+            console.log('📡 Fetching detailed user info...');
+            const { getUserInfo, getUserToOrg } = await import('../services/api');
+            const api = (await import('../services/api')).default;
+            
+            const userInfo = await api.getUserInfo(credentials.email);
+            if (userInfo) {
+              console.log('👤 User info received:', userInfo.fullname);
+              
+              // Update user with real information
+              user = {
+                ...user,
+                name: userInfo.fullname || credentials.email,
+                role: userInfo.role === 'pract' ? 'practitioner' : userInfo.role,
+              };
+
+              // Try to get organization info
+              try {
+                const orgData = await api.getUserToOrg(credentials.email, user.role === 'practitioner' ? 'member' : undefined);
+                if (orgData && orgData.length > 0) {
+                  const org = orgData[0];
+                  user.organization = org.managingEntity || 'ORG-000006';
+                  console.log('🏢 Organization info received:', org.org_name);
+                }
+              } catch (orgError) {
+                console.warn('⚠️ Could not fetch organization info:', orgError);
+              }
+
+              // Update state with complete user info
+              set({ user });
+              console.log('✅ User profile updated successfully');
+            }
+          } catch (userInfoError) {
+            console.warn('⚠️ Could not fetch detailed user info:', userInfoError);
+            // Continue with basic user info, don't fail the login
+          }
         } catch (error) {
           console.error('🚨 Login error:', error);
           set({

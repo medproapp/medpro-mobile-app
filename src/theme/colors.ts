@@ -13,6 +13,7 @@ export const colors = {
 
   // Cores Neutras
   background: '#F5F5F5',
+  backgroundSecondary: '#F8F9FA',
   surface: '#FFFFFF',
   surfaceVariant: '#F8F9FA',
   
@@ -20,6 +21,7 @@ export const colors = {
   text: '#1A1A1A',
   textSecondary: '#666666',
   textDisabled: '#999999',
+  white: '#FFFFFF',
   
   // Bordas
   border: '#CCCCCC',
