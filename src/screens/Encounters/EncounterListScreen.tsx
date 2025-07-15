@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   StatusBar,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { Card, Loading } from '@components/common';
 import { theme } from '@theme/index';
@@ -34,6 +35,7 @@ interface EncounterListProps {
 }
 
 export const EncounterListScreen: React.FC<EncounterListProps> = ({ route }) => {
+  const navigation = useNavigation();
   const { user } = useAuthStore();
   const [encounters, setEncounters] = useState<Encounter[]>([]);
   const [loading, setLoading] = useState(true);
@@ -149,9 +151,14 @@ export const EncounterListScreen: React.FC<EncounterListProps> = ({ route }) => 
     console.log('Navigate to encounter details:', encounter.Identifier);
   };
 
-  const handleContinueEncounter = (encounter: Encounter) => {
-    // TODO: Navigate to encounter start/continue
-    console.log('Continue encounter:', encounter.Identifier);
+  const handleOpenEncounter = (encounter: Encounter) => {
+    // Navigate to encounter view
+    console.log('Open encounter:', encounter.Identifier);
+    (navigation as any).navigate('EncounterView', {
+      encounterId: encounter.Identifier,
+      patientName: encounter.Patient?.Name || 'Paciente Desconhecido',
+      patientCpf: encounter.Patient?.CPF || '',
+    });
   };
 
   if (loading) {
@@ -256,11 +263,11 @@ export const EncounterListScreen: React.FC<EncounterListProps> = ({ route }) => 
                     {canContinue && (
                       <TouchableOpacity
                         style={styles.continueButton}
-                        onPress={() => handleContinueEncounter(encounter)}
+                        onPress={() => handleOpenEncounter(encounter)}
                         activeOpacity={0.7}
                       >
                         <FontAwesome name="play" size={16} color={theme.colors.primary} />
-                        <Text style={styles.continueButtonText}>Continuar</Text>
+                        <Text style={styles.continueButtonText}>Abrir</Text>
                       </TouchableOpacity>
                     )}
                   </TouchableOpacity>

@@ -11,7 +11,7 @@ import {
   ContactsFilter 
 } from '../types/messaging';
 
-const API_BASE_URL = 'https://4909416febdc.ngrok-free.app';
+const API_BASE_URL = 'http://192.168.2.30:3333';
 
 interface ApiConfig {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -396,6 +396,280 @@ class ApiService {
   async deleteMessage(messageId: string): Promise<MessagingApiResponse<void>> {
     return this.request(`/api/internal-comm/messages/${messageId}`, {
       method: 'DELETE',
+    });
+  }
+
+  // Upload attachment
+  async uploadAttachment(
+    filePath: string,
+    fileName: string,
+    fileType: string,
+    encounterId: string,
+    patientCpf: string,
+    practitionerId: string
+  ): Promise<{ message: string; attachmentId: string }> {
+    const { user } = useAuthStore.getState();
+    
+    const formData = new FormData();
+    formData.append('file', {
+      uri: filePath,
+      type: fileType,
+      name: fileName,
+    } as any);
+
+    const headers = {
+      'Content-Type': 'multipart/form-data',
+      'patient': patientCpf,
+      'pract': practitionerId,
+      'encid': encounterId,
+      'entity': 'encounter',
+      'organization': user?.organization || 'ORG-000006',
+    };
+
+    console.log('[API] uploadAttachment called with:', {
+      filePath,
+      fileName,
+      fileType,
+      encounterId,
+      patientCpf,
+      practitionerId,
+    });
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          const percentComplete = (event.loaded / event.total) * 100;
+          console.log(`[API] Attachment upload progress: ${percentComplete.toFixed(1)}%`);
+        }
+      });
+      
+      xhr.addEventListener('load', () => {
+        console.log('[API] Attachment upload response status:', xhr.status);
+        console.log('[API] Attachment upload response text:', xhr.responseText);
+        
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            resolve(response);
+          } catch (error) {
+            console.error('[API] Error parsing attachment response:', error);
+            reject(new Error('Invalid response format'));
+          }
+        } else {
+          reject(new Error(`Attachment upload failed with status: ${xhr.status}`));
+        }
+      });
+      
+      xhr.addEventListener('error', () => {
+        console.error('[API] Attachment upload network error');
+        reject(new Error('Network error during attachment upload'));
+      });
+      
+      xhr.addEventListener('abort', () => {
+        console.log('[API] Attachment upload was aborted');
+        reject(new Error('Attachment upload was aborted'));
+      });
+      
+      xhr.open('POST', `${API_BASE_URL}/attach/upload`);
+      
+      // Add auth headers
+      const token = useAuthStore.getState().token;
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+      
+      // Add additional headers
+      Object.entries(headers).forEach(([key, value]) => {
+        if (key !== 'Content-Type') { // Let browser set Content-Type for FormData
+          xhr.setRequestHeader(key, value);
+        }
+      });
+      
+      xhr.send(formData);
+    });
+  }
+
+  // Upload image
+  async uploadImage(
+    imagePath: string,
+    fileName: string,
+    encounterId: string,
+    patientCpf: string,
+    practitionerId: string
+  ): Promise<{ message: string; imageId: string }> {
+    const { user } = useAuthStore.getState();
+    
+    const formData = new FormData();
+    formData.append('image', {
+      uri: imagePath,
+      type: 'image/jpeg',
+      name: fileName,
+    } as any);
+
+    const headers = {
+      'Content-Type': 'multipart/form-data',
+      'patient': patientCpf,
+      'pract': practitionerId,
+      'encid': encounterId,
+      'entity': 'encounter',
+      'organization': user?.organization || 'ORG-000006',
+    };
+
+    console.log('[API] uploadImage called with:', {
+      imagePath,
+      fileName,
+      encounterId,
+      patientCpf,
+      practitionerId,
+    });
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          const percentComplete = (event.loaded / event.total) * 100;
+          console.log(`[API] Image upload progress: ${percentComplete.toFixed(1)}%`);
+        }
+      });
+      
+      xhr.addEventListener('load', () => {
+        console.log('[API] Image upload response status:', xhr.status);
+        console.log('[API] Image upload response text:', xhr.responseText);
+        
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            resolve(response);
+          } catch (error) {
+            console.error('[API] Error parsing image response:', error);
+            reject(new Error('Invalid response format'));
+          }
+        } else {
+          reject(new Error(`Image upload failed with status: ${xhr.status}`));
+        }
+      });
+      
+      xhr.addEventListener('error', () => {
+        console.error('[API] Image upload network error');
+        reject(new Error('Network error during image upload'));
+      });
+      
+      xhr.addEventListener('abort', () => {
+        console.log('[API] Image upload was aborted');
+        reject(new Error('Image upload was aborted'));
+      });
+      
+      xhr.open('POST', `${API_BASE_URL}/images/upload`);
+      
+      // Add auth headers
+      const token = useAuthStore.getState().token;
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+      
+      // Add additional headers
+      Object.entries(headers).forEach(([key, value]) => {
+        if (key !== 'Content-Type') { // Let browser set Content-Type for FormData
+          xhr.setRequestHeader(key, value);
+        }
+      });
+      
+      xhr.send(formData);
+    });
+  }
+
+  // Upload audio recording
+  async uploadAudioRecording(
+    audioPath: string,
+    encounterId: string,
+    patientCpf: string,
+    practitionerId: string,
+    sequence: number = 1
+  ): Promise<{ message: string; audioId: string }> {
+    const { user } = useAuthStore.getState();
+    
+    const formData = new FormData();
+    formData.append('audio', {
+      uri: audioPath,
+      type: 'audio/mp4',
+      name: `recording_${Date.now()}.mp4`,
+    } as any);
+
+    const headers = {
+      'Content-Type': 'multipart/form-data',
+      'patient': patientCpf,
+      'pract': practitionerId,
+      'encid': encounterId,
+      'sequence': sequence.toString(),
+      'subentitytype': 'none',
+      'entity': 'encounter',
+      'organization': user?.organization || 'ORG-000006',
+    };
+
+    console.log('[API] uploadAudioRecording called with:', {
+      audioPath,
+      encounterId,
+      patientCpf,
+      practitionerId,
+      sequence,
+    });
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          const percentComplete = (event.loaded / event.total) * 100;
+          console.log(`[API] Upload progress: ${percentComplete.toFixed(1)}%`);
+        }
+      });
+      
+      xhr.addEventListener('load', () => {
+        console.log('[API] Upload response status:', xhr.status);
+        console.log('[API] Upload response text:', xhr.responseText);
+        
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            resolve(response);
+          } catch (error) {
+            console.error('[API] Error parsing response:', error);
+            reject(new Error('Invalid response format'));
+          }
+        } else {
+          reject(new Error(`Upload failed with status: ${xhr.status}`));
+        }
+      });
+      
+      xhr.addEventListener('error', () => {
+        console.error('[API] Upload network error');
+        reject(new Error('Network error during upload'));
+      });
+      
+      xhr.addEventListener('abort', () => {
+        console.log('[API] Upload was aborted');
+        reject(new Error('Upload was aborted'));
+      });
+      
+      xhr.open('POST', `${API_BASE_URL}/audio/uploadAudio`);
+      
+      // Add auth headers
+      const token = useAuthStore.getState().token;
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+      
+      // Add additional headers
+      Object.entries(headers).forEach(([key, value]) => {
+        if (key !== 'Content-Type') { // Let browser set Content-Type for FormData
+          xhr.setRequestHeader(key, value);
+        }
+      });
+      
+      xhr.send(formData);
     });
   }
 }
