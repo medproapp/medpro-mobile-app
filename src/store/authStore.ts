@@ -32,7 +32,7 @@ export const useAuthStore = create<AuthStore>()(
         try {
           // TODO: Replace with actual API call
           // console.log('📡 Calling API:', 'https://ae4c4558a808.ngrok-free.app/login');
-          const response = await fetch('https://4909416febdc.ngrok-free.app/login', {
+          const response = await fetch('http://192.168.2.30:3333/login', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

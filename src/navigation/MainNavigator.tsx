@@ -6,12 +6,14 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { DashboardScreen } from '@screens/Dashboard';
 import { EncounterListScreen } from '@screens/Encounters';
+import { EncounterViewScreen } from '@screens/Encounters/EncounterViewScreen';
 import { PatientsScreen } from '@screens/Patients';
 import { PatientDashboardScreen } from '@screens/Patients/PatientDashboardScreen';
 import { PatientHistoryScreen } from '@screens/Patients/PatientHistoryScreen';
 import { EncounterDetailsScreen } from '@screens/Patients/EncounterDetailsScreen';
 import { MoreScreen } from '@screens/More';
 import { MessagesListScreen } from '@screens/Messages';
+import { AssistantScreen } from '@screens/Assistant';
 import { MainTabParamList, DashboardStackParamList, PatientsStackParamList, MessagesStackParamList } from '../types/navigation';
 import { theme } from '@theme/index';
 
@@ -100,12 +102,8 @@ const TabIcon: React.FC<TabIconProps> = ({
   );
 };
 
-// Placeholder components for other tabs
-const ChatScreen: React.FC = () => (
-  <Text style={{ flex: 1, textAlign: 'center', marginTop: 100 }}>
-    Assistente IA - Em desenvolvimento
-  </Text>
-);
+// Assistant screen - now fully implemented
+// Using AssistantScreen instead of placeholder
 
 // Messages Stack Navigator
 const MessagesStackNavigator: React.FC = () => {
@@ -131,6 +129,7 @@ const DashboardStackNavigator: React.FC = () => {
     >
       <DashboardStack.Screen name="DashboardHome" component={DashboardScreen} />
       <DashboardStack.Screen name="EncounterList" component={EncounterListScreen} />
+      <DashboardStack.Screen name="EncounterView" component={EncounterViewScreen} />
     </DashboardStack.Navigator>
   );
 };
@@ -235,7 +234,7 @@ export const MainNavigator: React.FC = () => {
       
       <Tab.Screen
         name="Chat"
-        component={ChatScreen}
+        component={AssistantScreen}
         options={{
           title: 'Assistente',
           tabBarIcon: ({ focused, color }) => (
