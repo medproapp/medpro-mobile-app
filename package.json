@@ -11,7 +11,8 @@
     "start-wsl": "./start-wsl.sh",
     "start-tunnel": "./start-tunnel.sh",
     "dev": "expo start --clear",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "status": "node -e \"const port = process.env.RCT_METRO_PORT || 8081; const { spawn } = require('child_process'); const lsof = spawn('lsof', ['-i', ':' + port]); lsof.stdout.on('data', data => console.log(data.toString())); lsof.on('close', code => { if (code !== 0) console.log('Expo server is not running on port ' + port); });\""
   },
   "dependencies": {
     "@expo/metro-runtime": "~5.0.4",
