@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## CRITICAL PRODUCTION RULES
+
+**NEVER TOUCH PRODUCTION REPOS DIRECTLY!**
+- Never modify files in production repositories
+- Never edit files on production servers
+- All changes must be made locally first
+- Deploy through proper deployment processes only
+
 ## Project Overview
 
 MedPro Mobile App is a React Native/Expo healthcare application built with TypeScript. The app provides medical professionals with patient management, encounter tracking, messaging, and AI assistant capabilities.
