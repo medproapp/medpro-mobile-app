@@ -493,8 +493,13 @@ export const useMessagingUnreadCount = () => {
   const stats = useMessagingStore(selectStats);
   const threads = useMessagingStore(selectThreads);
   
-  if (stats?.unread_count !== undefined) {
-    return stats.unread_count;
+  // Prefer explicit unread count if available
+  if (stats && (stats as any).unread_count !== undefined) {
+    return (stats as any).unread_count as number;
+  }
+  // Backend currently returns `unread_messages` in stats
+  if (stats && (stats as any).unread_messages !== undefined) {
+    return (stats as any).unread_messages as number;
   }
   
   return threads.reduce((count, thread) => count + thread.unread_count, 0);

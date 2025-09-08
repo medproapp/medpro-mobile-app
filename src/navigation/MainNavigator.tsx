@@ -25,6 +25,7 @@ import { AssistantScreen } from '@screens/Assistant';
 import { MainTabParamList, DashboardStackParamList, PatientsStackParamList, MessagesStackParamList } from '../types/navigation';
 import { theme } from '@theme/index';
 import { useNotifications } from '../hooks/useNotifications';
+import { useMessagingUnreadCount } from '@store/messagingStore';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const DashboardStack = createStackNavigator<DashboardStackParamList>();
@@ -39,6 +40,7 @@ interface TabIconProps {
   color: string;
   size?: number;
   isCustomImage?: boolean;
+  badgeCount?: number;
 }
 
 const TabIcon: React.FC<TabIconProps> = ({ 
@@ -47,7 +49,8 @@ const TabIcon: React.FC<TabIconProps> = ({
   focused, 
   color, 
   size = 24,
-  isCustomImage = false
+  isCustomImage = false,
+  badgeCount,
 }) => {
   // Special handling for MedPro logo
   if (isCustomImage && name === 'medpro-logo') {
@@ -106,8 +109,28 @@ const TabIcon: React.FC<TabIconProps> = ({
         color={focused ? theme.colors.primary : theme.colors.textSecondary}
         style={focused && styles.iconFocused}
       />
+      {typeof badgeCount === 'number' && badgeCount > 0 && (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>
+            {badgeCount > 99 ? '99+' : String(badgeCount)}
+          </Text>
+        </View>
+      )}
       {focused && <View style={styles.focusedIndicator} />}
     </View>
+  );
+};
+
+// Wrapper for Messages tab icon to attach unread badge
+const MessagesTabIcon: React.FC<{ focused: boolean; color: string }> = ({ focused, color }) => {
+  const unread = useMessagingUnreadCount();
+  return (
+    <TabIcon
+      name="comment"
+      focused={focused}
+      color={color}
+      badgeCount={unread}
+    />
   );
 };
 
@@ -277,11 +300,7 @@ export const MainNavigator: React.FC = () => {
         options={{
           title: 'Mensagens',
           tabBarIcon: ({ focused, color }) => (
-            <TabIcon 
-              name="comment" 
-              focused={focused} 
-              color={color} 
-            />
+            <MessagesTabIcon focused={focused} color={color} />
           ),
         }}
       />
@@ -314,6 +333,23 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     minWidth: 44,
     minHeight: 40,
+  },
+  badge: {
+    position: 'absolute',
+    top: -2,
+    right: 2,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+    backgroundColor: '#E53935',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
   },
   iconContainerFocused: {
     backgroundColor: theme.colors.primaryLight + '15', // 15% opacity

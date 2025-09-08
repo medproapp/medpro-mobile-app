@@ -9,7 +9,7 @@ import { useMessagingStore } from '@store/messagingStore';
 export const useNotifications = () => {
   const navigation = useNavigation();
   const { user, isAuthenticated } = useAuthStore();
-  const { loadThreads, loadMessages, handleRealtimeUpdate } = useMessagingStore();
+  const { loadThreads, loadMessages, loadStats, handleRealtimeUpdate } = useMessagingStore();
   
   const notificationListener = useRef<Subscription>();
   const responseListener = useRef<Subscription>();
@@ -23,6 +23,8 @@ export const useNotifications = () => {
     const initializeNotifications = async () => {
       try {
         await notificationService.initialize();
+        // Ensure unread stats are available for tab badge
+        await loadStats();
       } catch (error) {
         console.error('[useNotifications] Failed to initialize notifications:', error);
       }
@@ -79,12 +81,11 @@ export const useNotifications = () => {
     return () => {
       notificationService.cleanup();
       
-      if (notificationListener.current) {
-        Notifications.removeNotificationSubscription(notificationListener.current);
+      if (notificationListener.current && typeof notificationListener.current.remove === 'function') {
+        notificationListener.current.remove();
       }
-      
-      if (responseListener.current) {
-        Notifications.removeNotificationSubscription(responseListener.current);
+      if (responseListener.current && typeof responseListener.current.remove === 'function') {
+        responseListener.current.remove();
       }
     };
   }, [isAuthenticated, user, navigation, loadThreads, loadMessages]);
@@ -95,6 +96,7 @@ export const useNotifications = () => {
       if (isAuthenticated && nextAppState === 'active') {
         // App came to foreground, refresh data
         loadThreads();
+        loadStats();
       }
     };
 
