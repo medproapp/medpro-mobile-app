@@ -12,6 +12,8 @@ import { AppointmentStep2Screen } from '@screens/Appointments/AppointmentStep2Sc
 import { AppointmentStep3Screen } from '@screens/Appointments/AppointmentStep3Screen';
 import { AppointmentStep4Screen } from '@screens/Appointments/AppointmentStep4Screen';
 import { AppointmentStep5Screen } from '@screens/Appointments/AppointmentStep5Screen';
+import { AppointmentStep6Screen } from '@screens/Appointments/AppointmentStep6Screen';
+import { AppointmentReviewScreen } from '@screens/Appointments/AppointmentReviewScreen';
 import { PatientsScreen } from '@screens/Patients';
 import { PatientDashboardScreen } from '@screens/Patients/PatientDashboardScreen';
 import { PatientHistoryScreen } from '@screens/Patients/PatientHistoryScreen';
@@ -140,6 +142,8 @@ const DashboardStackNavigator: React.FC = () => {
       <DashboardStack.Screen name="AppointmentStep3" component={AppointmentStep3Screen} />
       <DashboardStack.Screen name="AppointmentStep4" component={AppointmentStep4Screen} />
       <DashboardStack.Screen name="AppointmentStep5" component={AppointmentStep5Screen} />
+      <DashboardStack.Screen name="AppointmentStep6" component={AppointmentStep6Screen} />
+      <DashboardStack.Screen name="AppointmentReview" component={AppointmentReviewScreen} />
     </DashboardStack.Navigator>
   );
 };

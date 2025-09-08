@@ -936,20 +936,91 @@ class ApiService {
   async createAppointment(appointmentData: any) {
     const { user } = useAuthStore.getState();
     console.log('[API] createAppointment called with:', appointmentData);
+    console.log('[API] User context:', { email: user?.email, org: user?.organization });
+    console.log('[API] Request headers will be:', {
+      'managingorg': user?.organization || 'ORG-000006',
+      'practid': user?.email || '',
+    });
     
     try {
-      const result = await this.request('/appointment/create', {
+      console.log('[API] About to make POST request to /appointment/create-appointment');
+      const result = await this.request('/appointment/create-appointment', {
         method: 'POST',
         headers: {
           'managingorg': user?.organization || 'ORG-000006',
           'practid': user?.email || '',
         },
-        body: JSON.stringify(appointmentData)
+        body: appointmentData
       });
       console.log('[API] createAppointment success:', result);
       return result;
     } catch (error) {
       console.error('[API] createAppointment error:', error);
+      console.error('[API] Error details:', {
+        message: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  // Step 6 API methods
+  async getServiceCategories() {
+    try {
+      console.log('[API] getServiceCategories called');
+      const result = await this.request('/pract/getservicecategory');
+      console.log('[API] getServiceCategories success:', result);
+      return result;
+    } catch (error) {
+      console.error('[API] getServiceCategories error:', error);
+      throw error;
+    }
+  }
+
+  async getPractServiceCategories(practId: string) {
+    try {
+      console.log('[API] getPractServiceCategories called with practId:', practId);
+      const result = await this.request(`/pract/getpractservicecategories/${practId}`);
+      console.log('[API] getPractServiceCategories success:', result);
+      return result;
+    } catch (error) {
+      console.error('[API] getPractServiceCategories error:', error);
+      throw error;
+    }
+  }
+
+  async getServiceTypes() {
+    try {
+      console.log('[API] getServiceTypes called');
+      const result = await this.request('/pract/getservicetypes');
+      console.log('[API] getServiceTypes success:', result);
+      return result;
+    } catch (error) {
+      console.error('[API] getServiceTypes error:', error);
+      throw error;
+    }
+  }
+
+  async getPractServiceTypes(practId: string) {
+    try {
+      console.log('[API] getPractServiceTypes called with practId:', practId);
+      const result = await this.request(`/pract/getpractservicetypes/${practId}`);
+      console.log('[API] getPractServiceTypes success:', result);
+      return result;
+    } catch (error) {
+      console.error('[API] getPractServiceTypes error:', error);
+      throw error;
+    }
+  }
+
+  async getAppointmentTypes(practId: string) {
+    try {
+      console.log('[API] getAppointmentTypes called with practId:', practId);
+      const result = await this.request(`/pract/config/${practId}`);
+      console.log('[API] getAppointmentTypes success:', result);
+      return result;
+    } catch (error) {
+      console.error('[API] getAppointmentTypes error:', error);
       throw error;
     }
   }

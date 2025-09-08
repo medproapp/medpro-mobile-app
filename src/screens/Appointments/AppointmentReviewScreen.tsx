@@ -1,263 +1,473 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
+  TouchableOpacity,
   Alert,
+  StatusBar,
+  StyleSheet,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { Button, Card } from '@components/common';
+import { StackNavigationProp } from '@react-navigation/stack';
+import FontAwesome from 'react-native-vector-icons/FontAwesome';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import { theme } from '@theme/index';
 import { useAppointmentStore } from '@store/appointmentStore';
 import { useAuthStore } from '@store/authStore';
-import { theme } from '@theme/index';
 import api from '@services/api';
+import { DashboardStackParamList } from '@types/navigation';
 
-export const AppointmentReviewScreen: React.FC = () => {
-  const navigation = useNavigation();
+type ReviewNavigationProp = StackNavigationProp<DashboardStackParamList, 'AppointmentReview'>;
+
+interface Props {
+  navigation: ReviewNavigationProp;
+}
+
+export const AppointmentReviewScreen: React.FC<Props> = ({ navigation }) => {
+  const [submitting, setSubmitting] = useState(false);
+  const [categoryName, setCategoryName] = useState('');
+  const [typeName, setTypeName] = useState('');
+  const [appointmentTypeName, setAppointmentTypeName] = useState('');
+  const { appointmentData, resetAppointment, selectedServices, getTotalServicesValue } = useAppointmentStore();
   const { user } = useAuthStore();
-  const { appointmentData, selectedServices, getTotalServicesValue, getTotalDuration, resetAppointment } = useAppointmentStore();
-  const [loading, setLoading] = useState(false);
 
-  const formatDate = (dateString: string) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('pt-BR');
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('pt-BR', {
+      weekday: 'long',
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
   };
 
-  const formatTime = (timeString: string) => {
-    if (!timeString) return '';
-    return timeString.substring(0, 5); // Remove seconds
+  const formatTime = (timeStr: string) => {
+    if (!timeStr) return '';
+    return timeStr.substring(0, 5); // HH:MM format
   };
 
   const handleSubmit = async () => {
-    setLoading(true);
+    if (!appointmentData.subject || !appointmentData.startdate || !appointmentData.starttime) {
+      Alert.alert('Erro', 'Dados incompletos para criar o agendamento');
+      return;
+    }
+
+    setSubmitting(true);
+    
     try {
-      // Submit appointment to backend
-      const appointmentPayload = {
-        ...appointmentData,
-        // Ensure required fields are set
-        practitionerid: appointmentData.practitionerid || user?.email,
-        selected_services: selectedServices,
+      // Prepare appointment data for submission - match webapp format exactly
+      const submitData = {
+        subject: appointmentData.subject,
+        locationid: appointmentData.locationid.toString(), // Convert to string like webapp
+        status: appointmentData.status,
+        practitionerid: user?.email || appointmentData.practitionerid,
+        startdate: appointmentData.startdate,
+        starttime: appointmentData.starttime,
+        duration: appointmentData.duration.toString(), // Convert to string like webapp
+        description: appointmentData.description,
+        note: appointmentData.note || "",
+        created: "", // Empty string like webapp default
+        servicecategory: appointmentData.servicecategory,
+        servicetype: appointmentData.servicetype,
+        appointmenttype: appointmentData.appointmenttype,
+        selected_services: appointmentData.selected_services,
+        paymentType: appointmentData.paymentType,
+        selectedPractCarePlanIdForAppointment: null, // Add missing webapp field
+        selectedPatientCarePlanCode: null, // Add missing webapp field
+        servicesCoverageStatus: appointmentData.servicesCoverageStatus,
       };
 
-      console.log('[AppointmentReview] Submitting appointment:', appointmentPayload);
+      console.log('[AppointmentReview] Submitting appointment:', submitData);
+      console.log('[AppointmentReview] Payload size:', JSON.stringify(submitData).length);
+      console.log('[AppointmentReview] Selected services structure:', JSON.stringify(submitData.selected_services, null, 2));
       
-      // Call API to create appointment
-      const result = await api.createAppointment(appointmentPayload);
+      const result = await api.createAppointment(submitData);
       
-      if (result.success) {
-        Alert.alert(
-          'Agendamento Confirmado',
-          'Seu agendamento foi criado com sucesso!',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                // Reset appointment data and navigate back
-                resetAppointment();
-                navigation.navigate('Dashboard' as never);
-              }
+      console.log('[AppointmentReview] Appointment created successfully:', result);
+      
+      Alert.alert(
+        'Sucesso!',
+        'Agendamento criado com sucesso',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              resetAppointment();
+              navigation.navigate('DashboardHome');
+            },
+          },
+        ]
+      );
+    } catch (error: any) {
+      console.error('[AppointmentReview] Error creating appointment:', error);
+      Alert.alert(
+        'Erro',
+        error.message || 'Não foi possível criar o agendamento. Tente novamente.',
+        [
+          { text: 'Tentar Novamente', onPress: () => setSubmitting(false) },
+          { text: 'Cancelar', style: 'cancel', onPress: () => setSubmitting(false) },
+        ]
+      );
+    }
+  };
+
+  const navigateToStep = (step: number) => {
+    const stepRoutes = [
+      'AppointmentStep1',
+      'AppointmentStep2', 
+      'AppointmentStep3',
+      'AppointmentStep4',
+      'AppointmentStep5',
+      'AppointmentStep6'
+    ];
+    
+    if (step >= 1 && step <= 6) {
+      navigation.navigate(stepRoutes[step - 1] as never);
+    }
+  };
+
+  const totalServices = getTotalServicesValue();
+
+  // Load display names for appointment details
+  useEffect(() => {
+    const loadDisplayNames = async () => {
+      if (!user?.email) return;
+
+      try {
+        // Load service categories
+        if (appointmentData.servicecategory) {
+          const allCategoriesResult = await api.getServiceCategories();
+          const category = allCategoriesResult?.find((cat: any) => 
+            cat.categoryId.toString() === appointmentData.servicecategory
+          );
+          if (category) {
+            setCategoryName(category.categoryDesc);
+          }
+        }
+
+        // Load service types
+        if (appointmentData.servicetype) {
+          const allTypesResult = await api.getServiceTypes();
+          const type = allTypesResult?.find((type: any) => 
+            type.serviceType.toString() === appointmentData.servicetype
+          );
+          if (type) {
+            setTypeName(type.servicetypeDesc);
+          }
+        }
+
+        // Load appointment types
+        if (appointmentData.appointmenttype) {
+          const APPOINTMENT_TYPE_LABELS = {
+            ROUTINE: "Agendamento Regular",
+            FIRST: "Primeira Consulta",
+            WALKIN: "Visita não agendada",
+            CHECKUP: "Check-up de Rotina",
+            FOLLOWUP: "Retorno",
+            EMERGENCY: "Emergência",
+          };
+          
+          const appointmentTypesResult = await api.getAppointmentTypes(user.email);
+          const apptConfigItem = appointmentTypesResult?.find((item: any) => item.configitem === "APPT_TYPES_CONFIG");
+          
+          if (apptConfigItem && apptConfigItem.configvalue) {
+            const savedApptConfigs = typeof apptConfigItem.configvalue === "string"
+              ? JSON.parse(apptConfigItem.configvalue)
+              : apptConfigItem.configvalue;
+              
+            if (savedApptConfigs[appointmentData.appointmenttype]) {
+              setAppointmentTypeName(APPOINTMENT_TYPE_LABELS[appointmentData.appointmenttype] || appointmentData.appointmenttype);
             }
-          ]
-        );
-      } else {
-        throw new Error(result.message || 'Erro ao criar agendamento');
+          } else {
+            // Use default labels
+            setAppointmentTypeName(APPOINTMENT_TYPE_LABELS[appointmentData.appointmenttype] || appointmentData.appointmenttype);
+          }
+        }
+      } catch (error) {
+        console.error('[AppointmentReview] Error loading display names:', error);
       }
-    } catch (error) {
-      console.error('[AppointmentReview] Error submitting appointment:', error);
-      Alert.alert('Erro', 'Não foi possível confirmar o agendamento. Tente novamente.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleBack = () => {
-    navigation.goBack();
-  };
-
-  const handleEdit = (step: string) => {
-    switch (step) {
-      case 'patient':
-        navigation.navigate('AppointmentStep1' as never);
-        break;
-      case 'services':
-        navigation.navigate('AppointmentStep2' as never);
-        break;
-      case 'payment':
-        navigation.navigate('AppointmentStep3' as never);
-        break;
-      case 'location':
-        navigation.navigate('AppointmentStep4' as never);
-        break;
-      case 'datetime':
-        navigation.navigate('AppointmentStep5' as never);
-        break;
-      case 'details':
-        navigation.navigate('AppointmentStep6' as never);
-        break;
-    }
-  };
-
-  const getCategoryName = (id: string) => {
-    const categories: { [key: string]: string } = {
-      '1': 'Consulta',
-      '2': 'Exame',
-      '3': 'Procedimento',
-      '4': 'Retorno',
     };
-    return categories[id] || id;
-  };
 
-  const getTypeName = (id: string) => {
-    const types: { [key: string]: string } = {
-      '1001': 'Consulta Inicial',
-      '1002': 'Consulta de Rotina',
-      '1003': 'Consulta de Retorno',
-      '2001': 'Exame Clínico',
-      '2002': 'Exame Laboratorial',
-    };
-    return types[id] || id;
-  };
+    loadDisplayNames();
+  }, [appointmentData.servicecategory, appointmentData.servicetype, appointmentData.appointmenttype, user?.email]);
 
-  const getAppointmentTypeName = (id: string) => {
-    const types: { [key: string]: string } = {
-      'ROUTINE': 'Rotina',
-      'URGENT': 'Urgente',
-      'FOLLOWUP': 'Retorno',
-      'CONSULTATION': 'Consulta',
+  const getPaymentMethodTranslation = (paymentType: string | null): string => {
+    if (!paymentType) return '';
+    
+    const translations: { [key: string]: string } = {
+      'direct': 'Pagamento Direto',
+      'CASH': 'Dinheiro',
+      'CREDIT_CARD': 'Cartão de Crédito',
+      'DEBIT_CARD': 'Cartão de Débito',
+      'PIX': 'PIX',
+      'BANK_TRANSFER': 'Transferência Bancária',
+      'HEALTH_INSURANCE': 'Plano de Saúde',
+      'CHECK': 'Cheque',
+      'BOLETO': 'Boleto',
+      'INSTALLMENT': 'Parcelado',
+      'FREE': 'Gratuito',
+      'OTHER': 'Outro'
     };
-    return types[id] || id;
+    
+    return translations[paymentType] || paymentType;
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      <Text style={styles.title}>Revisar Agendamento</Text>
-      <Text style={styles.subtitle}>Confira todos os dados antes de confirmar</Text>
-
-      {/* Patient Information */}
-      <Card style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Paciente</Text>
-          <Button
-            title="Editar"
-            onPress={() => handleEdit('patient')}
-            variant="outline"
-            size="small"
+    <>
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
+      <View style={styles.container}>
+        {/* Header with gradient background */}
+        <View style={styles.headerBackground}>
+          {/* Background Logo */}
+          <Image
+            source={require('../../assets/medpro-logo.png')}
+            style={styles.backgroundLogo}
+            resizeMode="contain"
           />
-        </View>
-        <Text style={styles.infoText}><Text style={styles.label}>Nome:</Text> {appointmentData.patientName}</Text>
-        <Text style={styles.infoText}><Text style={styles.label}>CPF:</Text> {appointmentData.subject}</Text>
-        <Text style={styles.infoText}><Text style={styles.label}>Telefone:</Text> {appointmentData.patientPhone}</Text>
-      </Card>
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+            >
+              <FontAwesome name="arrow-left" size={20} color={theme.colors.white} />
+            </TouchableOpacity>
+            
+            <View style={styles.headerContent}>
+              <Text style={styles.headerTitle}>Revisão do Agendamento</Text>
+              <Text style={styles.headerSubtitle}>Confirme os dados antes de finalizar</Text>
+            </View>
 
-      {/* Services Information */}
-      <Card style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Serviços</Text>
-          <Button
-            title="Editar"
-            onPress={() => handleEdit('services')}
-            variant="outline"
-            size="small"
-          />
-        </View>
-        {selectedServices.map((service, index) => (
-          <View key={index} style={styles.serviceItem}>
-            <Text style={styles.serviceName}>{service.name}</Text>
-            <Text style={styles.serviceDetails}>R$ {service.price.toFixed(2)}</Text>
-            {service.duration && <Text style={styles.serviceDetails}>{service.duration} min</Text>}
+            <View style={styles.headerRight} />
           </View>
-        ))}
-        <View style={styles.totalRow}>
-          <Text style={styles.totalText}>Total: R$ {getTotalServicesValue().toFixed(2)} ({getTotalDuration()} min)</Text>
         </View>
-      </Card>
 
-      {/* Payment Information */}
-      <Card style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Pagamento</Text>
-          <Button
-            title="Editar"
-            onPress={() => handleEdit('payment')}
-            variant="outline"
-            size="small"
-          />
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          {/* Patient Information */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleContainer}>
+                <FontAwesome name="user" size={18} color={theme.colors.primary} />
+                <Text style={styles.sectionTitle}>Paciente</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={() => navigateToStep(1)}
+              >
+                <MaterialIcons name="edit" size={16} color={theme.colors.primary} />
+                <Text style={styles.editButtonText}>Editar</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.infoCard}>
+              <Text style={styles.infoLabel}>Nome:</Text>
+              <Text style={styles.infoValue}>{appointmentData.patientName}</Text>
+              <Text style={styles.infoLabel}>CPF:</Text>
+              <Text style={styles.infoValue}>{appointmentData.subject}</Text>
+              <Text style={styles.infoLabel}>Telefone:</Text>
+              <Text style={styles.infoValue}>{appointmentData.patientPhone}</Text>
+            </View>
+          </View>
+
+          {/* Location Information */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleContainer}>
+                <FontAwesome name="map-marker" size={18} color={theme.colors.primary} />
+                <Text style={styles.sectionTitle}>Local</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={() => navigateToStep(3)}
+              >
+                <MaterialIcons name="edit" size={16} color={theme.colors.primary} />
+                <Text style={styles.editButtonText}>Editar</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.infoCard}>
+              <Text style={styles.infoValue}>{appointmentData.locationName}</Text>
+            </View>
+          </View>
+
+          {/* Date and Time */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleContainer}>
+                <FontAwesome name="calendar" size={18} color={theme.colors.primary} />
+                <Text style={styles.sectionTitle}>Data e Horário</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={() => navigateToStep(5)}
+              >
+                <MaterialIcons name="edit" size={16} color={theme.colors.primary} />
+                <Text style={styles.editButtonText}>Editar</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.infoCard}>
+              <Text style={styles.infoLabel}>Data:</Text>
+              <Text style={styles.infoValue}>{formatDate(appointmentData.startdate)}</Text>
+              <Text style={styles.infoLabel}>Horário:</Text>
+              <Text style={styles.infoValue}>
+                {formatTime(appointmentData.starttime)} - {formatTime(appointmentData.endtime)}
+              </Text>
+              <Text style={styles.infoLabel}>Duração:</Text>
+              <Text style={styles.infoValue}>{appointmentData.duration} minutos</Text>
+            </View>
+          </View>
+
+          {/* Appointment Details */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleContainer}>
+                <FontAwesome name="clipboard" size={18} color={theme.colors.primary} />
+                <Text style={styles.sectionTitle}>Detalhes da Consulta</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={() => navigateToStep(6)}
+              >
+                <MaterialIcons name="edit" size={16} color={theme.colors.primary} />
+                <Text style={styles.editButtonText}>Editar</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.infoCard}>
+              <Text style={styles.infoLabel}>Categoria do Serviço:</Text>
+              <Text style={styles.infoValue}>{categoryName || appointmentData.servicecategory}</Text>
+              <Text style={styles.infoLabel}>Tipo de Serviço:</Text>
+              <Text style={styles.infoValue}>{typeName || appointmentData.servicetype}</Text>
+              <Text style={styles.infoLabel}>Tipo de Consulta:</Text>
+              <Text style={styles.infoValue}>{appointmentTypeName || appointmentData.appointmenttype}</Text>
+            </View>
+          </View>
+
+          {/* Selected Services */}
+          {selectedServices.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionTitleContainer}>
+                  <FontAwesome name="stethoscope" size={18} color={theme.colors.primary} />
+                  <Text style={styles.sectionTitle}>Serviços Selecionados</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.editButton}
+                  onPress={() => navigateToStep(2)}
+                >
+                  <MaterialIcons name="edit" size={16} color={theme.colors.primary} />
+                  <Text style={styles.editButtonText}>Editar</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.infoCard}>
+                {selectedServices.map((service, index) => (
+                  <View key={index} style={styles.serviceRow}>
+                    <Text style={styles.serviceName}>{service.name}</Text>
+                    <Text style={styles.serviceDuration}>
+                      {service.duration ? `${service.duration} min` : 'N/A'}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Payment Method */}
+          {(appointmentData.paymentType || totalServices > 0) && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionTitleContainer}>
+                  <FontAwesome name="credit-card" size={18} color={theme.colors.primary} />
+                  <Text style={styles.sectionTitle}>Pagamento</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.editButton}
+                  onPress={() => navigateToStep(4)}
+                >
+                  <MaterialIcons name="edit" size={16} color={theme.colors.primary} />
+                  <Text style={styles.editButtonText}>Editar</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.infoCard}>
+                {appointmentData.paymentType && (
+                  <>
+                    <Text style={styles.infoLabel}>Forma de Pagamento:</Text>
+                    <Text style={styles.infoValue}>{getPaymentMethodTranslation(appointmentData.paymentType)}</Text>
+                  </>
+                )}
+                {totalServices > 0 && (
+                  <View style={styles.totalRow}>
+                    <Text style={styles.totalLabel}>Valor Total:</Text>
+                    <Text style={styles.totalValue}>R$ {totalServices.toFixed(2)}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* Description and Notes */}
+          {(appointmentData.description || appointmentData.note) && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionTitleContainer}>
+                  <FontAwesome name="sticky-note-o" size={18} color={theme.colors.primary} />
+                  <Text style={styles.sectionTitle}>Observações</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.editButton}
+                  onPress={() => navigateToStep(6)}
+                >
+                  <MaterialIcons name="edit" size={16} color={theme.colors.primary} />
+                  <Text style={styles.editButtonText}>Editar</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.infoCard}>
+                {appointmentData.description && (
+                  <>
+                    <Text style={styles.infoLabel}>Descrição:</Text>
+                    <Text style={styles.infoValue}>{appointmentData.description}</Text>
+                  </>
+                )}
+                {appointmentData.note && (
+                  <>
+                    <Text style={[styles.infoLabel, appointmentData.description && { marginTop: 12 }]}>
+                      Observações Internas:
+                    </Text>
+                    <Text style={styles.infoValue}>{appointmentData.note}</Text>
+                  </>
+                )}
+              </View>
+            </View>
+          )}
+        </ScrollView>
+
+        {/* Submit Button */}
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={styles.backButtonFooter}
+            onPress={() => navigation.goBack()}
+            disabled={submitting}
+          >
+            <FontAwesome name="arrow-left" size={16} color={theme.colors.primary} />
+            <Text style={styles.backButtonText}>Voltar</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.submitButton, submitting && styles.disabledButton]}
+            onPress={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator size="small" color={theme.colors.white} />
+            ) : (
+              <>
+                <Text style={styles.submitButtonText}>Confirmar Agendamento</Text>
+                <FontAwesome name="check" size={16} color={theme.colors.white} />
+              </>
+            )}
+          </TouchableOpacity>
         </View>
-        <Text style={styles.infoText}>
-          <Text style={styles.label}>Forma de Pagamento:</Text> {appointmentData.paymentType === 'direct' ? 'Pagamento Direto' : 'Plano de Saúde'}
-        </Text>
-      </Card>
-
-      {/* Location Information */}
-      <Card style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Local</Text>
-          <Button
-            title="Editar"
-            onPress={() => handleEdit('location')}
-            variant="outline"
-            size="small"
-          />
-        </View>
-        <Text style={styles.infoText}><Text style={styles.label}>Local:</Text> {appointmentData.locationName}</Text>
-      </Card>
-
-      {/* Date & Time Information */}
-      <Card style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Data e Horário</Text>
-          <Button
-            title="Editar"
-            onPress={() => handleEdit('datetime')}
-            variant="outline"
-            size="small"
-          />
-        </View>
-        <Text style={styles.infoText}><Text style={styles.label}>Data:</Text> {formatDate(appointmentData.startdate)}</Text>
-        <Text style={styles.infoText}><Text style={styles.label}>Horário:</Text> {formatTime(appointmentData.starttime)} - {formatTime(appointmentData.endtime)}</Text>
-        <Text style={styles.infoText}><Text style={styles.label}>Duração:</Text> {appointmentData.duration} minutos</Text>
-      </Card>
-
-      {/* Details Information */}
-      <Card style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Detalhes</Text>
-          <Button
-            title="Editar"
-            onPress={() => handleEdit('details')}
-            variant="outline"
-            size="small"
-          />
-        </View>
-        <Text style={styles.infoText}><Text style={styles.label}>Categoria:</Text> {getCategoryName(appointmentData.servicecategory)}</Text>
-        <Text style={styles.infoText}><Text style={styles.label}>Especialidade:</Text> {getTypeName(appointmentData.servicetype)}</Text>
-        <Text style={styles.infoText}><Text style={styles.label}>Tipo:</Text> {getAppointmentTypeName(appointmentData.appointmenttype)}</Text>
-        {appointmentData.description && (
-          <Text style={styles.infoText}><Text style={styles.label}>Descrição:</Text> {appointmentData.description}</Text>
-        )}
-        {appointmentData.note && (
-          <Text style={styles.infoText}><Text style={styles.label}>Observações:</Text> {appointmentData.note}</Text>
-        )}
-      </Card>
-
-      <View style={styles.buttonContainer}>
-        <Button
-          title="Voltar"
-          onPress={handleBack}
-          variant="outline"
-          style={styles.backButton}
-        />
-        <Button
-          title="Confirmar Agendamento"
-          onPress={handleSubmit}
-          disabled={loading}
-          loading={loading}
-          style={styles.confirmButton}
-        />
       </View>
-    </ScrollView>
+    </>
   );
 };
 
@@ -266,23 +476,76 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  contentContainer: {
-    padding: theme.spacing.md,
-    paddingBottom: theme.spacing.xl,
+  headerBackground: {
+    backgroundColor: theme.colors.primary,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    paddingTop: 44,
+    paddingBottom: theme.spacing.lg,
+    marginBottom: -theme.spacing.md,
+    shadowColor: theme.colors.primary,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    position: 'relative',
+    overflow: 'hidden',
   },
-  title: {
-    fontSize: theme.typography.sizes.xl,
-    fontWeight: theme.typography.weights.bold,
-    color: theme.colors.text,
-    marginBottom: theme.spacing.xs,
+  backgroundLogo: {
+    position: 'absolute',
+    right: -20,
+    top: '50%',
+    width: 120,
+    height: 120,
+    opacity: 0.1,
+    transform: [{ translateY: -60 }],
+    tintColor: theme.colors.white,
   },
-  subtitle: {
-    fontSize: theme.typography.sizes.md,
-    color: theme.colors.textSecondary,
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: 8,
+  },
+  headerContent: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: theme.colors.white,
+    textAlign: 'center',
+    marginBottom: 2,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: theme.colors.white,
+    opacity: 0.9,
+    textAlign: 'center',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerRight: {
+    width: 40,
+  },
+  content: {
+    flex: 1,
+    paddingTop: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.lg,
+  },
+  section: {
     marginBottom: theme.spacing.lg,
-  },
-  sectionCard: {
-    marginBottom: theme.spacing.md,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -290,55 +553,159 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: theme.spacing.sm,
   },
+  sectionTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   sectionTitle: {
-    fontSize: theme.typography.sizes.lg,
-    fontWeight: theme.typography.weights.semiBold,
+    fontSize: 18,
+    fontWeight: '600',
     color: theme.colors.text,
+    marginLeft: theme.spacing.sm,
   },
-  infoText: {
-    fontSize: theme.typography.sizes.md,
-    color: theme.colors.text,
-    marginBottom: theme.spacing.xs,
+  editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: theme.colors.primaryLight + '15',
   },
-  label: {
-    fontWeight: theme.typography.weights.semiBold,
+  editButtonText: {
+    fontSize: 12,
+    color: theme.colors.primary,
+    marginLeft: 4,
+    fontWeight: '500',
+  },
+  infoCard: {
+    backgroundColor: theme.colors.white,
+    borderRadius: 12,
+    padding: theme.spacing.md,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  infoLabel: {
+    fontSize: 13,
     color: theme.colors.textSecondary,
+    marginBottom: 2,
+    fontWeight: '500',
   },
-  serviceItem: {
-    marginBottom: theme.spacing.xs,
-    paddingBottom: theme.spacing.xs,
+  infoValue: {
+    fontSize: 16,
+    color: theme.colors.text,
+    marginBottom: 8,
+  },
+  serviceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
   },
   serviceName: {
-    fontSize: theme.typography.sizes.md,
-    fontWeight: theme.typography.weights.semiBold,
+    fontSize: 14,
     color: theme.colors.text,
+    flex: 1,
   },
-  serviceDetails: {
-    fontSize: theme.typography.sizes.sm,
+  servicePrice: {
+    fontSize: 14,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  serviceDuration: {
+    fontSize: 14,
     color: theme.colors.textSecondary,
+    fontWeight: '500',
   },
   totalRow: {
-    marginTop: theme.spacing.sm,
-    paddingTop: theme.spacing.sm,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 8,
+    marginTop: 8,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
   },
-  totalText: {
-    fontSize: theme.typography.sizes.md,
-    fontWeight: theme.typography.weights.bold,
-    color: theme.colors.primary,
+  totalLabel: {
+    fontSize: 16,
+    color: theme.colors.text,
+    fontWeight: '600',
   },
-  buttonContainer: {
+  totalValue: {
+    fontSize: 18,
+    color: theme.colors.primary,
+    fontWeight: '700',
+  },
+  footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: theme.spacing.lg,
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.md,
+    backgroundColor: theme.colors.white,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 8,
+    gap: theme.spacing.sm,
   },
-  backButton: {
-    flex: 0.3,
+  backButtonFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 24,
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    flex: 0.4,
+    justifyContent: 'center',
   },
-  confirmButton: {
-    flex: 0.65,
+  backButtonText: {
+    fontSize: 16,
+    color: theme.colors.primary,
+    marginLeft: 8,
+    fontWeight: '600',
+  },
+  submitButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 24,
+    backgroundColor: theme.colors.primary,
+    shadowColor: theme.colors.primary,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
+    flex: 0.6,
+    justifyContent: 'center',
+  },
+  submitButtonText: {
+    fontSize: 16,
+    color: theme.colors.white,
+    fontWeight: '600',
+    marginRight: 8,
+  },
+  disabledButton: {
+    opacity: 0.6,
+    backgroundColor: theme.colors.textSecondary,
   },
 });

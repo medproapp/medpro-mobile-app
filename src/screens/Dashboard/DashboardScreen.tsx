@@ -24,6 +24,7 @@ interface Appointment {
   id: string;
   patientName: string;
   time: string;
+  date: string;
   type: string;
   status: 'scheduled' | 'confirmed' | 'in_progress' | 'completed';
 }
@@ -34,6 +35,75 @@ interface DashboardData {
 }
 
 type DashboardNavigationProp = StackNavigationProp<DashboardStackParamList, 'DashboardHome'>;
+
+const formatAppointmentType = (type: string): string => {
+  const types: Record<string, string> = {
+    ROUTINE: "Agendamento Regular",
+    WALKIN: "Visita não agendada", 
+    FOLLOWUP: "Retorno",
+    CHECKUP: "Check-up de Rotina",
+    EMERGENCY: "Emergência",
+  };
+  return types[type] || (type ? type : "Não especificado");
+};
+
+const getAppointmentTypeIcon = (type: string): string => {
+  if (type.includes('Emergência')) return 'exclamation-triangle';
+  if (type.includes('Retorno')) return 'rotate-left';
+  if (type.includes('Check-up')) return 'list-alt';
+  if (type.includes('não agendada')) return 'door-open';
+  return 'calendar-check-o';
+};
+
+const convertUTCToLocalDate = (utcDateStr: string, utcTimeStr: string = '00:00:00'): Date => {
+  // Combine date and time strings like the webapp does
+  // Format: YYYY-MM-DD + T + HH:mm:ss = YYYY-MM-DDTHH:mm:ss
+  const combinedUTCString = `${utcDateStr.slice(0, 10)}T${utcTimeStr}`;
+  
+  // Parse as UTC then convert to local (same as webapp: moment.utc().local())
+  const utcDate = new Date(combinedUTCString + 'Z'); // Add Z to ensure UTC parsing
+  
+  return utcDate; // JavaScript Date automatically represents in local timezone
+};
+
+const getDateGroupLabel = (localDateStr: string): string => {
+  // localDateStr is already in local timezone format (YYYY-MM-DD)
+  const appointmentDate = new Date(localDateStr + 'T00:00:00'); // Local date at midnight
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  
+  // Reset time for comparison (local timezone)
+  today.setHours(0, 0, 0, 0);
+  tomorrow.setHours(0, 0, 0, 0);
+  appointmentDate.setHours(0, 0, 0, 0);
+  
+  if (appointmentDate.getTime() === today.getTime()) {
+    return 'Hoje';
+  } else if (appointmentDate.getTime() === tomorrow.getTime()) {
+    return 'Amanhã';
+  } else {
+    return appointmentDate.toLocaleDateString('pt-BR', { 
+      weekday: 'long', 
+      day: 'numeric', 
+      month: 'long'
+    });
+  }
+};
+
+const groupAppointmentsByDate = (appointments: Appointment[]) => {
+  const groups: { [key: string]: Appointment[] } = {};
+  
+  appointments.forEach(appointment => {
+    const groupLabel = getDateGroupLabel(appointment.date);
+    if (!groups[groupLabel]) {
+      groups[groupLabel] = [];
+    }
+    groups[groupLabel].push(appointment);
+  });
+  
+  return groups;
+};
 
 export const DashboardScreen: React.FC = () => {
   const { user, logout } = useAuthStore();
@@ -61,20 +131,34 @@ export const DashboardScreen: React.FC = () => {
             // Get patient details for each appointment
             const patientData = await apiService.getPatientDetails(apt.subject);
             
+            // Convert UTC datetime to local for proper date grouping
+            const localDateTime = convertUTCToLocalDate(
+              apt.startdate || new Date().toISOString().split('T')[0], 
+              apt.starttime || '00:00:00'
+            );
+            
             return {
               id: apt.identifier.toString(),
               patientName: patientData.data?.name || 'Paciente',
-              time: apt.starttime.substring(0, 5), // Extract HH:MM from "17:00:00"
-              type: apt.appointmenttype === 'ROUTINE' ? 'Consulta' : apt.appointmenttype,
+              time: localDateTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }), // Local time
+              date: localDateTime.toISOString().split('T')[0], // Local date for grouping
+              type: formatAppointmentType(apt.appointmenttype),
               status: apt.status === 'booked' ? 'confirmed' : apt.status
             };
           } catch (error) {
             console.error('Error fetching patient details:', error);
+            // Convert UTC datetime to local for error fallback
+            const localDateTime = convertUTCToLocalDate(
+              apt.startdate || new Date().toISOString().split('T')[0], 
+              apt.starttime || '00:00:00'
+            );
+            
             return {
               id: apt.identifier.toString(),
               patientName: 'Paciente',
-              time: apt.starttime.substring(0, 5),
-              type: 'Consulta',
+              time: localDateTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+              date: localDateTime.toISOString().split('T')[0],
+              type: formatAppointmentType('ROUTINE'),
               status: 'scheduled'
             };
           }
@@ -98,35 +182,40 @@ export const DashboardScreen: React.FC = () => {
             id: '1',
             patientName: 'Maria Silva',
             time: '09:00',
-            type: 'Consulta',
+            date: new Date().toLocaleDateString('en-CA'), // Today (YYYY-MM-DD format, local)
+            type: formatAppointmentType('ROUTINE'),
             status: 'confirmed'
           },
           {
             id: '2',
             patientName: 'João Santos',
             time: '10:30',
-            type: 'Retorno',
+            date: new Date().toLocaleDateString('en-CA'), // Today (YYYY-MM-DD format, local)
+            type: formatAppointmentType('FOLLOWUP'),
             status: 'scheduled'
           },
           {
             id: '3',
             patientName: 'Ana Costa',
             time: '11:15',
-            type: 'Exame',
+            date: new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('en-CA'), // Tomorrow (local)
+            type: formatAppointmentType('CHECKUP'),
             status: 'confirmed'
           },
           {
             id: '4',
             patientName: 'Pedro Lima',
             time: '14:00',
-            type: 'Consulta',
+            date: new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('en-CA'), // Tomorrow (local)
+            type: formatAppointmentType('ROUTINE'),
             status: 'scheduled'
           },
           {
             id: '5',
             patientName: 'Carla Oliveira',
             time: '15:30',
-            type: 'Retorno',
+            date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toLocaleDateString('en-CA'), // Day after tomorrow (local)
+            type: formatAppointmentType('FOLLOWUP'),
             status: 'confirmed'
           }
         ],
@@ -186,19 +275,8 @@ export const DashboardScreen: React.FC = () => {
   return (
     <>
       <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.content}
-        refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
-            onRefresh={handleRefresh}
-            colors={[theme.colors.primary]}
-            tintColor={theme.colors.primary}
-          />
-        }
-      >
-        {/* Header with gradient background */}
+      <View style={styles.container}>
+        {/* Header with gradient background - Fixed at top */}
         <View style={styles.headerBackground}>
           {/* Background Logo */}
           <Image
@@ -217,6 +295,20 @@ export const DashboardScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Scrollable content area with pull-to-refresh */}
+        <ScrollView
+          style={styles.scrollContainer}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={handleRefresh}
+              colors={[theme.colors.primary]}
+              tintColor={theme.colors.primary}
+            />
+          }
+        >
 
         {/* Quick Stats */}
         <View style={styles.statsContainer}>
@@ -262,41 +354,53 @@ export const DashboardScreen: React.FC = () => {
           </View>
           
           {data?.nextAppointments && data.nextAppointments.length > 0 ? (
-            data.nextAppointments.map((appointment, index) => (
-              <TouchableOpacity 
-                key={appointment.id} 
-                style={[
-                  styles.appointmentRow,
-                  index === data.nextAppointments.length - 1 && styles.lastAppointmentRow
-                ]}
-                activeOpacity={0.7}
-              >
-                <View style={styles.appointmentTimeContainer}>
-                  <Text style={styles.timeText}>{appointment.time}</Text>
-                  <View style={[styles.timeIndicator, { backgroundColor: getStatusColor(appointment.status) }]} />
-                </View>
-                <View style={styles.appointmentInfo}>
-                  <Text style={styles.patientName}>{appointment.patientName}</Text>
-                  <Text style={styles.appointmentType}>{appointment.type}</Text>
-                </View>
-                <View style={styles.statusContainer}>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(appointment.status) + '20' }]}>
-                    <FontAwesome 
-                      name={appointment.status === 'confirmed' ? 'check-circle' : 
-                            appointment.status === 'scheduled' ? 'clock-o' : 
-                            'circle'} 
-                      size={14} 
-                      color={getStatusColor(appointment.status)} 
-                    />
-                    <Text style={[styles.statusText, { color: getStatusColor(appointment.status) }]}>
-                      {appointment.status === 'confirmed' ? 'Confirmada' :
-                       appointment.status === 'scheduled' ? 'Agendada' :
-                       appointment.status === 'in_progress' ? 'Em andamento' : 'Concluída'}
-                    </Text>
+            (() => {
+              const groupedAppointments = groupAppointmentsByDate(data.nextAppointments);
+              return Object.entries(groupedAppointments).map(([dateGroup, appointments]) => (
+                <View key={dateGroup}>
+                  <View style={styles.dateGroupHeader}>
+                    <Text style={styles.dateGroupTitle}>{dateGroup}</Text>
+                    <View style={styles.dateGroupLine} />
+                    <Text style={styles.dateGroupCount}>{appointments.length}</Text>
                   </View>
+                  {appointments.map((appointment, index) => (
+                    <TouchableOpacity 
+                      key={appointment.id} 
+                      style={[
+                        styles.appointmentRow,
+                        index === appointments.length - 1 && styles.lastAppointmentRow
+                      ]}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.appointmentTimeContainer}>
+                        <Text style={styles.timeText}>{appointment.time}</Text>
+                        <View style={[styles.timeIndicator, { backgroundColor: getStatusColor(appointment.status) }]} />
+                      </View>
+                      <View style={styles.appointmentInfo}>
+                        <Text style={styles.patientName}>{appointment.patientName}</Text>
+                        <Text style={styles.appointmentType}>{appointment.type}</Text>
+                      </View>
+                      <View style={styles.statusContainer}>
+                        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(appointment.status) + '20' }]}>
+                          <FontAwesome 
+                            name={appointment.status === 'confirmed' ? 'check-circle' : 
+                                  appointment.status === 'scheduled' ? 'clock-o' : 
+                                  'circle'} 
+                            size={14} 
+                            color={getStatusColor(appointment.status)} 
+                          />
+                          <Text style={[styles.statusText, { color: getStatusColor(appointment.status) }]}>
+                            {appointment.status === 'confirmed' ? 'Confirmada' :
+                             appointment.status === 'scheduled' ? 'Agendada' :
+                             appointment.status === 'in_progress' ? 'Em andamento' : 'Concluída'}
+                          </Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
                 </View>
-              </TouchableOpacity>
-            ))
+              ));
+            })()
           ) : (
             <View style={styles.emptyState}>
               <FontAwesome name="calendar-o" size={48} color={theme.colors.textSecondary} style={styles.emptyIcon} />
@@ -310,17 +414,18 @@ export const DashboardScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
           )}
-        </Card>
-      </ScrollView>
-      
-      {/* Floating Action Button */}
-      <TouchableOpacity 
-        style={styles.fab}
-        onPress={() => navigation.navigate('AppointmentStep1')}
-        activeOpacity={0.8}
-      >
-        <MaterialIcons name="add" size={28} color={theme.colors.white} />
-      </TouchableOpacity>
+          </Card>
+        </ScrollView>
+        
+        {/* Floating Action Button */}
+        <TouchableOpacity 
+          style={styles.fab}
+          onPress={() => navigation.navigate('AppointmentStep1')}
+          activeOpacity={0.8}
+        >
+          <MaterialIcons name="add" size={28} color={theme.colors.white} />
+        </TouchableOpacity>
+      </View>
     </>
   );
 };
@@ -332,7 +437,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  content: {
+  scrollContainer: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
+  scrollContent: {
     paddingBottom: theme.spacing.xl,
   },
   headerBackground: {
@@ -341,7 +450,6 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 24,
     paddingTop: StatusBar.currentHeight || 44,
     paddingBottom: theme.spacing.lg,
-    marginBottom: -theme.spacing.md,
     shadowColor: theme.colors.primary,
     shadowOffset: {
       width: 0,
@@ -352,6 +460,7 @@ const styles = StyleSheet.create({
     elevation: 8,
     position: 'relative',
     overflow: 'hidden',
+    zIndex: 1,
   },
   backgroundLogo: {
     position: 'absolute',
@@ -402,7 +511,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.lg,
-    marginTop: theme.spacing.xl,
+    marginTop: theme.spacing.lg,
     marginBottom: theme.spacing.lg,
   },
   statCard: {
@@ -437,6 +546,8 @@ const styles = StyleSheet.create({
   appointmentsCard: {
     marginHorizontal: theme.spacing.lg,
     marginBottom: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.lg,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -526,6 +637,38 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 11,
     marginLeft: theme.spacing.xs,
+  },
+  dateGroupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: theme.spacing.lg,
+    marginBottom: theme.spacing.md,
+    paddingHorizontal: theme.spacing.xs,
+  },
+  dateGroupTitle: {
+    ...theme.typography.h3,
+    color: theme.colors.text,
+    fontSize: 16,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  dateGroupLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: theme.colors.borderLight,
+    marginHorizontal: theme.spacing.md,
+  },
+  dateGroupCount: {
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '600',
+    backgroundColor: theme.colors.primary + '15',
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 20,
+    textAlign: 'center',
   },
   emptyState: {
     alignItems: 'center',
