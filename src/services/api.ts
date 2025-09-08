@@ -122,6 +122,18 @@ class ApiService {
     });
   }
 
+  // Get appointment details by ID
+  async getAppointmentById(appointmentId: string) {
+    const { user } = useAuthStore.getState();
+    console.log('[API] getAppointmentById called with ID:', appointmentId);
+    return this.request(`/appointment/getappointmentbyid/${appointmentId}`, {
+      headers: {
+        'managingorg': user?.organization || 'ORG-000006',
+        'practid': user?.email || '',
+      }
+    });
+  }
+
   // Get patient details by CPF
   async getPatientDetails(cpf: string) {
     const { user } = useAuthStore.getState();
@@ -480,6 +492,32 @@ class ApiService {
   async deleteMessage(messageId: string): Promise<MessagingApiResponse<void>> {
     return this.request(`/api/internal-comm/messages/${messageId}`, {
       method: 'DELETE',
+    });
+  }
+
+  // === PUSH NOTIFICATION ENDPOINTS ===
+
+  // Register push notification token
+  async registerPushToken(tokenData: {
+    token: string;
+    platform: 'ios' | 'android';
+    app: 'practitioner' | 'patient';
+    device_name?: string;
+  }): Promise<MessagingApiResponse<void>> {
+    return this.request('/api/notifications/device', {
+      method: 'POST',
+      body: tokenData,
+    });
+  }
+
+  // Unregister push notification token
+  async unregisterPushToken(tokenData: {
+    token: string;
+    app: 'practitioner' | 'patient';
+  }): Promise<MessagingApiResponse<void>> {
+    return this.request('/api/notifications/device', {
+      method: 'DELETE',
+      body: tokenData,
     });
   }
 

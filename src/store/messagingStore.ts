@@ -357,11 +357,120 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
   },
 
   /**
+   * Select a message (for future use in message actions)
+   */
+  selectMessage: (messageId: string | null) => {
+    console.log('[MessagingStore] Selecting message:', messageId);
+    // For now, just log. Can be extended later for message actions
+  },
+
+  /**
    * Clear error state
    */
   clearError: () => {
     console.log('[MessagingStore] Clearing error');
     set({ error: null });
+  },
+
+  /**
+   * Handle real-time notification updates
+   */
+  handleRealtimeUpdate: (type: string, data: any) => {
+    console.log('[MessagingStore] Handling real-time update:', type, data);
+    
+    switch (type) {
+      case 'new_message':
+        // Add the new message to the appropriate thread
+        set(state => {
+          const threadId = data.thread_id;
+          if (!threadId) return state;
+
+          const updatedMessages = { ...state.messages };
+          const currentMessages = updatedMessages[threadId] || [];
+          
+          // Check if message already exists to avoid duplicates
+          const messageExists = currentMessages.some(m => m.message_id === data.message_id);
+          if (messageExists) return state;
+
+          // Add the new message
+          updatedMessages[threadId] = [
+            ...currentMessages,
+            {
+              message_id: data.message_id,
+              identifier: data.message_id,
+              thread_id: threadId,
+              sender_id: data.sender_id,
+              sender_name: data.sender_name,
+              content: data.content || data.preview,
+              created_at: data.created_at || new Date().toISOString(),
+              read_status: false,
+              message_type: 'text',
+              priority: 'normal',
+            }
+          ];
+
+          // Update thread list to show new message
+          const updatedThreads = state.threads.map(thread => {
+            if (thread.thread_id === threadId) {
+              return {
+                ...thread,
+                last_message_preview: data.preview || data.content,
+                last_sender_name: data.sender_name,
+                last_message_at: data.created_at || new Date().toISOString(),
+                unread_count: thread.unread_count + 1,
+              };
+            }
+            return thread;
+          });
+
+          return {
+            messages: updatedMessages,
+            threads: updatedThreads,
+          };
+        });
+        break;
+
+      case 'message_read':
+        // Update message read status
+        set(state => {
+          const updatedMessages = { ...state.messages };
+          
+          Object.keys(updatedMessages).forEach(threadId => {
+            const threadMessages = updatedMessages[threadId];
+            const messageIndex = threadMessages.findIndex(m => m.message_id === data.message_id);
+            if (messageIndex !== -1) {
+              updatedMessages[threadId] = [
+                ...threadMessages.slice(0, messageIndex),
+                { ...threadMessages[messageIndex], read_status: true },
+                ...threadMessages.slice(messageIndex + 1),
+              ];
+            }
+          });
+
+          return { messages: updatedMessages };
+        });
+        break;
+
+      case 'thread_updated':
+        // Refresh thread data
+        const { loadThreads } = get();
+        loadThreads().catch(console.error);
+        break;
+
+      default:
+        console.log('[MessagingStore] Unknown real-time update type:', type);
+    }
+  },
+
+  /**
+   * Update unread badge count (for external systems)
+   */
+  updateBadgeCount: (count: number) => {
+    console.log('[MessagingStore] Updating badge count:', count);
+    // This can be used by notification service to update app badge
+    set(state => ({
+      stats: state.stats ? { ...state.stats, unread_count: count } : null
+    }));
   },
 }));
 

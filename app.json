@@ -4,7 +4,7 @@
     "slug": "medpro-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/medpro-logo.png",
+    "icon": "./assets/newlogo5.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "plugins": [
@@ -26,6 +26,15 @@
         {
           "iCloudContainerEnvironment": "Production"
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/medpro-logo.png",
+          "color": "#2E86C1",
+          "defaultChannel": "default",
+          "sounds": ["./assets/notification1.wav"]
+        }
       ]
     ],
     "splash": {
@@ -35,9 +44,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.medpro.app",
+      "bundleIdentifier": "com.medproapp.prof.app",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Este aplicativo precisa acessar o microfone para gravar áudios dos encontros médicos."
+        "NSMicrophoneUsageDescription": "Este aplicativo precisa acessar o microfone para gravar áudios dos encontros médicos.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -48,12 +58,21 @@
       "edgeToEdgeEnabled": true,
       "package": "com.medpro.app",
       "permissions": [
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.WAKE_LOCK"
       ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "bc8e5697-2118-45bb-9c81-8f7a7fa10ab3"
+      }
     }
   }
 }

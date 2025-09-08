@@ -94,13 +94,22 @@ class MessagingService {
       const response = await api.getThreadMessages(threadId, params);
       
       if (response.data) {
+        // Map identifier to message_id for compatibility
+        const mappedData = {
+          ...response.data,
+          messages: response.data.messages.map((message: any) => ({
+            ...message,
+            message_id: message.identifier || message.message_id, // Use identifier as message_id
+          }))
+        };
+
         // Update cache only for first page
         if (!params.offset || params.offset === 0) {
-          this.cache.messages[threadId] = response.data.messages;
+          this.cache.messages[threadId] = mappedData.messages;
         }
         
-        console.log('[MessagingService] Loaded messages:', response.data.messages.length);
-        return response.data;
+        console.log('[MessagingService] Loaded messages:', mappedData.messages.length);
+        return mappedData;
       }
       
       throw new Error(response.error || 'Failed to load messages');
@@ -206,6 +215,11 @@ class MessagingService {
    * Mark a message as read
    */
   async markAsRead(messageId: string): Promise<void> {
+    if (!messageId) {
+      console.warn('[MessagingService] Cannot mark message as read: messageId is undefined or empty');
+      return;
+    }
+
     try {
       console.log('[MessagingService] Marking message as read:', messageId);
 

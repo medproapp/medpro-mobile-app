@@ -8,12 +8,16 @@ import {
   RefreshControl,
   TextInput,
   ActivityIndicator,
+  StatusBar,
+  Image,
+  ScrollView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
 import api from '../../services/api';
 import { MessageThreadItem } from './MessageThreadItem';
+import { useAuthStore } from '@store/authStore';
 
 interface MessageThread {
   identifier: string;
@@ -32,19 +36,27 @@ interface MessageThread {
 
 export const MessagesListScreen: React.FC = () => {
   const navigation = useNavigation();
+  const { user } = useAuthStore();
   
   // State
   const [threads, setThreads] = useState<MessageThread[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filter, setFilter] = useState<'all' | 'unread' | 'shared'>('all');
+  const [filter, setFilter] = useState<'all' | 'unread' | 'shared' | 'patients' | 'requests'>('all');
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   const [stats, setStats] = useState<any>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
 
-  // Load threads
-  const loadThreads = async () => {
+  // Load threads with filtering and search
+  const loadThreads = async (filterType: string = 'all', searchTerm: string = '') => {
     try {
-      const response = await api.getMessageThreads({ filter: 'all' });
+      const params: any = { filter: filterType };
+      if (searchTerm) {
+        params.search = searchTerm;
+      }
+      const response = await api.getMessageThreads(params);
       setThreads(response.data || []);
     } catch (error) {
       console.error('Error loading threads:', error);
@@ -65,44 +77,71 @@ export const MessagesListScreen: React.FC = () => {
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
-      await Promise.all([loadThreads(), loadStats()]);
+      await Promise.all([loadThreads(filter, searchQuery), loadStats()]);
       setIsLoading(false);
     };
     loadData();
   }, []);
 
+  // Handle filter changes
+  useEffect(() => {
+    loadThreads(filter, searchQuery);
+  }, [filter]);
+
+  // Handle search with debouncing
+  useEffect(() => {
+    // Clear existing timeout
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+
+    // Set new timeout for search
+    const timeout = setTimeout(() => {
+      loadThreads(filter, searchQuery);
+    }, 300); // 300ms delay
+
+    setSearchTimeout(timeout);
+
+    // Cleanup timeout on unmount or when dependencies change
+    return () => {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    };
+  }, [searchQuery]);
+
   // Refresh handler
   const onRefresh = async () => {
     setIsRefreshing(true);
-    await Promise.all([loadThreads(), loadStats()]);
+    await Promise.all([loadThreads(filter, searchQuery), loadStats()]);
     setIsRefreshing(false);
   };
 
-  // Filter threads
+  // Get filtered threads (now handled server-side, so just return all)
   const getFilteredThreads = () => {
-    let filtered = threads;
+    return threads;
+  };
+
+  // Handle scroll indicators
+  const handleScroll = (event: any) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const isAtLeft = contentOffset.x <= 0;
+    const isAtRight = contentOffset.x >= (contentSize.width - layoutMeasurement.width);
     
-    if (filter === 'unread') {
-      filtered = filtered.filter(t => t.unread_count > 0);
-    } else if (filter === 'shared') {
-      filtered = filtered.filter(t => t.has_shared_records);
-    }
-    
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(t => 
-        t.subject?.toLowerCase().includes(query) ||
-        t.last_message_preview?.toLowerCase().includes(query)
-      );
-    }
-    
-    return filtered;
+    setCanScrollLeft(!isAtLeft);
+    setCanScrollRight(!isAtRight);
   };
 
   // Handle thread press
   const handleThreadPress = (threadId: string) => {
     console.log('Thread pressed:', threadId);
-    // TODO: Navigate to conversation screen
+    const thread = threads.find(t => t.identifier === threadId);
+    if (thread) {
+      navigation.navigate('Conversation', {
+        threadId: thread.identifier,
+        threadSubject: thread.subject
+      });
+    }
   };
 
   // Render thread item
@@ -123,61 +162,121 @@ export const MessagesListScreen: React.FC = () => {
   const filteredThreads = getFilteredThreads();
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Mensagens</Text>
-        <TouchableOpacity 
-          style={styles.newButton}
-          onPress={() => console.log('New message')}
-        >
-          <FontAwesome name="plus" size={16} color={theme.colors.white} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Search */}
-      <View style={styles.searchContainer}>
-        <FontAwesome name="search" size={16} color={theme.colors.textSecondary} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Buscar mensagens..."
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholderTextColor={theme.colors.textSecondary}
-        />
-      </View>
-
-      {/* Filters */}
-      <View style={styles.filters}>
-        {(['all', 'unread', 'shared'] as const).map(f => (
-          <TouchableOpacity
-            key={f}
-            style={[styles.filterButton, filter === f && styles.filterActive]}
-            onPress={() => setFilter(f)}
-          >
-            <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
-              {f === 'all' ? 'Todas' : f === 'unread' ? 'Não lidas' : 'Compartilhadas'}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* List */}
-      <FlatList
-        data={filteredThreads}
-        renderItem={renderThread}
-        keyExtractor={item => item.identifier}
-        refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <FontAwesome name="inbox" size={64} color={theme.colors.textSecondary} />
-            <Text style={styles.emptyText}>Nenhuma mensagem</Text>
+    <>
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
+      <View style={styles.container}>
+        {/* Header with gradient background - same style as main page */}
+        <View style={styles.headerBackground}>
+          {/* Background Logo */}
+          <Image
+            source={require('../../assets/medpro-logo.png')}
+            style={styles.backgroundLogo}
+            resizeMode="contain"
+          />
+          <View style={styles.header}>
+            <View style={styles.headerContent}>
+              <Text style={styles.greeting}>Mensagens</Text>
+              <Text style={styles.userName}>{user?.name || 'Doutor'}</Text>
+              <Text style={styles.dateText}>Central de comunicação interna</Text>
+            </View>
+            <TouchableOpacity 
+              style={styles.newButton}
+              onPress={() => navigation.navigate('NewMessage')}
+            >
+              <FontAwesome name="plus" size={16} color={theme.colors.white} />
+            </TouchableOpacity>
           </View>
-        }
-      />
-    </View>
+        </View>
+
+        {/* Content area */}
+        <View style={styles.contentContainer}>
+          {/* Search */}
+          <View style={styles.searchContainer}>
+            <FontAwesome name="search" size={16} color={theme.colors.textSecondary} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Buscar mensagens..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholderTextColor={theme.colors.textSecondary}
+            />
+          </View>
+
+          {/* Filters */}
+          <View style={styles.filtersContainer}>
+            {/* Left scroll indicator */}
+            {canScrollLeft && (
+              <View style={[styles.scrollIndicator, styles.leftIndicator]}>
+                <FontAwesome name="chevron-left" size={12} color={theme.colors.textSecondary} />
+              </View>
+            )}
+            
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filtersContent}
+              onScroll={handleScroll}
+              scrollEventThrottle={16}
+            >
+              {(['all', 'unread', 'shared', 'patients', 'requests'] as const).map(f => (
+                <TouchableOpacity
+                  key={f}
+                  style={[styles.filterButton, filter === f && styles.filterActive]}
+                  onPress={() => setFilter(f)}
+                >
+                  <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
+                    {f === 'all' ? 'Todas' : 
+                     f === 'unread' ? 'Não lidas' : 
+                     f === 'shared' ? 'Compartilhadas' :
+                     f === 'patients' ? 'Pacientes' : 
+                     'Solicitações'}
+                  </Text>
+                  {/* Show badge for unread count or pending requests */}
+                  {f === 'unread' && stats?.unread_count > 0 && (
+                    <View style={styles.filterBadge}>
+                      <Text style={styles.filterBadgeText}>{stats.unread_count}</Text>
+                    </View>
+                  )}
+                  {f === 'requests' && stats?.pending_patient_requests > 0 && (
+                    <View style={styles.filterBadge}>
+                      <Text style={styles.filterBadgeText}>{stats.pending_patient_requests}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {/* Right scroll indicator */}
+            {canScrollRight && (
+              <View style={[styles.scrollIndicator, styles.rightIndicator]}>
+                <FontAwesome name="chevron-right" size={12} color={theme.colors.textSecondary} />
+              </View>
+            )}
+          </View>
+
+          {/* List */}
+          <FlatList
+            data={filteredThreads}
+            renderItem={renderThread}
+            keyExtractor={item => item.identifier}
+            refreshControl={
+              <RefreshControl 
+                refreshing={isRefreshing} 
+                onRefresh={onRefresh}
+                colors={[theme.colors.primary]}
+                tintColor={theme.colors.primary}
+              />
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <FontAwesome name="inbox" size={64} color={theme.colors.textSecondary} />
+                <Text style={styles.emptyText}>Nenhuma mensagem</Text>
+              </View>
+            }
+          />
+        </View>
+      </View>
+    </>
   );
 };
 
@@ -195,24 +294,70 @@ const styles = StyleSheet.create({
     marginTop: 10,
     color: theme.colors.textSecondary,
   },
+  headerBackground: {
+    backgroundColor: theme.colors.primary,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    paddingTop: StatusBar.currentHeight || 44,
+    paddingBottom: theme.spacing.lg,
+    shadowColor: theme.colors.primary,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    position: 'relative',
+    overflow: 'hidden',
+    zIndex: 1,
+  },
+  backgroundLogo: {
+    position: 'absolute',
+    right: -20,
+    top: '50%',
+    width: 120,
+    height: 120,
+    opacity: 0.1,
+    transform: [{ translateY: -60 }],
+    tintColor: theme.colors.white,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: theme.colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    alignItems: 'flex-start',
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.md,
   },
-  title: {
+  headerContent: {
+    flex: 1,
+  },
+  greeting: {
+    ...theme.typography.body,
+    color: theme.colors.white + 'CC',
+    fontSize: 16,
+  },
+  userName: {
+    ...theme.typography.h1,
+    color: theme.colors.white,
     fontSize: 24,
-    fontWeight: 'bold',
-    color: theme.colors.text,
+    fontWeight: '700',
+    marginTop: theme.spacing.xs,
+  },
+  dateText: {
+    ...theme.typography.caption,
+    color: theme.colors.white + 'AA',
+    fontSize: 14,
+    marginTop: theme.spacing.xs,
   },
   newButton: {
-    backgroundColor: theme.colors.primary,
-    padding: 8,
-    borderRadius: 6,
+    backgroundColor: theme.colors.white + '20',
+    padding: theme.spacing.sm,
+    borderRadius: 8,
+    marginTop: theme.spacing.xs,
+  },
+  contentContainer: {
+    flex: 1,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -228,12 +373,38 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     color: theme.colors.text,
   },
-  filters: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
+  filtersContainer: {
     marginBottom: 8,
+    position: 'relative',
+  },
+  filtersContent: {
+    paddingHorizontal: 16,
+    paddingRight: 32, // Extra padding for last item
+    flexDirection: 'row',
+  },
+  scrollIndicator: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+    backgroundColor: theme.colors.background + 'DD', // Semi-transparent
+  },
+  leftIndicator: {
+    left: 0,
+    borderTopRightRadius: 12,
+    borderBottomRightRadius: 12,
+  },
+  rightIndicator: {
+    right: 0,
+    borderTopLeftRadius: 12,
+    borderBottomLeftRadius: 12,
   },
   filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
     marginRight: 8,
@@ -248,6 +419,20 @@ const styles = StyleSheet.create({
   },
   filterTextActive: {
     color: theme.colors.white,
+  },
+  filterBadge: {
+    backgroundColor: theme.colors.accent,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: theme.spacing.xs,
+  },
+  filterBadgeText: {
+    color: theme.colors.white,
+    fontSize: 12,
+    fontWeight: '600',
   },
   emptyContainer: {
     flex: 1,

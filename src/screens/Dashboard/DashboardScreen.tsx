@@ -371,6 +371,7 @@ export const DashboardScreen: React.FC = () => {
                         index === appointments.length - 1 && styles.lastAppointmentRow
                       ]}
                       activeOpacity={0.7}
+                      onPress={() => navigation.navigate('AppointmentDetails', { appointmentId: appointment.id })}
                     >
                       <View style={styles.appointmentTimeContainer}>
                         <Text style={styles.timeText}>{appointment.time}</Text>

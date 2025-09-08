@@ -35,7 +35,8 @@ export interface MessageThread {
 }
 
 export interface Message {
-  message_id: string;
+  message_id: string; // Keep this for compatibility but map from identifier
+  identifier: string; // The actual field from the API
   thread_id: string;
   sender_id: string;
   sender_name: string;
@@ -130,14 +131,17 @@ export interface MessagingState {
   loadMessages: (threadId: string, params?: PaginationParams) => Promise<void>;
   loadContacts: (params?: ContactsFilter & PaginationParams) => Promise<void>;
   loadStats: () => Promise<void>;
-  sendMessage: (data: NewMessageData) => Promise<void>;
+  sendMessage: (data: NewMessageData) => Promise<{ message_id: string; thread_id: string }>;
   markAsRead: (messageId: string) => Promise<void>;
   selectThread: (thread: MessageThread | null) => void;
+  selectMessage: (messageId: string | null) => void;
   addSelectedContact: (contact: Contact) => void;
   removeSelectedContact: (contactId: string) => void;
   clearSelectedContacts: () => void;
   refresh: () => Promise<void>;
   clearError: () => void;
+  handleRealtimeUpdate: (type: string, data: any) => void;
+  updateBadgeCount: (count: number) => void;
 }
 
 // Component Props

@@ -14,15 +14,17 @@ import { AppointmentStep4Screen } from '@screens/Appointments/AppointmentStep4Sc
 import { AppointmentStep5Screen } from '@screens/Appointments/AppointmentStep5Screen';
 import { AppointmentStep6Screen } from '@screens/Appointments/AppointmentStep6Screen';
 import { AppointmentReviewScreen } from '@screens/Appointments/AppointmentReviewScreen';
+import { AppointmentDetailsScreen } from '@screens/Appointments/AppointmentDetailsScreen';
 import { PatientsScreen } from '@screens/Patients';
 import { PatientDashboardScreen } from '@screens/Patients/PatientDashboardScreen';
 import { PatientHistoryScreen } from '@screens/Patients/PatientHistoryScreen';
 import { EncounterDetailsScreen } from '@screens/Patients/EncounterDetailsScreen';
 import { MoreScreen } from '@screens/More';
-import { MessagesListScreen } from '@screens/Messages';
+import { MessagesListScreen, ConversationScreen, NewMessageScreen } from '@screens/Messages';
 import { AssistantScreen } from '@screens/Assistant';
 import { MainTabParamList, DashboardStackParamList, PatientsStackParamList, MessagesStackParamList } from '../types/navigation';
 import { theme } from '@theme/index';
+import { useNotifications } from '../hooks/useNotifications';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const DashboardStack = createStackNavigator<DashboardStackParamList>();
@@ -121,6 +123,8 @@ const MessagesStackNavigator: React.FC = () => {
       }}
     >
       <MessagesStack.Screen name="MessagesList" component={MessagesListScreen} />
+      <MessagesStack.Screen name="Conversation" component={ConversationScreen} />
+      <MessagesStack.Screen name="NewMessage" component={NewMessageScreen} />
     </MessagesStack.Navigator>
   );
 };
@@ -135,6 +139,7 @@ const DashboardStackNavigator: React.FC = () => {
       }}
     >
       <DashboardStack.Screen name="DashboardHome" component={DashboardScreen} />
+      <DashboardStack.Screen name="AppointmentDetails" component={AppointmentDetailsScreen} />
       <DashboardStack.Screen name="EncounterList" component={EncounterListScreen} />
       <DashboardStack.Screen name="EncounterView" component={EncounterViewScreen} />
       <DashboardStack.Screen name="AppointmentStep1" component={AppointmentStep1Screen} />
@@ -165,6 +170,9 @@ const PatientsStackNavigator: React.FC = () => {
 };
 
 export const MainNavigator: React.FC = () => {
+  // Initialize notifications system
+  useNotifications();
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -220,7 +228,7 @@ export const MainNavigator: React.FC = () => {
         name="Dashboard"
         component={DashboardStackNavigator}
         options={{
-          title: 'Dashboard',
+          title: 'Painél',
           tabBarIcon: ({ focused, color }) => (
             <TabIcon 
               name="bar-chart" 
