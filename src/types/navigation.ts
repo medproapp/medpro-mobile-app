@@ -27,6 +27,13 @@ export type DashboardStackParamList = {
     patientName: string;
     patientCpf: string;
   };
+  // Appointment Creation Flow
+  AppointmentStep1: undefined;
+  AppointmentStep2: undefined;
+  AppointmentStep3: undefined;
+  AppointmentStep4: undefined;
+  AppointmentStep5: undefined;
+  AppointmentStep6: undefined;
 };
 
 // Patients Stack

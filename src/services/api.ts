@@ -11,7 +11,7 @@ import {
   ContactsFilter 
 } from '../types/messaging';
 
-const API_BASE_URL = 'http://192.168.2.30:3333';
+const API_BASE_URL = 'http://192.168.2.30:3000';
 
 interface ApiConfig {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -162,6 +162,33 @@ class ApiService {
     });
   }
 
+  // Search patients for appointment booking - using the same endpoint as web frontend
+  async searchPatients(searchTerm: string, searchType: 'name' | 'cpf' | 'phone', page: number = 1, limit: number = 10) {
+    const { user } = useAuthStore.getState();
+    console.log('[API] searchPatients called with term:', searchTerm, 'type:', searchType);
+    
+    try {
+      // Use the same endpoint as web frontend: /patient/getpatientbyname/${practId}
+      const params = new URLSearchParams({
+        name: searchTerm.trim(), // The backend uses 'name' parameter for search
+        page: page.toString(),
+        limit: limit.toString(),
+      });
+
+      const result = await this.request(`/patient/getpatientbyname/${user?.email}?${params}`, {
+        headers: {
+          'managingorg': user?.organization || 'ORG-000006',
+          'practid': user?.email || '',
+        }
+      });
+      console.log('[API] searchPatients success:', result);
+      return result;
+    } catch (error) {
+      console.error('[API] searchPatients error:', error);
+      throw error;
+    }
+  }
+
   // Get patient appointments
   async getPatientAppointments(patientCpf: string) {
     const { user } = useAuthStore.getState();
@@ -182,15 +209,72 @@ class ApiService {
     }
   }
 
-  // Get patient photo
+  // Get patient photo (returns blob data, not JSON)
   async getPatientPhoto(patientCpf: string) {
     const { user } = useAuthStore.getState();
-    return this.request(`/patient/getpatientphoto?patientCpf=${patientCpf}`, {
-      headers: {
-        'managingorg': user?.organization || 'ORG-000006',
-        'practid': user?.email || '',
+    const { token } = useAuthStore.getState();
+    
+    console.log('[API] getPatientPhoto called for CPF:', patientCpf);
+    
+    const url = `${API_BASE_URL}/patient/getpatientphoto?patientCpf=${patientCpf}`;
+    const headers = {
+      'Content-Type': 'application/json',
+      'managingorg': user?.organization || 'ORG-000006',
+      'practid': user?.email || '',
+      ...(token && { Authorization: `Bearer ${token}` }),
+    };
+
+    console.log('[API] Fetching patient photo from:', url);
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+      });
+
+      console.log('[API] Patient photo response status:', response.status);
+      console.log('[API] Patient photo response headers:', Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        throw new Error(`Photo API Error: ${response.status} ${response.statusText}`);
       }
-    });
+
+      // Check if response has content
+      const contentLength = response.headers.get('content-length');
+      console.log('[API] Photo content length:', contentLength);
+      
+      if (contentLength === '0' || contentLength === null) {
+        console.log('[API] No photo data available (empty response)');
+        return null;
+      }
+
+      // Get the response as blob for image data
+      const blob = await response.blob();
+      console.log('[API] Photo blob received, size:', blob.size, 'type:', blob.type);
+
+      if (blob.size === 0) {
+        console.log('[API] No photo data available (empty blob)');
+        return null;
+      }
+
+      // Convert blob to base64 for React Native
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64data = reader.result;
+          console.log('[API] Photo converted to base64, length:', base64data?.toString().length);
+          resolve(base64data);
+        };
+        reader.onerror = (error) => {
+          console.error('[API] Error converting photo to base64:', error);
+          reject(error);
+        };
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error('[API] Error fetching patient photo:', error);
+      throw error;
+    }
   }
 
   // Get encounters with in-progress or on-hold status for practitioner
@@ -671,6 +755,203 @@ class ApiService {
       
       xhr.send(formData);
     });
+  }
+
+  // Get offerings (services/procedures) for appointment creation
+  async getOfferings(offeringType: string = 'SERVICE', isActive: boolean = true) {
+    const { user } = useAuthStore.getState();
+    const params = new URLSearchParams({
+      offering_type: offeringType,
+      is_active: isActive.toString(),
+    });
+
+    console.log('[API] getOfferings called with:', { offeringType, isActive });
+    
+    try {
+      const result = await this.request(`/offerings?${params}`, {
+        headers: {
+          'managingorg': user?.organization || 'ORG-000006',
+          'practid': user?.email || '',
+        }
+      });
+      console.log('[API] getOfferings success:', result);
+      // The offerings endpoint returns the array directly, unlike other endpoints
+      return Array.isArray(result) ? result : [];
+    } catch (error) {
+      console.error('[API] getOfferings error:', error);
+      throw error;
+    }
+  }
+
+  // Get patient care plans for appointment creation
+  async getPatientCarePlans(patientCpf: string, practitionerId: string) {
+    const { user } = useAuthStore.getState();
+
+    console.log('[API] getPatientCarePlans called with:', { patientCpf, practitionerId });
+    
+    try {
+      const result = await this.request(`/careplan/patient/${encodeURIComponent(patientCpf)}/careplans?practitionerId=${encodeURIComponent(practitionerId)}`, {
+        headers: {
+          'managingorg': user?.organization || 'ORG-000006',
+          'practid': user?.email || '',
+        }
+      });
+      console.log('[API] getPatientCarePlans success:', result);
+      return result;
+    } catch (error) {
+      console.error('[API] getPatientCarePlans error:', error);
+      throw error;
+    }
+  }
+
+  // Get practitioner locations for appointment creation
+  async getPractitionerLocations(practitionerEmail: string) {
+    const { user } = useAuthStore.getState();
+
+    console.log('[API] getPractitionerLocations called with:', { practitionerEmail });
+    
+    try {
+      const result = await this.request(`/location/getpractlocationsbyemail/${encodeURIComponent(practitionerEmail)}/?status=active`, {
+        headers: {
+          'managingorg': user?.organization || 'ORG-000006',
+          'practid': user?.email || '',
+        }
+      });
+      console.log('[API] getPractitionerLocations success:', result);
+      return result;
+    } catch (error) {
+      console.error('[API] getPractitionerLocations error:', error);
+      throw error;
+    }
+  }
+
+  // Get available dates for appointment scheduling
+  async getAvailableDates(practitionerId: string, locationId: string, year: number, month: number, duration: number = 60) {
+    const { user } = useAuthStore.getState();
+    const params = new URLSearchParams({
+      practitionerId,
+      locationId,
+      year: year.toString(),
+      month: month.toString(),
+      duration: duration.toString(),
+    });
+
+    console.log('[API] getAvailableDates called with:', { practitionerId, locationId, year, month, duration });
+    
+    try {
+      const result = await this.request(`/appointment/available-dates?${params}`, {
+        headers: {
+          'managingorg': user?.organization || 'ORG-000006',
+          'practid': user?.email || '',
+        }
+      });
+      console.log('[API] getAvailableDates success:', result);
+      return result;
+    } catch (error) {
+      console.error('[API] getAvailableDates error:', error);
+      throw error;
+    }
+  }
+
+  // Get available times for a specific date
+  async getAvailableTimes(practitionerId: string, locationId: string, date: string, duration: number = 60) {
+    const { user } = useAuthStore.getState();
+    const params = new URLSearchParams({
+      practitionerId,
+      locationId,
+      date,
+      duration: duration.toString(),
+    });
+
+    console.log('[API] getAvailableTimes called with:', { practitionerId, locationId, date, duration });
+    
+    try {
+      const result = await this.request(`/appointment/available-times?${params}`, {
+        headers: {
+          'managingorg': user?.organization || 'ORG-000006',
+          'practid': user?.email || '',
+        }
+      });
+      console.log('[API] getAvailableTimes success:', result);
+      return result;
+    } catch (error) {
+      console.error('[API] getAvailableTimes error:', error);
+      throw error;
+    }
+  }
+
+  // Get next five available slots
+  async getNextFiveSlots(practitionerId: string, locationId: string, duration: number = 60) {
+    const { user } = useAuthStore.getState();
+    const params = new URLSearchParams({
+      practitionerId,
+      locationId,
+      duration: duration.toString(),
+    });
+
+    console.log('[API] getNextFiveSlots called with:', { practitionerId, locationId, duration });
+    
+    try {
+      const result = await this.request(`/appointment/next-five-slots?${params}`, {
+        headers: {
+          'managingorg': user?.organization || 'ORG-000006',
+          'practid': user?.email || '',
+        }
+      });
+      console.log('[API] getNextFiveSlots success:', result);
+      return result;
+    } catch (error) {
+      console.error('[API] getNextFiveSlots error:', error);
+      throw error;
+    }
+  }
+
+  // Get practitioner appointments to check for conflicts
+  async getPractitionerAppointments(practId: string, options: { page?: number; limit?: number; future?: string } = {}) {
+    const { user } = useAuthStore.getState();
+    const params = new URLSearchParams({
+      page: (options.page || 1).toString(),
+      limit: (options.limit || 100).toString(), // Get more appointments to check conflicts
+      ...(options.future && { future: options.future })
+    });
+
+    console.log('[API] getPractitionerAppointments called with:', { practId, options });
+    
+    try {
+      const result = await this.request(`/appointment/getappointments/${practId}?${params}`, {
+        headers: {
+          'managingorg': user?.organization || 'ORG-000006',
+          'practid': user?.email || '',
+        }
+      });
+      console.log('[API] getPractitionerAppointments success:', result);
+      return result;
+    } catch (error) {
+      console.error('[API] getPractitionerAppointments error:', error);
+      throw error;
+    }
+  }
+
+  // Create appointment
+  async createAppointment(appointmentData: any) {
+    const { user } = useAuthStore.getState();
+    console.log('[API] createAppointment called with:', appointmentData);
+    
+    try {
+      const result = await this.request('/appointment/create', {
+        method: 'POST',
+        headers: {
+          'managingorg': user?.organization || 'ORG-000006',
+          'practid': user?.email || '',
+        },
+        body: JSON.stringify(appointmentData)
+      });
+      console.log('[API] createAppointment success:', result);
+      return result;
+    } catch (error) {
+      console.error('[API] createAppointment error:', error);
+      throw error;
+    }
   }
 }
 

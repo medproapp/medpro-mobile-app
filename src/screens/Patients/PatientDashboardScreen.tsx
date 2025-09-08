@@ -9,6 +9,8 @@ import {
   Image,
   ActivityIndicator,
   Alert,
+  StatusBar,
+  Dimensions,
 } from 'react-native';
 import { RouteProp, useRoute, useNavigation, NavigationProp } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
@@ -77,11 +79,22 @@ export const PatientDashboardScreen: React.FC = () => {
   const loadPatientData = async () => {
     try {
       console.log('[PatientDashboard] Loading patient data for CPF:', patientCpf);
-      const response = await api.getPatientDetails(patientCpf);
+      
+      // Load patient details and photo in parallel
+      const [response, photoResponse] = await Promise.all([
+        api.getPatientDetails(patientCpf),
+        api.getPatientPhoto(patientCpf).catch(error => {
+          console.log('[PatientDashboard] Photo not available:', error.message);
+          return null; // Don't fail if photo is not available
+        })
+      ]);
+      
       console.log('[PatientDashboard] Patient data received:', JSON.stringify(response, null, 2));
+      console.log('[PatientDashboard] Patient photo response:', photoResponse ? 'Photo data received' : 'No photo');
       
       // Extract patient data from API response structure
       const rawData = response.data || response;
+      console.log('[PatientDashboard] Raw data keys:', Object.keys(rawData));
       
       // Map API fields to component expected fields
       const patientData = {
@@ -90,9 +103,16 @@ export const PatientDashboardScreen: React.FC = () => {
         conditions: rawData.conditions || [], // Default empty array
         allergies: rawData.allergies || [], // Default empty array
         medications: rawData.medications || [], // Default empty array
+        photo: photoResponse, // Photo is now a data URI string or null
+        // Just use the address as it comes from API
+        address: rawData.address ? {
+          fullAddress: rawData.address,
+          city: rawData.city,
+          state: rawData.state,
+        } : null,
       };
       
-      console.log('[PatientDashboard] Processed patient data:', patientData);
+      console.log('[PatientDashboard] Address data:', patientData.address);
       setPatient(patientData);
     } catch (error) {
       console.error('[PatientDashboard] Error loading patient:', error);
@@ -173,24 +193,26 @@ export const PatientDashboardScreen: React.FC = () => {
 
   const getPatientPhotoUri = (photo: any): string | null => {
     try {
-      if (!photo) return null;
-      
-      // If photo is a buffer with data array
-      if (photo.data && Array.isArray(photo.data)) {
-        const uint8Array = new Uint8Array(photo.data);
-        let binaryString = '';
-        for (let i = 0; i < uint8Array.length; i++) {
-          binaryString += String.fromCharCode(uint8Array[i]);
-        }
-        const base64String = btoa(binaryString);
-        return `data:image/png;base64,${base64String}`;
+      if (!photo) {
+        console.log('[PatientDashboard] No photo data provided');
+        return null;
       }
       
-      // If photo is already a string
-      if (typeof photo === 'string') {
-        return photo.startsWith('data:') ? photo : `data:image/png;base64,${photo}`;
+      console.log('[PatientDashboard] Processing photo data:', typeof photo);
+      
+      // If photo is already a data URI string (from the updated API)
+      if (typeof photo === 'string' && photo.startsWith('data:')) {
+        console.log('[PatientDashboard] Photo is data URI, length:', photo.length);
+        return photo;
       }
       
+      // If photo is a base64 string without data URI prefix
+      if (typeof photo === 'string' && photo.length > 100) {
+        console.log('[PatientDashboard] Photo appears to be base64 string, adding data URI prefix');
+        return `data:image/png;base64,${photo}`;
+      }
+      
+      console.log('[PatientDashboard] Photo data format not recognized:', typeof photo, photo);
       return null;
     } catch (error) {
       console.error('[PatientDashboard] Error processing patient photo:', error);
@@ -222,74 +244,64 @@ export const PatientDashboardScreen: React.FC = () => {
   const nextAppointment = appointments.find(apt => new Date(apt.start) > new Date());
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      {/* Header Section */}
-      <View style={styles.header}>
-        {/* Top Row: Back button and Action buttons */}
-        <View style={styles.headerTopRow}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <FontAwesome name="arrow-left" size={20} color={theme.colors.primary} />
-          </TouchableOpacity>
-          
-          <View style={styles.actionButtons}>
-            <TouchableOpacity style={styles.actionButton}>
-              <FontAwesome name="phone" size={16} color={theme.colors.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton}>
-              <FontAwesome name="envelope" size={16} color={theme.colors.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton}>
-              <FontAwesome name="edit" size={16} color={theme.colors.primary} />
+    <>
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
+      <View style={styles.container}>
+        {/* Header with gradient background */}
+        <View style={styles.headerBackground}>
+          {/* Background Logo */}
+          <Image
+            source={require('../../assets/medpro-logo.png')}
+            style={styles.backgroundLogo}
+            resizeMode="contain"
+          />
+          <View style={styles.header}>
+            <View style={styles.headerLeft}>
+              <View style={styles.avatarContainer}>
+                {(() => {
+                  const photoUri = getPatientPhotoUri(patient.photo);
+                  return photoUri ? (
+                    <Image 
+                      source={{ uri: photoUri }} 
+                      style={styles.headerAvatar}
+                      onError={(error) => {
+                        console.error('[PatientDashboard] Failed to load patient photo:', error);
+                      }}
+                    />
+                  ) : (
+                    <View style={[styles.headerAvatar, styles.avatarPlaceholder]}>
+                      <FontAwesome 
+                        name={patient.gender === 'female' ? 'female' : 'male'} 
+                        size={24} 
+                        color={theme.colors.white} 
+                      />
+                    </View>
+                  );
+                })()}
+              </View>
+              <View style={styles.headerContent}>
+                <Text style={styles.greeting}>Paciente</Text>
+                <Text style={styles.userName}>{patient?.name || 'Carregando...'}</Text>
+                <Text style={styles.dateText}>
+                  {calculateAge(patient.birthDate)} anos • {patient.gender === 'female' ? 'Feminino' : 'Masculino'}
+                </Text>
+                <Text style={styles.dateText}>
+                  CPF: {patient?.cpf ? patient.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : ''}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+              <FontAwesome name="arrow-left" size={20} color={theme.colors.white} />
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Main Patient Info Row */}
-        <View style={styles.patientInfo}>
-          <View style={styles.avatarContainer}>
-            {(() => {
-              const photoUri = getPatientPhotoUri(patient.photo);
-              console.log('[PatientDashboard] Photo URI:', photoUri ? 'Generated successfully' : 'No photo available');
-              
-              return photoUri ? (
-                <Image 
-                  source={{ uri: photoUri }} 
-                  style={styles.avatar}
-                  onError={(error) => console.log('[PatientDashboard] Failed to load patient photo:', error)}
-                  onLoad={() => console.log('[PatientDashboard] Patient photo loaded successfully')}
-                />
-              ) : (
-                <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                  <FontAwesome 
-                    name={patient.gender === 'female' ? 'female' : 'male'} 
-                    size={36} 
-                    color={theme.colors.textSecondary} 
-                  />
-                </View>
-              );
-            })()}
-          </View>
-          
-          <View style={styles.patientDetails}>
-            <Text style={styles.patientName} numberOfLines={2} adjustsFontSizeToFit>
-              {patient.name}
-            </Text>
-            <Text style={styles.patientSubtitle}>
-              {calculateAge(patient.birthDate)} anos • {patient.gender === 'female' ? 'Feminino' : 'Masculino'}
-            </Text>
-            <Text style={styles.patientCpf}>CPF: {patient.cpf}</Text>
-          </View>
-        </View>
-      </View>
-
+        <ScrollView
+          style={styles.scrollContainer}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        >
       {/* Overview Cards */}
       <View style={styles.overviewCards}>
         {/* Full width card for next appointment */}
@@ -481,34 +493,24 @@ export const PatientDashboardScreen: React.FC = () => {
           <View>
             <View style={styles.infoSection}>
               <Text style={styles.sectionTitle}>Endereço</Text>
-              {patient.address ? (
+              {patient.address?.fullAddress ? (
                 <>
                   <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Rua:</Text>
-                    <Text style={styles.infoValue}>
-                      {patient.address.street}, {patient.address.number}
-                    </Text>
+                    <Text style={styles.infoLabel}>Endereço:</Text>
+                    <Text style={styles.infoValue}>{patient.address.fullAddress}</Text>
                   </View>
-                  {patient.address.complement && (
+                  {patient.address.city && (
                     <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>Complemento:</Text>
-                      <Text style={styles.infoValue}>{patient.address.complement}</Text>
+                      <Text style={styles.infoLabel}>Cidade:</Text>
+                      <Text style={styles.infoValue}>{patient.address.city}</Text>
                     </View>
                   )}
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Bairro:</Text>
-                    <Text style={styles.infoValue}>{patient.address.neighborhood}</Text>
-                  </View>
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Cidade:</Text>
-                    <Text style={styles.infoValue}>
-                      {patient.address.city}, {patient.address.state}
-                    </Text>
-                  </View>
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>CEP:</Text>
-                    <Text style={styles.infoValue}>{patient.address.zipCode}</Text>
-                  </View>
+                  {patient.address.state && (
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Estado:</Text>
+                      <Text style={styles.infoValue}>{patient.address.state}</Text>
+                    </View>
+                  )}
                 </>
               ) : (
                 <Text style={styles.emptyMessage}>Endereço não cadastrado</Text>
@@ -561,7 +563,9 @@ export const PatientDashboardScreen: React.FC = () => {
           </View>
         )}
       </View>
-    </ScrollView>
+        </ScrollView>
+      </View>
+    </>
   );
 };
 
@@ -569,6 +573,61 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
+  },
+  headerBackground: {
+    backgroundColor: theme.colors.primary,
+    paddingTop: 40,
+    paddingBottom: 20,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  backgroundLogo: {
+    position: 'absolute',
+    top: 20,
+    right: -50,
+    width: 200,
+    height: 200,
+    opacity: 0.1,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  headerContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  headerAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+  },
+  greeting: {
+    fontSize: 14,
+    color: theme.colors.white,
+    opacity: 0.9,
+    marginBottom: 4,
+  },
+  userName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: theme.colors.white,
+    marginBottom: 4,
+  },
+  dateText: {
+    fontSize: 14,
+    color: theme.colors.white,
+    opacity: 0.8,
+  },
+  scrollContainer: {
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,
@@ -605,72 +664,15 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontWeight: '600',
   },
-  header: {
-    backgroundColor: theme.colors.surface,
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  headerTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
   backButton: {
     padding: 8,
-  },
-  patientInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  avatarContainer: {
-    marginRight: 20,
-  },
-  avatar: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   avatarPlaceholder: {
-    backgroundColor: theme.colors.backgroundSecondary,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  patientDetails: {
-    flex: 1,
-    paddingRight: 16,
-  },
-  patientName: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: theme.colors.text,
-    marginBottom: 6,
-    lineHeight: 26,
-  },
-  patientSubtitle: {
-    fontSize: 15,
-    color: theme.colors.textSecondary,
-    marginBottom: 4,
-  },
-  patientCpf: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-    fontFamily: 'monospace',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  actionButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: theme.colors.backgroundSecondary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: theme.colors.borderLight,
   },
   overviewCards: {
     flexDirection: 'column',

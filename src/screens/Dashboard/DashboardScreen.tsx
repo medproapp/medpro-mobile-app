@@ -312,6 +312,15 @@ export const DashboardScreen: React.FC = () => {
           )}
         </Card>
       </ScrollView>
+      
+      {/* Floating Action Button */}
+      <TouchableOpacity 
+        style={styles.fab}
+        onPress={() => navigation.navigate('AppointmentStep1')}
+        activeOpacity={0.8}
+      >
+        <MaterialIcons name="add" size={28} color={theme.colors.white} />
+      </TouchableOpacity>
     </>
   );
 };
@@ -558,5 +567,25 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
     fontWeight: '600',
     marginLeft: theme.spacing.sm,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: theme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    zIndex: 999,
   },
 });

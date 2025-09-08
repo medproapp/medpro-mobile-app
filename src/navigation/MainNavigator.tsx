@@ -7,6 +7,11 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { DashboardScreen } from '@screens/Dashboard';
 import { EncounterListScreen } from '@screens/Encounters';
 import { EncounterViewScreen } from '@screens/Encounters/EncounterViewScreen';
+import { AppointmentStep1Screen } from '@screens/Appointments/AppointmentStep1Screen';
+import { AppointmentStep2Screen } from '@screens/Appointments/AppointmentStep2Screen';
+import { AppointmentStep3Screen } from '@screens/Appointments/AppointmentStep3Screen';
+import { AppointmentStep4Screen } from '@screens/Appointments/AppointmentStep4Screen';
+import { AppointmentStep5Screen } from '@screens/Appointments/AppointmentStep5Screen';
 import { PatientsScreen } from '@screens/Patients';
 import { PatientDashboardScreen } from '@screens/Patients/PatientDashboardScreen';
 import { PatientHistoryScreen } from '@screens/Patients/PatientHistoryScreen';
@@ -130,6 +135,11 @@ const DashboardStackNavigator: React.FC = () => {
       <DashboardStack.Screen name="DashboardHome" component={DashboardScreen} />
       <DashboardStack.Screen name="EncounterList" component={EncounterListScreen} />
       <DashboardStack.Screen name="EncounterView" component={EncounterViewScreen} />
+      <DashboardStack.Screen name="AppointmentStep1" component={AppointmentStep1Screen} />
+      <DashboardStack.Screen name="AppointmentStep2" component={AppointmentStep2Screen} />
+      <DashboardStack.Screen name="AppointmentStep3" component={AppointmentStep3Screen} />
+      <DashboardStack.Screen name="AppointmentStep4" component={AppointmentStep4Screen} />
+      <DashboardStack.Screen name="AppointmentStep5" component={AppointmentStep5Screen} />
     </DashboardStack.Navigator>
   );
 };

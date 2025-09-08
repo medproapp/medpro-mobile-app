@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  StatusBar,
 } from 'react-native';
 import { RouteProp, useRoute, useNavigation, NavigationProp } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
@@ -340,20 +341,30 @@ export const PatientHistoryScreen: React.FC = () => {
   }
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <FontAwesome name="arrow-left" size={20} color={theme.colors.primary} />
-        </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Histórico Médico</Text>
-          <Text style={styles.headerSubtitle}>{patientName}</Text>
+    <>
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
+      <View style={styles.container}>
+        {/* Header with gradient background */}
+        <View style={styles.headerBackground}>
+          {/* Background Logo */}
+          <Image
+            source={require('../../assets/medpro-logo.png')}
+            style={styles.backgroundLogo}
+            resizeMode="contain"
+          />
+          <View style={styles.header}>
+            <View style={styles.headerContent}>
+              <Text style={styles.greeting}>Histórico Médico</Text>
+              <Text style={styles.userName}>{patientName}</Text>
+              <Text style={styles.dateText}>
+                {encounters.length} encontro{encounters.length !== 1 ? 's' : ''} registrado{encounters.length !== 1 ? 's' : ''}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+              <FontAwesome name="arrow-left" size={20} color={theme.colors.white} />
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
 
       {/* Timeline */}
       <ScrollView
@@ -381,7 +392,8 @@ export const PatientHistoryScreen: React.FC = () => {
           </View>
         )}
       </ScrollView>
-    </View>
+      </View>
+    </>
   );
 };
 
@@ -389,6 +401,21 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
+  },
+  headerBackground: {
+    backgroundColor: theme.colors.primary,
+    paddingTop: 40,
+    paddingBottom: 20,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  backgroundLogo: {
+    position: 'absolute',
+    top: 20,
+    right: -50,
+    width: 200,
+    height: 200,
+    opacity: 0.1,
   },
   loadingContainer: {
     flex: 1,
@@ -411,28 +438,34 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  backButton: {
-    padding: 8,
-    marginRight: 16,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: 20,
   },
   headerContent: {
     flex: 1,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: theme.colors.text,
-  },
-  headerSubtitle: {
+  greeting: {
     fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginTop: 2,
+    color: theme.colors.white,
+    opacity: 0.9,
+    marginBottom: 4,
+  },
+  userName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: theme.colors.white,
+    marginBottom: 4,
+  },
+  dateText: {
+    fontSize: 14,
+    color: theme.colors.white,
+    opacity: 0.8,
+  },
+  backButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   timeline: {
     flex: 1,
