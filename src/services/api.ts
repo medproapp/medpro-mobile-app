@@ -1062,6 +1062,26 @@ class ApiService {
       throw error;
     }
   }
+
+  // === COMMUNICATION USAGE (UC) ===
+  async getCommUsageLedger(params: { thread_id: string; from?: string; to?: string; limit?: number; offset?: number }) {
+    const query = new URLSearchParams();
+    query.set('thread_id', params.thread_id);
+    if (params.from) query.set('from', params.from);
+    if (params.to) query.set('to', params.to);
+    if (params.limit !== undefined) query.set('limit', String(params.limit));
+    if (params.offset !== undefined) query.set('offset', String(params.offset));
+    return this.request(`/api/comm-usage/ledger?${query.toString()}`);
+  }
+
+  async getCommUsageSummary(params: { practitioner: string; patient: string; from?: string; to?: string }) {
+    const query = new URLSearchParams();
+    query.set('practitioner', params.practitioner);
+    query.set('patient', params.patient);
+    if (params.from) query.set('from', params.from);
+    if (params.to) query.set('to', params.to);
+    return this.request(`/api/comm-usage/summary?${query.toString()}`);
+  }
 }
 
 export const api = new ApiService();

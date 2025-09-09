@@ -27,9 +27,10 @@ interface MessageBubbleProps {
   message: Message;
   isOwnMessage: boolean;
   onMarkAsRead: () => void;
+  ucUnits?: number;
 }
 
-const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, onMarkAsRead }) => {
+const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, onMarkAsRead, ucUnits }) => {
   useEffect(() => {
     // Only mark as read if message has a valid ID and user is not the sender
     if (!isOwnMessage && !message.read_status && message.message_id) {
@@ -80,6 +81,11 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, on
           />
         )}
       </View>
+      {isOwnMessage && typeof ucUnits === 'number' && ucUnits > 0 && (
+        <View style={styles.ucChip}>
+          <Text style={styles.ucChipText}>+{ucUnits} UC</Text>
+        </View>
+      )}
       {!message.read_status && !isOwnMessage && (
         <View style={styles.unreadIndicator} />
       )}
@@ -109,6 +115,9 @@ export const ConversationScreen: React.FC = () => {
   const [messageText, setMessageText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [ucByMessage, setUcByMessage] = useState<Record<string, number>>({});
+  const [ucTotal, setUcTotal] = useState<number>(0);
+  const [ucLoaded, setUcLoaded] = useState<boolean>(false);
   
   const flatListRef = useRef<FlatList>(null);
   
@@ -152,11 +161,44 @@ export const ConversationScreen: React.FC = () => {
       updated_at: '',
     };
     selectThread(thread);
-    
+
     return () => {
       selectThread(null);
     };
   }, [threadId, threadSubject]);
+
+  // Load UC ledger for this thread (current month), best-effort
+  useEffect(() => {
+    const loadUc = async () => {
+      try {
+        setUcLoaded(false);
+        const now = new Date();
+        const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0)).toISOString();
+        const to = new Date().toISOString();
+        const result: any = await (await import('@services/api')).default.getCommUsageLedger({ thread_id: threadId, from, to, limit: 500 });
+        const entries: any[] = (result && result.data) || result || [];
+        const map: Record<string, number> = {};
+        let total = 0;
+        if (Array.isArray(entries)) {
+          for (const row of entries) {
+            const mid = row.message_id || row.messageId;
+            const units = Number(row.units || 0);
+            if (mid && units > 0) {
+              map[mid] = units;
+              total += units;
+            }
+          }
+        }
+        setUcByMessage(map);
+        setUcTotal(total);
+      } catch (e) {
+        // Likely UC disabled or endpoint not mounted; ignore silently
+      } finally {
+        setUcLoaded(true);
+      }
+    };
+    loadUc();
+  }, [threadId]);
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -228,6 +270,7 @@ export const ConversationScreen: React.FC = () => {
         message={item} 
         isOwnMessage={isOwnMessage}
         onMarkAsRead={() => handleMarkAsRead(item.message_id)}
+        ucUnits={ucByMessage[item.message_id]}
       />
     );
   };
@@ -262,7 +305,7 @@ export const ConversationScreen: React.FC = () => {
               {threadSubject}
             </Text>
             <Text style={styles.headerSubtitle}>
-              {threadMessages.length} mensagens
+              {threadMessages.length} mensagens{ucLoaded && ucTotal > 0 ? ` • UC mês: ${ucTotal}` : ''}
             </Text>
           </View>
         </View>
@@ -425,6 +468,19 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     marginTop: theme.spacing.xs,
     gap: 4,
+  },
+  ucChip: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#E53935',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginTop: 4,
+  },
+  ucChipText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
   },
   messageTime: {
     ...theme.typography.caption,

@@ -45,11 +45,11 @@ class MessagingService {
    */
   async loadThreads(params: ThreadsFilter & PaginationParams = {}, forceRefresh = false): Promise<MessageThread[]> {
     try {
-      console.log('[MessagingService] Loading threads with params:', params);
+      //console.log('[MessagingService] Loading threads with params:', params);
       
       // Use cache if available and not forcing refresh
       if (!forceRefresh && !this.shouldRefreshCache() && this.cache.threads.length > 0 && !params.filter && !params.search) {
-        console.log('[MessagingService] Using cached threads');
+        //console.log('[MessagingService] Using cached threads');
         return this.cache.threads;
       }
 
@@ -62,7 +62,7 @@ class MessagingService {
           this.updateCacheTimestamp();
         }
         
-        console.log('[MessagingService] Loaded threads:', response.data.length);
+        //console.log('[MessagingService] Loaded threads:', response.data.length);
         return response.data;
       }
       
@@ -78,12 +78,12 @@ class MessagingService {
    */
   async loadMessages(threadId: string, params: PaginationParams = {}, forceRefresh = false): Promise<{ messages: Message[]; thread_info: MessageThread }> {
     try {
-      console.log('[MessagingService] Loading messages for thread:', threadId);
+      //console.log('[MessagingService] Loading messages for thread:', threadId);
       
       // Use cache if available and not forcing refresh
       const cachedMessages = this.cache.messages[threadId];
       if (!forceRefresh && cachedMessages && (!params.offset || params.offset === 0)) {
-        console.log('[MessagingService] Using cached messages for thread:', threadId);
+        //console.log('[MessagingService] Using cached messages for thread:', threadId);
         // Find thread info from cached threads
         const threadInfo = this.cache.threads.find(t => t.thread_id === threadId);
         if (threadInfo) {
@@ -108,7 +108,7 @@ class MessagingService {
           this.cache.messages[threadId] = mappedData.messages;
         }
         
-        console.log('[MessagingService] Loaded messages:', mappedData.messages.length);
+        //console.log('[MessagingService] Loaded messages:', mappedData.messages.length);
         return mappedData;
       }
       
@@ -124,11 +124,11 @@ class MessagingService {
    */
   async loadContacts(params: ContactsFilter & PaginationParams = {}, forceRefresh = false): Promise<Contact[]> {
     try {
-      console.log('[MessagingService] Loading contacts with params:', params);
+      //console.log('[MessagingService] Loading contacts with params:', params);
       
       // Use cache if available and not forcing refresh
       if (!forceRefresh && !this.shouldRefreshCache() && this.cache.contacts.length > 0 && !params.search) {
-        console.log('[MessagingService] Using cached contacts');
+        //console.log('[MessagingService] Using cached contacts');
         return this.cache.contacts;
       }
 
@@ -141,7 +141,7 @@ class MessagingService {
           this.updateCacheTimestamp();
         }
         
-        console.log('[MessagingService] Loaded contacts:', response.data.length);
+        //console.log('[MessagingService] Loaded contacts:', response.data.length);
         return response.data;
       }
       
@@ -157,11 +157,11 @@ class MessagingService {
    */
   async loadStats(forceRefresh = false): Promise<MessageStats> {
     try {
-      console.log('[MessagingService] Loading messaging stats');
+      //console.log('[MessagingService] Loading messaging stats');
       
       // Use cache if available and not forcing refresh
       if (!forceRefresh && !this.shouldRefreshCache() && this.cache.stats) {
-        console.log('[MessagingService] Using cached stats');
+        //console.log('[MessagingService] Using cached stats');
         return this.cache.stats;
       }
 
@@ -171,7 +171,7 @@ class MessagingService {
         this.cache.stats = response.data;
         this.updateCacheTimestamp();
         
-        console.log('[MessagingService] Loaded stats:', response.data);
+        //console.log('[MessagingService] Loaded stats:', response.data);
         return response.data;
       }
       
@@ -187,12 +187,12 @@ class MessagingService {
    */
   async sendMessage(data: NewMessageData): Promise<{ message_id: string; thread_id: string }> {
     try {
-      console.log('[MessagingService] Sending message:', { 
-        recipients: data.recipients, 
-        subject: data.subject,
-        hasContent: !!data.content,
-        threadId: data.thread_id 
-      });
+      // console.log('[MessagingService] Sending message:', { 
+      //   recipients: data.recipients, 
+      //   subject: data.subject,
+      //   hasContent: !!data.content,
+      //   threadId: data.thread_id 
+      // });
 
       const response = await api.sendMessage(data);
       
@@ -200,7 +200,7 @@ class MessagingService {
         // Invalidate relevant caches after sending
         this.invalidateCache(['threads', 'messages']);
         
-        console.log('[MessagingService] Message sent successfully:', response.data);
+        //console.log('[MessagingService] Message sent successfully:', response.data);
         return response.data;
       }
       
@@ -221,7 +221,7 @@ class MessagingService {
     }
 
     try {
-      console.log('[MessagingService] Marking message as read:', messageId);
+      //console.log('[MessagingService] Marking message as read:', messageId);
 
       const response = await api.markMessageAsRead(messageId);
       
@@ -229,7 +229,7 @@ class MessagingService {
         // Update cache to reflect read status
         this.updateMessageReadStatus(messageId, true);
         
-        console.log('[MessagingService] Message marked as read');
+        //console.log('[MessagingService] Message marked as read');
         return;
       }
       
@@ -245,12 +245,12 @@ class MessagingService {
    */
   async search(query: string, type: 'all' | 'messages' | 'users' = 'all', limit = 20): Promise<any[]> {
     try {
-      console.log('[MessagingService] Searching:', { query, type, limit });
+      //console.log('[MessagingService] Searching:', { query, type, limit });
 
       const response = await api.searchMessages(query, type, limit);
       
       if (response.data) {
-        console.log('[MessagingService] Search results:', response.data.length);
+        //console.log('[MessagingService] Search results:', response.data.length);
         return response.data;
       }
       
@@ -266,12 +266,12 @@ class MessagingService {
    */
   async uploadAttachment(file: FormData): Promise<{ attachment_id: string; attachment_url: string }> {
     try {
-      console.log('[MessagingService] Uploading attachment');
+      //console.log('[MessagingService] Uploading attachment');
 
       const response = await api.uploadMessageAttachment(file);
       
       if (response.data) {
-        console.log('[MessagingService] Attachment uploaded:', response.data.attachment_id);
+        //console.log('[MessagingService] Attachment uploaded:', response.data.attachment_id);
         return response.data;
       }
       
@@ -287,7 +287,7 @@ class MessagingService {
    */
   async deleteMessage(messageId: string): Promise<void> {
     try {
-      console.log('[MessagingService] Deleting message:', messageId);
+      //console.log('[MessagingService] Deleting message:', messageId);
 
       const response = await api.deleteMessage(messageId);
       
@@ -295,7 +295,7 @@ class MessagingService {
         // Invalidate caches after deletion
         this.invalidateCache(['threads', 'messages']);
         
-        console.log('[MessagingService] Message deleted');
+        //console.log('[MessagingService] Message deleted');
         return;
       }
       
@@ -323,7 +323,7 @@ class MessagingService {
    */
   async refresh(): Promise<void> {
     try {
-      console.log('[MessagingService] Refreshing all data');
+      //console.log('[MessagingService] Refreshing all data');
       
       this.invalidateCache();
       
@@ -334,7 +334,7 @@ class MessagingService {
         this.loadStats(true),
       ]);
       
-      console.log('[MessagingService] Refresh completed');
+      //console.log('[MessagingService] Refresh completed');
     } catch (error) {
       console.error('[MessagingService] Error during refresh:', error);
       throw error;
