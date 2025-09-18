@@ -1,12 +1,20 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AuthState, User, LoginCredentials, RegisterData } from '../types/auth';
+import {
+  AuthState,
+  User,
+  LoginCredentials,
+  RegisterData,
+  RegisterResponse,
+} from '../types/auth';
+
+const AUTH_API_BASE_URL = 'http://192.168.2.30:3000';
 
 interface AuthStore extends AuthState {
   // Actions
   login: (credentials: LoginCredentials) => Promise<void>;
-  register: (data: RegisterData) => Promise<void>;
+  register: (data: RegisterData) => Promise<RegisterResponse>;
   logout: () => void;
   setUser: (user: User) => void;
   setToken: (token: string) => void;
@@ -32,7 +40,7 @@ export const useAuthStore = create<AuthStore>()(
         try {
           // TODO: Replace with actual API call
           // console.log('📡 Calling API:', 'https://ae4c4558a808.ngrok-free.app/login');
-          const response = await fetch('http://192.168.2.30:3000/login', {
+          const response = await fetch(`${AUTH_API_BASE_URL}/login`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -133,19 +141,63 @@ export const useAuthStore = create<AuthStore>()(
         set({ isLoading: true, error: null });
 
         try {
-          // TODO: Implement registration API call
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Mock delay
-
-          // Auto-login after registration
-          await get().login({
-            email: data.email,
+          const payload = {
+            fullname: data.name.trim(),
+            email: data.email.trim().toLowerCase(),
             password: data.password,
+            role: 'pract',
+          };
+
+          const response = await fetch(`${AUTH_API_BASE_URL}/login/registerfull`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
           });
+
+          const responseText = await response.text();
+
+          if (!response.ok) {
+            console.error('❌ Registration failed:', response.status, responseText);
+            let message = 'Não foi possível concluir o cadastro. Tente novamente.';
+
+            if (response.status === 400 || response.status === 409) {
+              message = 'Este email já está cadastrado. Utilize outro email.';
+            }
+
+            try {
+              const parsed = responseText ? JSON.parse(responseText) : null;
+              if (parsed && typeof parsed.message === 'string') {
+                message = parsed.message;
+              }
+            } catch (parseError) {
+              console.warn('⚠️ Could not parse registration error response:', parseError);
+            }
+
+            throw new Error(message);
+          }
+
+          let result: RegisterResponse = {
+            fullname: payload.fullname,
+            email: payload.email,
+            role: payload.role,
+          };
+
+          try {
+            result = responseText ? JSON.parse(responseText) : result;
+          } catch (parseError) {
+            console.warn('⚠️ Could not parse registration response:', parseError);
+          }
+
+          set({ isLoading: false, error: null });
+          return result;
         } catch (error) {
+          console.error('🚨 Registration error:', error);
           set({
             isLoading: false,
             error:
-              error instanceof Error ? error.message : 'Registration failed',
+              error instanceof Error ? error.message : 'Falha ao cadastrar profissional',
           });
           throw error;
         }

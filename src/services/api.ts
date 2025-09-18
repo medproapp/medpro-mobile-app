@@ -83,6 +83,18 @@ class ApiService {
     });
   }
 
+  async checkHealth(): Promise<boolean> {
+    const url = `${API_BASE_URL}/health`;
+
+    try {
+      const response = await fetch(url);
+      return response.ok;
+    } catch (error) {
+      console.warn('[API] Health check failed:', error);
+      return false;
+    }
+  }
+
   // Dashboard endpoints
   async getDashboardAppointments(email: string) {
     return this.request(`/api/dashboard/stats/appointments/${email}`);

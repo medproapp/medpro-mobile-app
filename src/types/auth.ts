@@ -34,6 +34,14 @@ export interface RegisterData {
   specialty?: string;
 }
 
+export interface RegisterResponse {
+  fullname: string;
+  email: string;
+  role: string;
+  billing?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 export interface AuthState {
   user: User | null;
   token: string | null;

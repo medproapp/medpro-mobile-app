@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
@@ -12,11 +12,6 @@ const Stack = createStackNavigator<RootStackParamList>();
 
 export const RootNavigator: React.FC = () => {
   const { isAuthenticated, isLoading, user } = useAuthStore();
-
-  // Show loading screen while checking authentication state
-  if (isLoading) {
-    return <Loading text="Verificando autenticação..." />;
-  }
 
   return (
     <NavigationContainer>
@@ -47,6 +42,9 @@ export const RootNavigator: React.FC = () => {
           />
         )}
       </Stack.Navigator>
+      {isLoading && (
+        <Loading text="Verificando autenticação..." overlay />
+      )}
     </NavigationContainer>
   );
 };
