@@ -19,7 +19,7 @@ import { AuthStackParamList } from '../../types/navigation';
 type WelcomeNavigationProp = StackNavigationProp<AuthStackParamList, 'RegistrationWelcome'>;
 type WelcomeRouteProp = RouteProp<AuthStackParamList, 'RegistrationWelcome'>;
 
-const backgroundImage = require('../../../assets/welcome1.png');
+const backgroundImage = require('../../assets/welcome1.png');
 
 export const RegistrationWelcomeScreen: React.FC = () => {
   const navigation = useNavigation<WelcomeNavigationProp>();

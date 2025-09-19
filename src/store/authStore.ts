@@ -70,6 +70,8 @@ export const useAuthStore = create<AuthStore>()(
             name: credentials.email, // Will be updated with real name
             role: data.role === 'pract' ? 'practitioner' : data.role,
             organization: 'ORG-000006',
+            firstLogin: true,
+            isAdmin: data.role === 'admin' || data.admin === 1 || data.admin === '1',
           };
 
           // Set initial state with token
@@ -84,10 +86,8 @@ export const useAuthStore = create<AuthStore>()(
           // Fetch detailed user info in the background
           try {
             console.log('📡 Fetching detailed user info...');
-            const { getUserInfo, getUserToOrg } = await import(
-              '../services/api'
-            );
-            const api = (await import('../services/api')).default;
+            const apiModule = await import('../services/api');
+            const api = apiModule.default;
 
             const userInfo = await api.getUserInfo(credentials.email);
             if (userInfo) {
@@ -99,6 +99,20 @@ export const useAuthStore = create<AuthStore>()(
                 name: userInfo.fullname || credentials.email,
                 role:
                   userInfo.role === 'pract' ? 'practitioner' : userInfo.role,
+                firstLogin:
+                  typeof userInfo.first_login === 'number'
+                    ? userInfo.first_login === 1
+                    : typeof userInfo.firstLogin === 'boolean'
+                    ? userInfo.firstLogin
+                    : user.firstLogin,
+                organizationLogoUrl:
+                  userInfo.organizationLogoUrl ||
+                  userInfo.org_logo ||
+                  userInfo.org_logo_horizontal,
+                isAdmin:
+                  typeof userInfo.admin !== 'undefined'
+                    ? Number(userInfo.admin) === 1 || userInfo.admin === true
+                    : user.isAdmin,
               };
 
               // Try to get organization info
@@ -109,7 +123,7 @@ export const useAuthStore = create<AuthStore>()(
                 );
                 if (orgData && orgData.length > 0) {
                   const org = orgData[0];
-                  user.organization = org.managingEntity || 'ORG-000006';
+                  user.organization = org.org_name || org.managingEntity || 'ORG-000006';
                   console.log('🏢 Organization info received:', org.org_name);
                 }
               } catch (orgError) {

@@ -4,6 +4,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
 import { AuthNavigator } from './AuthNavigator';
 import { MainNavigator } from './MainNavigator';
+import { OnboardingNavigator } from './OnboardingNavigator';
 import { Loading } from '@components/common';
 import { useAuthStore } from '@store/authStore';
 import { RootStackParamList } from '../types/navigation';
@@ -12,6 +13,7 @@ const Stack = createStackNavigator<RootStackParamList>();
 
 export const RootNavigator: React.FC = () => {
   const { isAuthenticated, isLoading, user } = useAuthStore();
+  const needsOnboarding = isAuthenticated && user?.role === 'practitioner' && user?.firstLogin;
 
   return (
     <NavigationContainer>
@@ -22,22 +24,32 @@ export const RootNavigator: React.FC = () => {
           presentation: 'card',
         }}
       >
-        {isAuthenticated ? (
-          // User is authenticated, show main app
-          <Stack.Screen
-            name="Main"
-            component={MainNavigator}
-            options={{
-              animationTypeForReplace: 'push',
-            }}
-          />
-        ) : (
-          // User is not authenticated, show auth flow
+        {!isAuthenticated && (
           <Stack.Screen
             name="Auth"
             component={AuthNavigator}
             options={{
               animationTypeForReplace: 'pop',
+            }}
+          />
+        )}
+
+        {isAuthenticated && needsOnboarding && (
+          <Stack.Screen
+            name="Onboarding"
+            component={OnboardingNavigator}
+            options={{
+              animationTypeForReplace: 'push',
+            }}
+          />
+        )}
+
+        {isAuthenticated && !needsOnboarding && (
+          <Stack.Screen
+            name="Main"
+            component={MainNavigator}
+            options={{
+              animationTypeForReplace: 'push',
             }}
           />
         )}

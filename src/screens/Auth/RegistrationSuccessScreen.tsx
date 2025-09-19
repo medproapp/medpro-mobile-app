@@ -24,7 +24,7 @@ const FEATURES = [
   'Assistente clínico com IA para apoio no dia a dia',
 ];
 
-const backgroundImage = require('../../../assets/welcome1.png');
+const backgroundImage = require('../../assets/welcome1.png');
 
 export const RegistrationSuccessScreen: React.FC = () => {
   const navigation = useNavigation<SuccessNavigationProp>();

@@ -11,7 +11,7 @@ import {
   ContactsFilter 
 } from '../types/messaging';
 
-const API_BASE_URL = 'http://192.168.2.30:3000';
+export const API_BASE_URL = 'http://192.168.2.30:3000';
 
 interface ApiConfig {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';

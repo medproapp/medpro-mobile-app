@@ -7,6 +7,9 @@ export interface User {
   organization: string;
   avatar?: string;
   preferences?: UserPreferences;
+  firstLogin?: boolean;
+  organizationLogoUrl?: string;
+  isAdmin?: boolean;
 }
 
 export interface UserPreferences {

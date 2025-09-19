@@ -9,6 +9,11 @@ export type AuthStackParamList = {
   ForgotPassword: undefined;
 };
 
+// Onboarding Stack
+export type OnboardingStackParamList = {
+  OnboardingHome: undefined;
+};
+
 // Main Tab Navigator
 export type MainTabParamList = {
   Dashboard: undefined;
@@ -67,6 +72,7 @@ export type MessagesStackParamList = {
 // Root Navigator
 export type RootStackParamList = {
   Auth: NavigatorScreenParams<AuthStackParamList>;
+  Onboarding: NavigatorScreenParams<OnboardingStackParamList>;
   Main: NavigatorScreenParams<MainTabParamList>;
   Modal: { screen: string; params?: any };
 };
