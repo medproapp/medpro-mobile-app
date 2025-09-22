@@ -17,7 +17,7 @@ import { theme } from '@theme/index';
 import { apiService } from '@services/api';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { DashboardStackParamList } from '@types/navigation';
+import { DashboardStackParamList } from '@/types/navigation';
 import { useAuthStore } from '@store/authStore';
 
 type AppointmentDetailsScreenProps = RouteProp<DashboardStackParamList, 'AppointmentDetails'>;

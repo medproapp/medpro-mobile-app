@@ -18,7 +18,7 @@ import { Card, Loading } from '@components/common';
 import { theme } from '@theme/index';
 import { useAuthStore } from '@store/authStore';
 import { apiService } from '@services/api';
-import { PatientsStackParamList } from '@types/navigation';
+import { PatientsStackParamList } from '@/types/navigation';
 
 type PatientsNavigationProp = StackNavigationProp<PatientsStackParamList, 'PatientsList'>;
 

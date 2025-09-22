@@ -20,7 +20,7 @@ import { theme } from '@theme/index';
 import { useAppointmentStore } from '@store/appointmentStore';
 import { useAuthStore } from '@store/authStore';
 import { api } from '@services/api';
-import { DashboardStackParamList } from '@types/navigation';
+import { DashboardStackParamList } from '@/types/navigation';
 
 type Step1NavigationProp = StackNavigationProp<DashboardStackParamList, 'AppointmentStep1'>;
 

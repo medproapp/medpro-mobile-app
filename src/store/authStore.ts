@@ -63,14 +63,28 @@ export const useAuthStore = create<AuthStore>()(
           console.log('✅ Login successful, token received');
 
           // Create initial user object with basic login info
+          const inferredFirstLogin =
+            typeof data.first_login === 'number'
+              ? data.first_login === 1
+              : typeof data.firstLogin === 'boolean'
+              ? data.firstLogin
+              : false;
+
+          const inferredOrganization =
+            typeof data.organization === 'string' && data.organization.trim().length > 0
+              ? data.organization.trim()
+              : typeof data.organizationName === 'string' && data.organizationName.trim().length > 0
+              ? data.organizationName.trim()
+              : '';
+
           let user: User = {
             id: data.user || credentials.email,
             email: credentials.email,
             username: credentials.email,
             name: credentials.email, // Will be updated with real name
             role: data.role === 'pract' ? 'practitioner' : data.role,
-            organization: 'ORG-000006',
-            firstLogin: true,
+            organization: inferredOrganization,
+            firstLogin: inferredFirstLogin,
             isAdmin: data.role === 'admin' || data.admin === 1 || data.admin === '1',
           };
 
@@ -123,7 +137,10 @@ export const useAuthStore = create<AuthStore>()(
                 );
                 if (orgData && orgData.length > 0) {
                   const org = orgData[0];
-                  user.organization = org.org_name || org.managingEntity || 'ORG-000006';
+              user.organization =
+                (typeof org.org_name === 'string' && org.org_name.trim().length > 0 && org.org_name.trim()) ||
+                (typeof org.managingEntity === 'string' && org.managingEntity.trim().length > 0 && org.managingEntity.trim()) ||
+                user.organization;
                   console.log('🏢 Organization info received:', org.org_name);
                 }
               } catch (orgError) {

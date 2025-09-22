@@ -12,7 +12,7 @@ import {
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
-import { DashboardStackParamList } from '@types/navigation';
+import { DashboardStackParamList } from '@/types/navigation';
 import { AudioRecorder } from '@components/AudioRecorder';
 import { AttachmentPicker } from '@components/AttachmentPicker';
 import { ImagePickerComponent } from '@components/ImagePicker';

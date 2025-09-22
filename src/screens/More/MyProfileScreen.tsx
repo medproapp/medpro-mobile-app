@@ -18,7 +18,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { theme } from '@theme/index';
 import { apiService, API_BASE_URL } from '@services/api';
 import { useAuthStore } from '@store/authStore';
-import { PractitionerProfile, PractitionerProfileField } from '@types/practitioner';
+import { PractitionerProfile, PractitionerProfileField } from '@/types/practitioner';
 
 const TEXT_INPUT_HEIGHT = Platform.select({ ios: 46, android: 48, default: 46 });
 

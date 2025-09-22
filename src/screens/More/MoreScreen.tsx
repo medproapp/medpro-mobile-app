@@ -14,7 +14,7 @@ import { theme } from '@theme/index';
 import { useAuthStore } from '@store/authStore';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { MoreStackParamList } from '@types/navigation';
+import { MoreStackParamList } from '@/types/navigation';
 
 interface MoreOption {
   id: string;

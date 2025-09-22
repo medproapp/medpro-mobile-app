@@ -15,7 +15,7 @@ import { RouteProp, useRoute, useNavigation, NavigationProp } from '@react-navig
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
 import { api } from '@services/api';
-import { PatientsStackParamList } from '@types/navigation';
+import { PatientsStackParamList } from '@/types/navigation';
 
 type PatientHistoryRouteProp = RouteProp<PatientsStackParamList, 'PatientHistory'>;
 

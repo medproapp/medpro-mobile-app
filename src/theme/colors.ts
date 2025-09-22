@@ -9,6 +9,8 @@ export const colors = {
   success: '#5C8A6B',
   error: '#FF3366',
   warning: '#B8956B',
+  warningLight: '#F8E6D3',
+  warningDark: '#7A5733',
   info: '#7BA4B5',
 
   // Cores Neutras

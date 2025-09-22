@@ -15,7 +15,7 @@ import { theme } from '@theme/index';
 import { useOnboardingStore } from '@store/onboardingStore';
 import { useAuthStore } from '@store/authStore';
 import { SetupModal } from './SetupModal';
-import { OnboardingStepKey } from '@types/onboarding';
+import { OnboardingStepKey } from '@/types/onboarding';
 
 const backgroundImage = require('../../assets/welcome1.png');
 

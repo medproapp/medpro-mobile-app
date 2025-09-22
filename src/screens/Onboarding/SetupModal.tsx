@@ -17,7 +17,7 @@ import {
   SetupFormState,
   ServiceCategoryOption,
   ServiceTypeOption,
-} from '@types/onboarding';
+} from '@/types/onboarding';
 import { onboardingService } from '@services/onboardingService';
 
 const generateCPF = ({ format = true }: { format?: boolean } = {}) => {

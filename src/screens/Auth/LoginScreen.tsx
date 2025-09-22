@@ -178,7 +178,7 @@ export const LoginScreen: React.FC = () => {
 
             <Button
               title="Esqueci minha senha"
-              onPress={() => Alert.alert('Info', 'Funcionalidade em desenvolvimento')}
+              onPress={() => navigation.navigate('ForgotPassword')}
               variant="ghost"
               fullWidth
               style={styles.forgotButton}

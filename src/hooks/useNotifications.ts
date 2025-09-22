@@ -7,9 +7,13 @@ import { useAuthStore } from '@store/authStore';
 import { useMessagingStore } from '@store/messagingStore';
 
 export const useNotifications = () => {
-  const navigation = useNavigation();
-  const { user, isAuthenticated } = useAuthStore();
-  const { loadThreads, loadMessages, loadStats, handleRealtimeUpdate } = useMessagingStore();
+  const navigation = useNavigation<any>();
+  const user = useAuthStore(state => state.user);
+  const isAuthenticated = useAuthStore(state => state.isAuthenticated);
+  const loadThreads = useMessagingStore(state => state.loadThreads);
+  const loadMessages = useMessagingStore(state => state.loadMessages);
+  const loadStats = useMessagingStore(state => state.loadStats);
+  const handleRealtimeUpdate = useMessagingStore(state => state.handleRealtimeUpdate);
   
   const notificationListener = useRef<Subscription>();
   const responseListener = useRef<Subscription>();
@@ -88,7 +92,7 @@ export const useNotifications = () => {
         responseListener.current.remove();
       }
     };
-  }, [isAuthenticated, user, navigation, loadThreads, loadMessages]);
+  }, [isAuthenticated, user, navigation, loadThreads, loadMessages, loadStats, handleRealtimeUpdate]);
 
   // Handle app state changes
   useEffect(() => {
@@ -102,7 +106,7 @@ export const useNotifications = () => {
 
     // Note: AppState listener would be added here in a real implementation
     // For now, we'll rely on the real-time connection for updates
-  }, [isAuthenticated, loadThreads]);
+  }, [isAuthenticated, loadThreads, loadStats]);
 
   return {
     // Return any notification-related state or functions that components might need

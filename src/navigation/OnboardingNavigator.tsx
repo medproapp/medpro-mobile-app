@@ -1,6 +1,6 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
-import { OnboardingStackParamList } from '@types/navigation';
+import { OnboardingStackParamList } from '@/types/navigation';
 import { OnboardingScreen } from '@screens/Onboarding';
 import { theme } from '@theme/index';
 

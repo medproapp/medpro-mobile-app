@@ -18,8 +18,8 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
 import { useMessagingStore } from '@store/messagingStore';
 import { useAuthStore } from '@store/authStore';
-import { Message, MessageThread } from '@types/messaging';
-import { MessagesStackParamList } from '@types/navigation';
+import { Message, MessageThread } from '@/types/messaging';
+import { MessagesStackParamList } from '@/types/navigation';
 
 type ConversationScreenRouteProp = RouteProp<MessagesStackParamList, 'Conversation'>;
 

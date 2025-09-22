@@ -13,6 +13,7 @@ const Stack = createStackNavigator<RootStackParamList>();
 
 export const RootNavigator: React.FC = () => {
   const { isAuthenticated, isLoading, user } = useAuthStore();
+  console.log('Auth State:', { isAuthenticated, isLoading, user });
   const needsOnboarding = isAuthenticated && user?.role === 'practitioner' && user?.firstLogin;
 
   return (

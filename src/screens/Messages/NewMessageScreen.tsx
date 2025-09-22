@@ -17,7 +17,7 @@ import { useNavigation } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
 import { useMessagingStore } from '@store/messagingStore';
-import { Contact } from '@types/messaging';
+import { Contact } from '@/types/messaging';
 
 interface ContactItemProps {
   contact: Contact;

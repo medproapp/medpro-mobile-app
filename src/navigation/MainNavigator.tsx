@@ -245,11 +245,12 @@ export const MainNavigator: React.FC = () => {
         tabBarItemStyle: {
           paddingVertical: 4,
         },
-        tabBarButton: (props) => (
+        tabBarButton: ({ style, delayLongPress, children, ...rest }) => (
           <TouchableOpacity
-            {...props}
+            {...rest}
+            {...(delayLongPress != null ? { delayLongPress } : {})}
             style={[
-              props.style,
+              style,
               {
                 flex: 1,
                 alignItems: 'center',
@@ -258,7 +259,9 @@ export const MainNavigator: React.FC = () => {
               }
             ]}
             activeOpacity={0.7}
-          />
+          >
+            {children}
+          </TouchableOpacity>
         ),
       }}
     >

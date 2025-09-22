@@ -10,7 +10,7 @@ import {
   SetupFormState,
   ServiceCategoryOption,
   ServiceTypeOption,
-} from '@types/onboarding';
+} from '@/types/onboarding';
 
 const createInitialForm = (): SetupFormState => ({
   cpf: '',

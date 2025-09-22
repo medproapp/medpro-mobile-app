@@ -1,5 +1,5 @@
 import { useAuthStore } from '../store/authStore';
-import { PractitionerProfile } from '@types/practitioner';
+import { PractitionerProfile } from '@/types/practitioner';
 import { 
   NewMessageData, 
   MessagingApiResponse, 
@@ -29,7 +29,7 @@ class ApiService {
     };
   }
 
-  private async request<T>(endpoint: string, config: ApiConfig = {}): Promise<T> {
+  private async request<T = any>(endpoint: string, config: ApiConfig = {}): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
     const { method = 'GET', body } = config;
     
@@ -62,7 +62,7 @@ class ApiService {
         if (url.includes('/encounter/') || url.includes('/clinical/') || url.includes('/medication/') || 
             url.includes('/diagnostic/') || url.includes('/attach/') || url.includes('/images/')) {
           console.log('[API] 404 response treated as empty data for:', url);
-          return []; // Return empty array for 404s on history endpoints
+          return [] as unknown as T; // Return empty array for 404s on history endpoints
         }
       }
       
@@ -73,7 +73,7 @@ class ApiService {
 
     const result = await response.json();
     console.log('[API] Response data:', result);
-    return result;
+    return result as T;
   }
 
   // Auth endpoints
@@ -81,6 +81,14 @@ class ApiService {
     return this.request('/login', {
       method: 'POST',
       body: credentials,
+    });
+  }
+
+  async requestPasswordReset(email: string) {
+    const trimmedEmail = email.trim();
+    return this.request<{ message: string }>('/login/forgot-password', {
+      method: 'POST',
+      body: { email: trimmedEmail },
     });
   }
 
@@ -113,6 +121,28 @@ class ApiService {
     return this.request(`/api/dashboard/stats/satisfaction/${email}`);
   }
 
+  async getPractitionerScheduleSummary(email: string, days: number = 10) {
+    if (!email) {
+      throw new Error('Email is required to fetch schedule summary.');
+    }
+
+    const query = new URLSearchParams();
+    if (days) {
+      query.set('days', String(days));
+    }
+
+    const basePath = `/schedule-summary/practitioner/${encodeURIComponent(email)}/next-10-days`;
+    const url = query.toString() ? `${basePath}?${query.toString()}` : basePath;
+
+    try {
+      console.log('[API] Fetching practitioner schedule summary:', { email, days });
+      return await this.request(url);
+    } catch (error) {
+      console.error('[API] getPractitionerScheduleSummary error:', error);
+      throw error;
+    }
+  }
+
   // Get user info (used by web app after login)
   async getUserInfo(email: string) {
     return this.request(`/login/getUserInfo?email=${encodeURIComponent(email)}`);
@@ -129,9 +159,9 @@ class ApiService {
     const { user } = useAuthStore.getState();
     return this.request(`/appointment/getnextappointments/${email}?days=${days}`, {
       headers: {
-        'managingorg': user?.organization || 'ORG-000006',
+        'managingorg': user?.organization,
         'practid': email,
-      }
+      },
     });
   }
 
@@ -141,24 +171,24 @@ class ApiService {
     console.log('[API] getAppointmentById called with ID:', appointmentId);
     return this.request(`/appointment/getappointmentbyid/${appointmentId}`, {
       headers: {
-        'managingorg': user?.organization || 'ORG-000006',
+        'managingorg': user?.organization,
         'practid': user?.email || '',
-      }
+      },
     });
   }
 
   // Get patient details by CPF
   async getPatientDetails(cpf: string) {
-    const { user } = useAuthStore.getState();
     console.log('[API] getPatientDetails called with CPF:', cpf);
+    const { user } = useAuthStore.getState();
     console.log('[API] User context:', { organization: user?.organization, email: user?.email });
     
     try {
       const result = await this.request(`/patient/getpatientdetails/${cpf}`, {
         headers: {
-          'managingorg': user?.organization || 'ORG-000006',
+          'managingorg': user?.organization,
           'practid': user?.email || '',
-        }
+        },
       });
       console.log('[API] getPatientDetails success:', result);
       return result;
@@ -181,9 +211,9 @@ class ApiService {
 
     return this.request(`/patient/listpatients/${practId}?${params}`, {
       headers: {
-        'managingorg': user?.organization || 'ORG-000006',
+        'managingorg': user?.organization,
         'practid': practId,
-      }
+      },
     });
   }
 
@@ -202,9 +232,9 @@ class ApiService {
 
       const result = await this.request(`/patient/getpatientbyname/${user?.email}?${params}`, {
         headers: {
-          'managingorg': user?.organization || 'ORG-000006',
+          'managingorg': user?.organization,
           'practid': user?.email || '',
-        }
+        },
       });
       console.log('[API] searchPatients success:', result);
       return result;
@@ -222,9 +252,9 @@ class ApiService {
     try {
       const result = await this.request(`/appointment/getnextpatientappointments/${patientCpf}`, {
         headers: {
-          'managingorg': user?.organization || 'ORG-000006',
+          'managingorg': user?.organization,
           'practid': user?.email || '',
-        }
+        },
       });
       console.log('[API] getPatientAppointments success:', result);
       return result;
@@ -244,7 +274,7 @@ class ApiService {
     const url = `${API_BASE_URL}/patient/getpatientphoto?patientCpf=${patientCpf}`;
     const headers = {
       'Content-Type': 'application/json',
-      'managingorg': user?.organization || 'ORG-000006',
+      'managingorg': user?.organization,
       'practid': user?.email || '',
       ...(token && { Authorization: `Bearer ${token}` }),
     };
@@ -322,9 +352,9 @@ class ApiService {
     try {
       const result = await this.request(`/encounter/getencounters/practitioner/${practId}?${params}`, {
         headers: {
-          'managingorg': user?.organization || 'ORG-000006',
+          'managingorg': user?.organization,
           'practid': practId,
-        }
+        },
       });
       console.log('[API] getInProgressEncounters success:', result);
       return result;
@@ -346,9 +376,9 @@ class ApiService {
 
     return this.request(`/encounter/getencounters/patient/${patientCpf}?${params}`, {
       headers: {
-        'managingorg': user?.organization || 'ORG-000006',
+        'managingorg': user?.organization,
         'practid': user?.email || '',
-      }
+      },
     });
   }
 
@@ -362,9 +392,9 @@ class ApiService {
 
     return this.request(`/clinical/records/encounter/${encounterId}?${params}`, {
       headers: {
-        'managingorg': user?.organization || 'ORG-000006',
+        'managingorg': user?.organization,
         'practid': user?.email || '',
-      }
+      },
     });
   }
 
@@ -380,9 +410,9 @@ class ApiService {
 
     return this.request(`/medication/records/${patientCpf}?${params}`, {
       headers: {
-        'managingorg': user?.organization || 'ORG-000006',
+        'managingorg': user?.organization,
         'practid': user?.email || '',
-      }
+      },
     });
   }
 
@@ -390,9 +420,9 @@ class ApiService {
     const { user } = useAuthStore.getState();
     return this.request(`/diagnostic/encounter/${encounterId}`, {
       headers: {
-        'managingorg': user?.organization || 'ORG-000006',
+        'managingorg': user?.organization,
         'practid': user?.email || '',
-      }
+      },
     });
   }
 
@@ -400,9 +430,9 @@ class ApiService {
     const { user } = useAuthStore.getState();
     return this.request(`/images/encounter/${encounterId}`, {
       headers: {
-        'managingorg': user?.organization || 'ORG-000006',
+        'managingorg': user?.organization,
         'practid': user?.email || '',
-      }
+      },
     });
   }
 
@@ -410,9 +440,9 @@ class ApiService {
     const { user } = useAuthStore.getState();
     return this.request(`/attach/getbyencounter/${encounterId}`, {
       headers: {
-        'managingorg': user?.organization || 'ORG-000006',
+        'managingorg': user?.organization,
         'practid': user?.email || '',
-      }
+      },
     });
   }
 
@@ -558,7 +588,7 @@ class ApiService {
       'pract': practitionerId,
       'encid': encounterId,
       'entity': 'encounter',
-      'organization': user?.organization || 'ORG-000006',
+      'organization': user?.organization,
     };
 
     console.log('[API] uploadAttachment called with:', {
@@ -649,7 +679,7 @@ class ApiService {
       'pract': practitionerId,
       'encid': encounterId,
       'entity': 'encounter',
-      'organization': user?.organization || 'ORG-000006',
+      'organization': user?.organization,
     };
 
     console.log('[API] uploadImage called with:', {
@@ -741,7 +771,7 @@ class ApiService {
       'sequence': sequence.toString(),
       'subentitytype': 'none',
       'entity': 'encounter',
-      'organization': user?.organization || 'ORG-000006',
+      'organization': user?.organization,
     };
 
     console.log('[API] uploadAudioRecording called with:', {
@@ -821,7 +851,7 @@ class ApiService {
     try {
       const result = await this.request(`/offerings?${params}`, {
         headers: {
-          'managingorg': user?.organization || 'ORG-000006',
+          'managingorg': user?.organization,
           'practid': user?.email || '',
         }
       });
@@ -843,7 +873,7 @@ class ApiService {
     try {
       const result = await this.request(`/careplan/patient/${encodeURIComponent(patientCpf)}/careplans?practitionerId=${encodeURIComponent(practitionerId)}`, {
         headers: {
-          'managingorg': user?.organization || 'ORG-000006',
+          'managingorg': user?.organization,
           'practid': user?.email || '',
         }
       });
@@ -864,7 +894,7 @@ class ApiService {
     try {
       const result = await this.request(`/location/getpractlocationsbyemail/${encodeURIComponent(practitionerEmail)}/?status=active`, {
         headers: {
-          'managingorg': user?.organization || 'ORG-000006',
+          'managingorg': user?.organization,
           'practid': user?.email || '',
         }
       });
@@ -892,7 +922,7 @@ class ApiService {
     try {
       const result = await this.request(`/appointment/available-dates?${params}`, {
         headers: {
-          'managingorg': user?.organization || 'ORG-000006',
+          'managingorg': user?.organization,
           'practid': user?.email || '',
         }
       });
@@ -919,7 +949,7 @@ class ApiService {
     try {
       const result = await this.request(`/appointment/available-times?${params}`, {
         headers: {
-          'managingorg': user?.organization || 'ORG-000006',
+          'managingorg': user?.organization,
           'practid': user?.email || '',
         }
       });
@@ -945,7 +975,7 @@ class ApiService {
     try {
       const result = await this.request(`/appointment/next-five-slots?${params}`, {
         headers: {
-          'managingorg': user?.organization || 'ORG-000006',
+          'managingorg': user?.organization,
           'practid': user?.email || '',
         }
       });
@@ -971,7 +1001,7 @@ class ApiService {
     try {
       const result = await this.request(`/appointment/getappointments/${practId}?${params}`, {
         headers: {
-          'managingorg': user?.organization || 'ORG-000006',
+          'managingorg': user?.organization,
           'practid': user?.email || '',
         }
       });
@@ -989,7 +1019,7 @@ class ApiService {
     console.log('[API] createAppointment called with:', appointmentData);
     console.log('[API] User context:', { email: user?.email, org: user?.organization });
     console.log('[API] Request headers will be:', {
-      'managingorg': user?.organization || 'ORG-000006',
+      'managingorg': user?.organization,
       'practid': user?.email || '',
     });
     
@@ -998,7 +1028,7 @@ class ApiService {
       const result = await this.request('/appointment/create-appointment', {
         method: 'POST',
         headers: {
-          'managingorg': user?.organization || 'ORG-000006',
+          'managingorg': user?.organization,
           'practid': user?.email || '',
         },
         body: appointmentData

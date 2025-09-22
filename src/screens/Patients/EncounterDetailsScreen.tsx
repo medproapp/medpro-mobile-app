@@ -15,7 +15,7 @@ import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
 import { api } from '@services/api';
-import { PatientsStackParamList } from '@types/navigation';
+import { PatientsStackParamList } from '@/types/navigation';
 
 type EncounterDetailsRouteProp = RouteProp<PatientsStackParamList, 'EncounterDetails'>;
 

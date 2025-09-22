@@ -2,6 +2,7 @@ import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import {
   LoginScreen,
+  ForgotPasswordScreen,
   RegisterScreen,
   RegistrationSuccessScreen,
   RegistrationWelcomeScreen,
@@ -26,6 +27,13 @@ export const AuthNavigator: React.FC = () => {
         component={LoginScreen}
         options={{
           title: 'Entrar',
+        }}
+      />
+      <Stack.Screen
+        name="ForgotPassword"
+        component={ForgotPasswordScreen}
+        options={{
+          title: 'Recuperar senha',
         }}
       />
       <Stack.Screen
