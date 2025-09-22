@@ -11,8 +11,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
+  StatusBar,
+  Image,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
 import { theme } from '../../theme';
@@ -140,6 +142,8 @@ export const AssistantScreen: React.FC = () => {
     clearContext,
     setKeyboardVisible,
   } = useAssistantStore();
+
+  const insets = useSafeAreaInsets();
 
   const [inputText, setInputText] = useState('');
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -443,22 +447,34 @@ export const AssistantScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
+        <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
+
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.headerBackground, { paddingTop: insets.top + theme.spacing.md }]}>
+          <Image
+            source={require('../../assets/medpro-logo.png')}
+            style={styles.backgroundLogo}
+            resizeMode="contain"
+          />
           <View style={styles.headerContent}>
             <View style={styles.headerLeft}>
-              <Feather name="user" size={24} color={theme.colors.primary} />
-              <Text style={styles.headerTitle}>Assistente MedPro</Text>
+              <View style={styles.headerTitles}>
+                <Text style={styles.headerTitle}>Assistente MedPro</Text>
+              </View>
             </View>
-            <TouchableOpacity onPress={handleReset} style={styles.resetButton}>
-              <Feather name="refresh-cw" size={20} color={theme.colors.textSecondary} />
+            <TouchableOpacity onPress={handleReset} style={styles.resetButton} activeOpacity={0.8}>
+              <Feather name="refresh-cw" size={16} color={theme.colors.white} />
+              <Text style={styles.resetButtonText}>Resetar</Text>
             </TouchableOpacity>
           </View>
+          <Text style={styles.headerDescription}>
+            Tire dúvidas sobre pacientes, prescrições e atendimentos.
+          </Text>
         </View>
 
         {/* Context Card */}
@@ -534,12 +550,25 @@ const styles = StyleSheet.create({
   keyboardAvoidingView: {
     flex: 1,
   },
-  header: {
-    backgroundColor: theme.colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  headerBackground: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: theme.spacing.lg,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    ...theme.shadows.large,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  backgroundLogo: {
+    position: 'absolute',
+    right: -32,
+    top: '30%',
+    width: 140,
+    height: 140,
+    opacity: 0.08,
+    tintColor: theme.colors.white,
+    transform: [{ translateY: -70 }],
   },
   headerContent: {
     flexDirection: 'row',
@@ -548,16 +577,37 @@ const styles = StyleSheet.create({
   },
   headerLeft: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    gap: theme.spacing.md,
+    flex: 1,
+  },
+  headerTitles: {
+    flexShrink: 1,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: theme.colors.text,
-    marginLeft: 8,
+    fontSize: 22,
+    fontWeight: '700',
+    color: theme.colors.white,
+  },
+  headerDescription: {
+    marginTop: theme.spacing.sm,
+    fontSize: 14,
+    lineHeight: 20,
+    color: theme.colors.white + 'CC',
   },
   resetButton: {
-    padding: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.white + '1F',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: 24,
+    gap: theme.spacing.xs,
+  },
+  resetButtonText: {
+    color: theme.colors.white,
+    fontSize: 12,
+    fontWeight: '600',
   },
   contextCard: {
     backgroundColor: theme.colors.primaryLight + '20',
@@ -764,40 +814,42 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   inputContainer: {
-    backgroundColor: theme.colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    backgroundColor: 'transparent',
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    backgroundColor: theme.colors.background,
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+    borderRadius: 28,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    ...theme.shadows.medium,
+    borderWidth: 0,
+    gap: theme.spacing.sm,
   },
   textInput: {
     flex: 1,
     fontSize: 16,
     color: theme.colors.text,
-    maxHeight: 100,
-    paddingVertical: 4,
+    maxHeight: 120,
+    paddingVertical: theme.spacing.xs,
   },
   sendButton: {
     backgroundColor: theme.colors.primary,
-    borderRadius: 20,
-    padding: 8,
-    marginLeft: 8,
+    borderRadius: 22,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: theme.spacing.sm,
   },
   sendButtonDisabled: {
-    backgroundColor: theme.colors.textSecondary,
-    opacity: 0.5,
+    backgroundColor: theme.colors.textSecondary + '33',
+    opacity: 1,
   },
   audioRecorderStyle: {
-    marginLeft: 4,
+    marginLeft: theme.spacing.sm,
   },
 });
