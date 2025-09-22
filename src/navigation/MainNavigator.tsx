@@ -19,10 +19,10 @@ import { PatientsScreen } from '@screens/Patients';
 import { PatientDashboardScreen } from '@screens/Patients/PatientDashboardScreen';
 import { PatientHistoryScreen } from '@screens/Patients/PatientHistoryScreen';
 import { EncounterDetailsScreen } from '@screens/Patients/EncounterDetailsScreen';
-import { MoreScreen } from '@screens/More';
+import { MoreScreen, MyProfileScreen } from '@screens/More';
 import { MessagesListScreen, ConversationScreen, NewMessageScreen } from '@screens/Messages';
 import { AssistantScreen } from '@screens/Assistant';
-import { MainTabParamList, DashboardStackParamList, PatientsStackParamList, MessagesStackParamList } from '../types/navigation';
+import { MainTabParamList, DashboardStackParamList, PatientsStackParamList, MessagesStackParamList, MoreStackParamList } from '../types/navigation';
 import { theme } from '@theme/index';
 import { useNotifications } from '../hooks/useNotifications';
 import { useMessagingUnreadCount } from '@store/messagingStore';
@@ -31,6 +31,7 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 const DashboardStack = createStackNavigator<DashboardStackParamList>();
 const PatientsStack = createStackNavigator<PatientsStackParamList>();
 const MessagesStack = createStackNavigator<MessagesStackParamList>();
+const MoreStack = createStackNavigator<MoreStackParamList>();
 
 // Dual-color Tab Icon Component
 interface TabIconProps {
@@ -192,6 +193,20 @@ const PatientsStackNavigator: React.FC = () => {
   );
 };
 
+// More Stack Navigator
+const MoreStackNavigator: React.FC = () => {
+  return (
+    <MoreStack.Navigator
+      screenOptions={{
+        headerShown: false,
+      }}
+    >
+      <MoreStack.Screen name="MoreHome" component={MoreScreen} />
+      <MoreStack.Screen name="MyProfile" component={MyProfileScreen} />
+    </MoreStack.Navigator>
+  );
+};
+
 export const MainNavigator: React.FC = () => {
   // Initialize notifications system
   useNotifications();
@@ -307,7 +322,7 @@ export const MainNavigator: React.FC = () => {
       
       <Tab.Screen
         name="More"
-        component={MoreScreen}
+        component={MoreStackNavigator}
         options={{
           title: 'Mais',
           tabBarIcon: ({ focused, color }) => (

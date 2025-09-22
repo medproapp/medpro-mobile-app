@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,16 +7,14 @@ import {
   ImageBackground,
   RefreshControl,
   Image,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
 import { Button, Card, Loading } from '@components/common';
 import { theme } from '@theme/index';
 import { useOnboardingStore } from '@store/onboardingStore';
 import { useAuthStore } from '@store/authStore';
 import { SetupModal } from './SetupModal';
-import { OnboardingStackParamList, RootStackParamList } from '@types/navigation';
-import { StackNavigationProp } from '@react-navigation/stack';
 import { OnboardingStepKey } from '@types/onboarding';
 
 const backgroundImage = require('../../assets/welcome1.png');
@@ -33,12 +31,7 @@ const statusEmoji: Record<string, string> = {
   completed: '✅',
 };
 
-type OnboardingNavProp = StackNavigationProp<OnboardingStackParamList, 'OnboardingHome'>;
-type RootNavProp = StackNavigationProp<RootStackParamList>;
-
 export const OnboardingScreen: React.FC = () => {
-  const navigation = useNavigation<OnboardingNavProp>();
-
   const isInitialized = useOnboardingStore(state => state.isInitialized);
   const isLoading = useOnboardingStore(state => state.isLoading);
   const initialize = useOnboardingStore(state => state.initialize);
@@ -69,15 +62,38 @@ export const OnboardingScreen: React.FC = () => {
   const logout = useAuthStore(state => state.logout);
 
   const [refreshing, setRefreshing] = useState(false);
+  const [completionAlertShown, setCompletionAlertShown] = useState(false);
+  const catalogReloadAttemptedRef = useRef(false);
 
   useEffect(() => {
+    console.log('OnboardingScreen mounted');
+    console.log('isInitialized:', isInitialized, 'isLoading:', isLoading);
+    if (!user) {
+      console.log('OnboardingScreen: no authenticated user, skipping initialize');
+      return;
+    }
+
     if (!isInitialized && !isLoading) {
       initialize();
+      return;
     }
-  }, [isInitialized, isLoading, initialize]);
+
+    if (
+      isInitialized &&
+      !isLoading &&
+      !catalogReloadAttemptedRef.current &&
+      (availableCategories.length === 0 || availableServiceTypes.length === 0)
+    ) {
+      catalogReloadAttemptedRef.current = true;
+      console.log('[OnboardingScreen] Forcing catalog reload');
+      initialize({ reloadCatalog: true }).catch(error => {
+        console.error('[OnboardingScreen] Catalog reload failed', error);
+      });
+    }
+  }, [availableCategories.length, availableServiceTypes.length, initialize, isInitialized, isLoading, user]);
 
   useEffect(() => {
-    if (!isInitialized) {
+    if (!user || !isInitialized) {
       return;
     }
     refreshChecklist();
@@ -86,7 +102,7 @@ export const OnboardingScreen: React.FC = () => {
     }, 15000);
 
     return () => clearInterval(interval);
-  }, [isInitialized, refreshChecklist]);
+  }, [isInitialized, refreshChecklist, user]);
 
   useEffect(() => {
     if (user?.isAdmin) {
@@ -101,11 +117,13 @@ export const OnboardingScreen: React.FC = () => {
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
+      catalogReloadAttemptedRef.current = false;
+      await initialize({ reloadCatalog: true });
       await refreshChecklist();
     } finally {
       setRefreshing(false);
     }
-  }, [refreshChecklist]);
+  }, [initialize, refreshChecklist]);
 
   const handleOpenModal = useCallback(
     (step: OnboardingStepKey) => {
@@ -118,13 +136,18 @@ export const OnboardingScreen: React.FC = () => {
     closeModal();
     resetOnboarding();
     logout();
-    const parent = navigation.getParent<RootNavProp>();
-    parent?.reset({ index: 0, routes: [{ name: 'Auth' }] });
-  }, [closeModal, logout, navigation, resetOnboarding]);
+  }, [closeModal, logout, resetOnboarding]);
 
   const progressCompleted = progress.value >= 100;
 
- const heroGreeting = useMemo(() => {
+  const handleNavigateHome = useCallback(() => {
+    if (user) {
+      setUser({ ...user, firstLogin: false });
+    }
+    resetOnboarding();
+  }, [resetOnboarding, setUser, user]);
+
+  const heroGreeting = useMemo(() => {
     if (!practitionerName) return 'Bem-vindo ao MedPro';
     return `Bem-vindo, ${practitionerName}!`;
   }, [practitionerName]);
@@ -133,6 +156,25 @@ export const OnboardingScreen: React.FC = () => {
     if (!organizationName) return 'Prepare seu consultório para começar';
     return `Vamos preparar o consultório da ${organizationName}`;
   }, [organizationName]);
+
+  useEffect(() => {
+    if (!progressCompleted || completionAlertShown) {
+      return;
+    }
+
+    setCompletionAlertShown(true);
+    Alert.alert(
+      'Tudo pronto!',
+      'Vamos acessar o painel inicial do MedPro.',
+      [
+        {
+          text: 'Ok',
+          onPress: handleNavigateHome,
+        },
+      ],
+      { cancelable: false }
+    );
+  }, [completionAlertShown, handleNavigateHome, progressCompleted]);
 
   if (!isInitialized && isLoading) {
     return <Loading text="Preparando onboarding..." />;
@@ -254,18 +296,7 @@ export const OnboardingScreen: React.FC = () => {
               <Text style={styles.completionSubtitle}>
                 Seus dados foram configurados. Toque abaixo para acessar o painel do profissional.
               </Text>
-              <Button
-                title="Ir para o painel"
-                onPress={() => {
-                  if (user) {
-                    setUser({ ...user, firstLogin: false });
-                  }
-                  resetOnboarding();
-                  const parent = navigation.getParent<RootNavProp>();
-                  parent?.reset({ index: 0, routes: [{ name: 'Main' }] });
-                }}
-                fullWidth
-              />
+              <Button title="Ir para o painel" onPress={handleNavigateHome} fullWidth />
             </Card>
           )}
         </ScrollView>

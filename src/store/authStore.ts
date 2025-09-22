@@ -218,12 +218,19 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       logout: () => {
+        console.log('[AuthStore] logout() called');
         set({
           user: null,
           token: null,
           isAuthenticated: false,
           isLoading: false,
           error: null,
+        });
+
+        const keysToClear = ['medpro-auth', 'medpro-onboarding', 'assistant-storage'];
+        console.log('[AuthStore] Clearing persisted keys', keysToClear);
+        AsyncStorage.multiRemove(keysToClear).catch(error => {
+          console.warn('[AuthStore] Falha ao limpar armazenamento persistido', error);
         });
       },
 

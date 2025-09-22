@@ -6,10 +6,15 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  StatusBar,
+  Image,
 } from 'react-native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
 import { useAuthStore } from '@store/authStore';
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { MoreStackParamList } from '@types/navigation';
 
 interface MoreOption {
   id: string;
@@ -23,6 +28,7 @@ interface MoreOption {
 
 export const MoreScreen: React.FC = () => {
   const { user, logout } = useAuthStore();
+  const navigation = useNavigation<StackNavigationProp<MoreStackParamList, 'MoreHome'>>();
 
   const handleLogout = () => {
     Alert.alert(
@@ -49,7 +55,7 @@ export const MoreScreen: React.FC = () => {
       subtitle: 'Informações pessoais e configurações',
       icon: 'user-md',
       iconColor: theme.colors.primary,
-      onPress: () => Alert.alert('Perfil', 'Funcionalidade em desenvolvimento'),
+      onPress: () => navigation.navigate('MyProfile'),
       showChevron: true,
     },
     {
@@ -157,47 +163,59 @@ export const MoreScreen: React.FC = () => {
   );
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Mais Opções</Text>
-        <Text style={styles.headerSubtitle}>
-          Olá, {user?.name || 'Usuário'}
-        </Text>
-      </View>
-
-      {/* Options List */}
-      <ScrollView 
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        <View style={styles.optionsContainer}>
-          {/* Profile Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Conta</Text>
-            {moreOptions.slice(0, 2).map(renderOption)}
-          </View>
-
-          {/* App Features Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Recursos</Text>
-            {moreOptions.slice(2, 5).map(renderOption)}
-          </View>
-
-          {/* Support Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Suporte</Text>
-            {moreOptions.slice(5, 7).map(renderOption)}
-          </View>
-
-          {/* Logout Section */}
-          <View style={styles.section}>
-            {renderOption(moreOptions[7])}
+    <>
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
+      <View style={styles.container}>
+        {/* Header aligned with home screen */}
+        <View style={styles.headerBackground}>
+          <Image
+            source={require('../../assets/medpro-logo.png')}
+            style={styles.backgroundLogo}
+            resizeMode="contain"
+          />
+          <View style={styles.header}>
+            <View style={styles.headerContent}>
+              <Text style={styles.greeting}>Mais Opções</Text>
+              <Text style={styles.dateText}>
+                Gerencie configurações e recursos do aplicativo
+              </Text>
+            </View>
           </View>
         </View>
-      </ScrollView>
-    </View>
+
+        {/* Options List */}
+        <ScrollView 
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          <View style={styles.optionsContainer}>
+            {/* Profile Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Conta</Text>
+              {moreOptions.slice(0, 2).map(renderOption)}
+            </View>
+
+            {/* App Features Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Recursos</Text>
+              {moreOptions.slice(2, 5).map(renderOption)}
+            </View>
+
+            {/* Support Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Suporte</Text>
+              {moreOptions.slice(5, 7).map(renderOption)}
+            </View>
+
+            {/* Logout Section */}
+            <View style={styles.section}>
+              {renderOption(moreOptions[7])}
+            </View>
+          </View>
+        </ScrollView>
+      </View>
+    </>
   );
 };
 
@@ -206,31 +224,62 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  header: {
-    backgroundColor: theme.colors.surface,
-    padding: 20,
-    paddingTop: 40,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+  headerBackground: {
+    backgroundColor: theme.colors.primary,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    paddingTop: StatusBar.currentHeight || 44,
+    paddingBottom: theme.spacing.lg,
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    position: 'relative',
+    overflow: 'hidden',
+    zIndex: 1,
   },
-  headerTitle: {
+  backgroundLogo: {
+    position: 'absolute',
+    right: -20,
+    top: '50%',
+    width: 120,
+    height: 120,
+    opacity: 0.1,
+    transform: [{ translateY: -60 }],
+    tintColor: theme.colors.white,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.md,
+  },
+  headerContent: {
+    flex: 1,
+  },
+  greeting: {
+    ...theme.typography.h1,
+    color: theme.colors.white,
     fontSize: 24,
     fontWeight: '700',
-    color: theme.colors.text,
-    marginBottom: 4,
   },
-  headerSubtitle: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
+  dateText: {
+    ...theme.typography.caption,
+    color: theme.colors.white + 'AA',
+    fontSize: 14,
+    marginTop: theme.spacing.xs,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     paddingBottom: 32,
+    paddingTop: theme.spacing.lg,
   },
   optionsContainer: {
-    padding: 16,
+    paddingHorizontal: 16,
   },
   section: {
     marginBottom: 24,

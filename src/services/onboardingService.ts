@@ -44,7 +44,7 @@ const jsonFetch = async <T>(endpoint: string, options: RequestOptions = {}): Pro
 
     if (!response.ok) {
       const text = await response.text();
-      console.log('⛔ [OnboardingService] Error payload', { endpoint, status: response.status, text });
+      console.error('⛔ [OnboardingService] Error payload', { endpoint, status: response.status, text });
       throw new Error(`Request failed [${response.status}]: ${text}`);
     }
 
@@ -97,26 +97,26 @@ export const onboardingService = {
     return jsonFetch(`/location/getpractlocationsbyemail/${encodeURIComponent(email)}/?role=${role}`);
   },
   getServiceCategories() {
-    return jsonFetch('/pract/getservicecategorylist').then(result => {
-      if (__DEV__) {
-        console.log('[OnboardingService] RAW /pract/getservicecategorylist:', result);
-      }
+    return jsonFetch('/pract/getservicecategory').then(result => {
+      console.log('[OnboardingService] RAW /pract/getservicecategory:', result);
       return result;
     });
   },
   getServiceTypes() {
-    return jsonFetch('/pract/getservicetypeslist').then(result => {
-      if (__DEV__) {
-        console.log('[OnboardingService] RAW /pract/getservicetypeslist:', result);
-      }
+    return jsonFetch('/pract/getservicetypes').then(result => {
+      console.log('[OnboardingService] RAW /pract/getservicetypes:', result);
       return result;
     });
   },
   savePractitionerProfile(payload: Record<string, unknown>) {
-    return jsonFetch('/pract/savemydata', {
-      method: 'POST',
-      body: payload,
-    });
+    console.log('💾 [OnboardingService] Saving practitioner profile with payload:', payload);
+    const returnValue =
+      jsonFetch('/pract/savemydata', {
+        method: 'POST',
+        body: payload,
+      });
+    console.log('💾 [OnboardingService] Save practitioner profile response:', returnValue);
+    return returnValue;
   },
   savePractitionerServiceCategories(payload: Record<string, unknown>) {
     return jsonFetch('/pract/savepractservicecategory', {
@@ -174,8 +174,34 @@ export const onboardingService = {
       method: 'POST',
     });
   },
-  getPractitionerData(email: string) {
-    return jsonFetch(`/pract/getmydata?email=${encodeURIComponent(email)}`);
+  async getPractitionerData(email: string) {
+    const endpoint = `/pract/getmydata?email=${encodeURIComponent(email)}`;
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'GET',
+        headers: buildHeaders(),
+      });
+
+      if (response.status === 404) {
+        if (__DEV__) {
+          console.warn('[OnboardingService] Practitioner not found, returning empty profile');
+        }
+        return {} as Record<string, unknown>;
+      }
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('⛔ [OnboardingService] Error payload', { endpoint, status: response.status, text });
+        throw new Error(`Request failed [${response.status}]: ${text}`);
+      }
+
+      const data = (await response.json()) as Record<string, unknown>;
+      console.log('✅ [OnboardingService] Parsed data', { endpoint, data });
+      return data;
+    } catch (error) {
+      console.error('💥 [OnboardingService] Request failed fatally', { endpoint, error });
+      throw error;
+    }
   },
   getPractitionerServiceCategories(email: string) {
     return jsonFetch(`/pract/getpractservicecategories/${encodeURIComponent(email)}`);

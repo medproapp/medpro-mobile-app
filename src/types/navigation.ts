@@ -23,6 +23,12 @@ export type MainTabParamList = {
   More: undefined;
 };
 
+// More Stack
+export type MoreStackParamList = {
+  MoreHome: undefined;
+  MyProfile: undefined;
+};
+
 // Dashboard Stack
 export type DashboardStackParamList = {
   DashboardHome: undefined;

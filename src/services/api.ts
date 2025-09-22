@@ -1,4 +1,5 @@
 import { useAuthStore } from '../store/authStore';
+import { PractitionerProfile } from '@types/practitioner';
 import { 
   NewMessageData, 
   MessagingApiResponse, 
@@ -1071,6 +1072,59 @@ class ApiService {
       return result;
     } catch (error) {
       console.error('[API] getAppointmentTypes error:', error);
+      throw error;
+    }
+  }
+
+  // === PRACTITIONER PROFILE ===
+  async getMyPractitionerProfile(email: string) {
+    if (!email) {
+      throw new Error('Email is required to fetch practitioner profile.');
+    }
+
+    try {
+      console.log('[API] getMyPractitionerProfile request email:', email);
+      const result = await this.request<PractitionerProfile>(
+        `/pract/getmydata?email=${encodeURIComponent(email)}`
+      );
+      console.log('[API] getMyPractitionerProfile response:', result);
+      return result;
+    } catch (error) {
+      console.error('[API] getMyPractitionerProfile error:', error);
+      throw error;
+    }
+  }
+
+  async saveMyPractitionerProfile(updatedFields: Record<string, unknown>) {
+    if (!updatedFields || typeof updatedFields !== 'object') {
+      throw new Error('Invalid profile payload.');
+    }
+
+    try {
+      console.log('[API] saveMyPractitionerProfile payload:', updatedFields);
+      return await this.request('/pract/savemydata', {
+        method: 'POST',
+        body: { updatedFields },
+      });
+    } catch (error) {
+      console.error('[API] saveMyPractitionerProfile error:', error);
+      throw error;
+    }
+  }
+
+  async saveMyPractitionerPhoto(email: string, dataURL: string) {
+    if (!email || !dataURL) {
+      throw new Error('Email and photo data are required.');
+    }
+
+    try {
+      console.log('[API] saveMyPractitionerPhoto email:', email, 'payloadLength:', dataURL.length);
+      return await this.request('/pract/savemyphoto', {
+        method: 'POST',
+        body: { email, dataURL },
+      });
+    } catch (error) {
+      console.error('[API] saveMyPractitionerPhoto error:', error);
       throw error;
     }
   }

@@ -54,8 +54,20 @@ const INITIAL_STEPS: OnboardingStepState[] = [
   },
 ];
 
+const ONBOARDING_STORAGE_KEY = 'medpro-onboarding';
+
+const debugLog = (...args: unknown[]) => {
+  if (__DEV__) {
+    console.log('[OnboardingStore]', ...args);
+  }
+};
+
+interface InitializeOptions {
+  reloadCatalog?: boolean;
+}
+
 interface OnboardingStore extends OnboardingState {
-  initialize: () => Promise<void>;
+  initialize: (options?: InitializeOptions) => Promise<void>;
   refreshChecklist: () => Promise<void>;
   openModal: (step: OnboardingStepKey) => void;
   closeModal: () => void;
@@ -64,6 +76,56 @@ interface OnboardingStore extends OnboardingState {
   reset: () => void;
   setCanManagePricing: (value: boolean) => void;
 }
+
+const extractArray = (raw: unknown, seen = new Set<object>()): unknown[] => {
+  if (Array.isArray(raw)) {
+    return raw as unknown[];
+  }
+
+  if (raw === null || typeof raw !== 'object') {
+    return [];
+  }
+
+  const reference = raw as object;
+
+  if (seen.has(reference)) {
+    return [];
+  }
+  seen.add(reference);
+
+  const obj = reference as Record<string, unknown>;
+  const candidateKeys = [
+    'data',
+    'items',
+    'results',
+    'list',
+    'value',
+    'values',
+    'content',
+    'serviceCategoryList',
+    'serviceCategories',
+    'serviceTypeList',
+    'serviceTypes',
+  ];
+
+  for (const key of candidateKeys) {
+    if (key in obj) {
+      const extracted = extractArray(obj[key], seen);
+      if (extracted.length > 0) {
+        return extracted;
+      }
+    }
+  }
+
+  for (const value of Object.values(obj)) {
+    const extracted = extractArray(value, seen);
+    if (extracted.length > 0) {
+      return extracted;
+    }
+  }
+
+  return [];
+};
 
 const computeProgress = (steps: OnboardingStepState[]): { value: number; label: string } => {
   const requiredKeys: OnboardingStepKey[] = ['profile', 'parameters'];
@@ -132,6 +194,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
       canManagePricing: false,
 
       reset: () => {
+        debugLog('reset() called');
         set({
           isInitialized: false,
           isLoading: false,
@@ -155,6 +218,11 @@ export const useOnboardingStore = create<OnboardingStore>()(
           activeStep: 'profile',
           canManagePricing: false,
         });
+        AsyncStorage.removeItem(ONBOARDING_STORAGE_KEY)
+          .then(() => debugLog('AsyncStorage cleared for onboarding'))
+          .catch(error => {
+            console.warn('[OnboardingStore] Falha ao limpar armazenamento persistido', error);
+          });
       },
 
       setCanManagePricing: value => {
@@ -167,29 +235,42 @@ export const useOnboardingStore = create<OnboardingStore>()(
         }));
       },
 
-      initialize: async () => {
+      initialize: async (options: InitializeOptions = {}) => {
+        debugLog('initialize()', options);
+        const { reloadCatalog = false } = options;
+        console.log('[Onboarding] Initialization started', { reloadCatalog });
         const { user } = useAuthStore.getState();
         if (!user) {
+          debugLog('initialize() aborting: no authenticated user');
           throw new Error('Usuário não autenticado');
         }
 
+        const state = get();
+        const wasInitialized = state.isInitialized;
+        const previousCategories = state.availableCategories;
+        const previousServiceTypes = state.availableServiceTypes;
+        const shouldFetchCategories = reloadCatalog || !wasInitialized || previousCategories.length === 0;
+        const shouldFetchServiceTypes = reloadCatalog || !wasInitialized || previousServiceTypes.length === 0;
+
+        debugLog('initialize() → set loading');
         set({ isLoading: true, error: null });
 
         try {
           const [categories, serviceTypes] = await Promise.all([
-            onboardingService.getServiceCategories().catch(error => {
-              if (__DEV__) {
-                console.error('[Onboarding] Erro ao buscar categorias', error);
-              }
-              return [];
-            }),
-            onboardingService.getServiceTypes().catch(error => {
-              if (__DEV__) {
-                console.error('[Onboarding] Erro ao buscar tipos de serviço', error);
-              }
-              return [];
-            }),
+            shouldFetchCategories
+              ? onboardingService.getServiceCategories().catch(error => {
+                  console.error('[Onboarding] Erro ao buscar categorias', error);
+                  return previousCategories;
+                })
+              : Promise.resolve(previousCategories),
+            shouldFetchServiceTypes
+              ? onboardingService.getServiceTypes().catch(error => {
+                  console.error('[Onboarding] Erro ao buscar tipos de serviço', error);
+                  return previousServiceTypes;
+                })
+              : Promise.resolve(previousServiceTypes),
           ]);
+
           if (__DEV__) {
             console.log('[Onboarding] getServiceCategories raw response:', categories);
             console.log('[Onboarding] getServiceTypes raw response:', serviceTypes);
@@ -199,17 +280,22 @@ export const useOnboardingStore = create<OnboardingStore>()(
           const organizationName = user.organization;
           const canManagePricing = Boolean(user.role === 'admin' || user.isAdmin);
 
-      const { steps, progress } = calculateStatus(
-        get().checklist,
-        INITIAL_STEPS.map(step => ({ ...step }))
-      );
+          const { steps, progress } = wasInitialized
+            ? { steps: state.steps, progress: state.progress }
+            : calculateStatus(state.checklist, INITIAL_STEPS.map(step => ({ ...step })));
 
-          const normalizedCategories = Array.isArray(categories)
-            ? (categories as ServiceCategoryOption[])
-            : [];
-          const normalizedServiceTypes = Array.isArray(serviceTypes)
-            ? (serviceTypes as ServiceTypeOption[])
-            : [];
+          const normalizedCategories = extractArray(categories) as ServiceCategoryOption[];
+          const normalizedServiceTypes = extractArray(serviceTypes) as ServiceTypeOption[];
+
+          const nextForm = wasInitialized
+            ? {
+                ...state.form,
+                autoCreateService: canManagePricing ? state.form.autoCreateService : false,
+              }
+            : {
+                ...createInitialForm(),
+                autoCreateService: canManagePricing,
+              };
 
           set({
             isInitialized: true,
@@ -224,10 +310,12 @@ export const useOnboardingStore = create<OnboardingStore>()(
             isLoading: false,
             error: null,
             canManagePricing,
-            form: {
-              ...createInitialForm(),
-              autoCreateService: canManagePricing,
-            },
+            form: nextForm,
+          });
+          debugLog('initialize() finished', {
+            practitionerEmail: user.email,
+            categories: normalizedCategories.length,
+            serviceTypes: normalizedServiceTypes.length,
           });
         } catch (error) {
           console.error('Onboarding initialization failed', error);
@@ -235,16 +323,19 @@ export const useOnboardingStore = create<OnboardingStore>()(
             isLoading: false,
             error: error instanceof Error ? error.message : 'Falha ao iniciar onboarding',
           });
+          debugLog('initialize() failed');
         }
       },
 
       refreshChecklist: async () => {
         const state = get();
         if (!state.practitionerEmail) {
+          debugLog('refreshChecklist() skipped: practitionerEmail missing');
           return;
         }
 
         try {
+          debugLog('refreshChecklist() fetching data for', state.practitionerEmail);
           const [profile, serviceCategories, locations, schedules] = await Promise.all([
             onboardingService.getPractitionerData(state.practitionerEmail).catch(error => {
               if (__DEV__) {
@@ -278,9 +369,9 @@ export const useOnboardingStore = create<OnboardingStore>()(
 
           const phoneValue = normalizeValue(
             profileData.phone ||
-              profileData.phoneNumber ||
-              profileData.phone_number ||
-              profileData.telefone
+            profileData.phoneNumber ||
+            profileData.phone_number ||
+            profileData.telefone
           );
 
           const crmValue = normalizeValue(
@@ -288,12 +379,15 @@ export const useOnboardingStore = create<OnboardingStore>()(
           );
           const cpfValue = normalizeValue(profileData.cpf || profileData.CPF || profileData.Cpf);
 
+          const normalizedCategories = extractArray(serviceCategories);
+          const normalizedLocations = extractArray(locations);
+          const normalizedSchedules = extractArray(schedules);
+
           const profileCompleted = Boolean(profileData && cpfValue && crmValue && phoneValue);
 
-          const parametersCompleted = Array.isArray(serviceCategories) && serviceCategories.length > 0;
+          const parametersCompleted = normalizedCategories.length > 0;
 
-          const locationsCompleted =
-            Array.isArray(locations) && locations.length > 0 && Array.isArray(schedules) && schedules.length > 0;
+          const locationsCompleted = normalizedLocations.length > 0 && normalizedSchedules.length > 0;
 
           const checklist = {
             profileCompleted,
@@ -301,29 +395,44 @@ export const useOnboardingStore = create<OnboardingStore>()(
             locationsCompleted,
           };
 
-      const { steps, progress } = calculateStatus(
-        { profileCompleted, parametersCompleted },
-        state.steps
-      );
+          const { steps, progress } = calculateStatus(
+            { profileCompleted, parametersCompleted },
+            state.steps
+          );
 
           set({
             checklist,
             steps,
             progress,
             lastValidatedAt: new Date().toISOString(),
+            error: null,
+          });
+          debugLog('refreshChecklist() updated', {
+            profileCompleted,
+            parametersCompleted,
+            locationsCompleted,
+            schedules: normalizedSchedules.length,
           });
         } catch (error) {
           console.error('Checklist refresh failed', error);
           set({
             error: error instanceof Error ? error.message : 'Falha ao validar progresso',
           });
+          debugLog('refreshChecklist() failed');
         }
       },
 
-      openModal: step => set({ modalVisible: true, activeStep: step }),
-      closeModal: () => set({ modalVisible: false }),
+      openModal: step => {
+        debugLog('openModal()', step);
+        set({ modalVisible: true, activeStep: step });
+      },
+      closeModal: () => {
+        debugLog('closeModal()');
+        set({ modalVisible: false });
+      },
 
       updateForm: values => {
+        debugLog('updateForm()', Object.keys(values));
         set(state => ({
           form: {
             ...state.form,
@@ -342,6 +451,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
         const canManagePricing = state.canManagePricing;
         const currentStep = state.activeStep;
 
+        debugLog('submitSetup() started', { step: currentStep, canManagePricing });
         set({ isSubmitting: true, error: null });
 
         try {
@@ -396,6 +506,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
               isSubmitting: false,
               activeStep: 'parameters',
             });
+            debugLog('submitSetup() profile step finished');
             return;
           }
 
@@ -640,23 +751,21 @@ export const useOnboardingStore = create<OnboardingStore>()(
 
           await onboardingService.setFirstLogin(targetPractId, 0);
 
+          debugLog('submitSetup() firstLogin flag updated, refreshing checklist');
           await get().refreshChecklist();
-
-          const authActions = useAuthStore.getState();
-          if (authActions.user) {
-            authActions.setUser({ ...authActions.user, firstLogin: false });
-          }
 
           set({
             modalVisible: false,
             isSubmitting: false,
           });
+          debugLog('submitSetup() completed successfully');
         } catch (error) {
           console.error('Submit setup failed', error);
           set({
             isSubmitting: false,
             error: error instanceof Error ? error.message : 'Falha ao concluir configuração',
           });
+          debugLog('submitSetup() error');
           throw error;
         }
       },
@@ -681,4 +790,14 @@ export const useOnboardingStore = create<OnboardingStore>()(
       }),
     }
   )
+);
+
+useAuthStore.subscribe(
+  state => state.user,
+  (user, previousUser) => {
+    if (!user && previousUser) {
+      debugLog('Auth user cleared; resetting onboarding store');
+      useOnboardingStore.getState().reset();
+    }
+  }
 );

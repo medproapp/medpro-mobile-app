@@ -87,9 +87,6 @@ const DEV_LAST_NAMES = [
 
 const DEV_TITLES = ['Dr.', 'Dra.'];
 
-const usedDevNames = new Set<string>();
-const usedDevEmails = new Set<string>();
-
 const slugify = (value: string) =>
   value
     .normalize('NFD')
@@ -100,45 +97,17 @@ const slugify = (value: string) =>
     .replace(/^\.|\.$/g, '');
 
 const buildDevPractitioner = () => {
-  for (let attempt = 0; attempt < 20; attempt++) {
-    const first = DEV_FIRST_NAMES[Math.floor(Math.random() * DEV_FIRST_NAMES.length)];
-    const last = DEV_LAST_NAMES[Math.floor(Math.random() * DEV_LAST_NAMES.length)];
-    const title = DEV_TITLES[Math.floor(Math.random() * DEV_TITLES.length)];
-    const baseName = `${title} ${first} ${last}`;
+  const first = DEV_FIRST_NAMES[Math.floor(Math.random() * DEV_FIRST_NAMES.length)];
+  const last = DEV_LAST_NAMES[Math.floor(Math.random() * DEV_LAST_NAMES.length)];
+  const title = DEV_TITLES[Math.floor(Math.random() * DEV_TITLES.length)];
+  const randomNumber = Math.floor(1000 + Math.random() * 9000);
 
-    if (usedDevNames.has(baseName) && attempt < 10) {
-      continue;
-    }
+  const emailBase = slugify(`${first}.${last}`) || 'medpro.pract';
+  const email = `${emailBase}.${randomNumber}@medpro.com`;
 
-    const emailBase = slugify(`${first}.${last}`) || `medpro.pract`; // fallback
-    const uniqueSuffix = `${Date.now().toString(36)}${Math.random()
-      .toString(36)
-      .slice(-3)}`;
-    const email = `${emailBase}+${uniqueSuffix}@medpro.com`;
-
-    if (usedDevEmails.has(email) && attempt < 10) {
-      continue;
-    }
-
-    usedDevNames.add(baseName);
-    usedDevEmails.add(email);
-
-    return {
-      name: baseName,
-      email,
-    };
-  }
-
-  const fallbackEmail = `medpro.pract+${Date.now().toString(36)}@medpro.com`;
-  if (__DEV__) {
-    console.warn('🧪 [RegisterScreen] Utilizando fallback para gerar credenciais únicas', {
-      email: fallbackEmail,
-    });
-  }
-  usedDevEmails.add(fallbackEmail);
   return {
-    name: 'Dr. MedPro Practitioner',
-    email: fallbackEmail,
+    name: `${title} ${first} ${last}`.trim(),
+    email,
   };
 };
 
