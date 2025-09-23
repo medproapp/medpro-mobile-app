@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -31,6 +31,7 @@ interface Patient {
   email?: string;
   lastAppointment?: string;
   photo?: string;
+  raw?: unknown;
 }
 
 const SEARCH_DELAY = 500; // ms
@@ -57,6 +58,7 @@ export const AppointmentStep1Screen: React.FC = () => {
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
 
+
   // Load recent patients on component mount
   useEffect(() => {
     loadRecentPatients();
@@ -66,8 +68,53 @@ export const AppointmentStep1Screen: React.FC = () => {
     }
   }, []);
 
+  const normalizePatient = useCallback((data: any): Patient => {
+    const cpf = typeof data?.cpf === 'string' && data.cpf.length > 0
+      ? data.cpf
+      : typeof data?.patientCpf === 'string'
+        ? data.patientCpf
+        : '';
+
+    const name = typeof data?.name === 'string' && data.name.length > 0
+      ? data.name
+      : typeof data?.patientName === 'string' && data.patientName.length > 0
+        ? data.patientName
+        : 'Nome não disponível';
+
+    const phone = typeof data?.phone === 'string' && data.phone.length > 0
+      ? data.phone
+      : typeof data?.patientPhone === 'string' && data.patientPhone.length > 0
+        ? data.patientPhone
+        : undefined;
+
+    const email = typeof data?.email === 'string' ? data.email : undefined;
+
+    const lastAppointment = typeof data?.lastAppointment === 'string'
+      ? data.lastAppointment
+      : typeof data?.lastAppointmentDate === 'string'
+        ? data.lastAppointmentDate
+        : undefined;
+
+    const photo = typeof data?.photo === 'string' && data.photo.length > 0 ? data.photo : undefined;
+
+    return {
+      cpf,
+      name,
+      phone,
+      email,
+      lastAppointment,
+      photo,
+      raw: data,
+    };
+  }, []);
+
+  const recentPatientsList = useMemo(
+    () => recentPatients.map((patient) => normalizePatient(patient)),
+    [recentPatients, normalizePatient]
+  );
+
   // Debounced search function
-  const performSearch = useCallback(async (term: string, type: string) => {
+  const performSearch = useCallback(async (term: string, type: 'name' | 'cpf' | 'phone') => {
     if (term.length < SEARCH_MIN_LENGTH) {
       setSearchResults([]);
       setHasSearched(false);
@@ -81,8 +128,9 @@ export const AppointmentStep1Screen: React.FC = () => {
       const results = await api.searchPatients(term, type, 1);
       console.log('[AppointmentStep1] Search results:', results);
       
-      if (results?.data?.data) {
-        setSearchResults(results.data.data);
+      if (Array.isArray(results?.data?.data)) {
+        const normalized = results.data.data.map((item: any) => normalizePatient(item));
+        setSearchResults(normalized);
         setHasSearched(true);
       }
     } catch (error) {
@@ -122,12 +170,12 @@ export const AppointmentStep1Screen: React.FC = () => {
   // Handle patient selection
   const handlePatientSelect = (patient: Patient) => {
     setSelectedPatient(patient);
-    const cpf = patient.cpf || patient.patientCpf;
-    const name = patient.name || patient.patientName || 'Nome não disponível';
-    const phone = patient.phone || patient.patientPhone || '';
-    
+    const cpf = patient.cpf;
+    const name = patient.name;
+    const phone = patient.phone ?? '';
+
     setPatient(cpf, name, phone);
-    addRecentPatient(patient);
+    addRecentPatient(patient.raw ?? patient);
   };
 
   // Handle continue to next step
@@ -161,7 +209,7 @@ export const AppointmentStep1Screen: React.FC = () => {
 
   // Render patient card
   const renderPatientCard = ({ item: patient, isRecent = false }: { item: Patient; isRecent?: boolean }) => {
-    const isSelected = selectedPatient?.cpf === patient.cpf;
+    const isSelected = selectedPatient?.cpf === patient.cpf && patient.cpf.length > 0;
     
     return (
       <TouchableOpacity
@@ -186,14 +234,14 @@ export const AppointmentStep1Screen: React.FC = () => {
           
           <View style={styles.patientDetails}>
             <Text style={styles.patientName} numberOfLines={1}>
-              {patient.name || patient.patientName || 'Nome não disponível'}
+              {patient.name}
             </Text>
             <Text style={styles.patientCpf}>
-              CPF: {formatCPF(patient.cpf || patient.patientCpf)}
+              CPF: {formatCPF(patient.cpf)}
             </Text>
-            {(patient.phone || patient.patientPhone) && (
+            {patient.phone && (
               <Text style={styles.patientPhone}>
-                📱 {formatPhone(patient.phone || patient.patientPhone)}
+                📱 {formatPhone(patient.phone)}
               </Text>
             )}
             {patient.lastAppointment && (
@@ -314,15 +362,15 @@ export const AppointmentStep1Screen: React.FC = () => {
           </View>
 
           {/* Recent Patients */}
-          {recentPatients.length > 0 && !hasSearched && (
+          {recentPatientsList.length > 0 && !hasSearched && (
             <View style={styles.sectionContainer}>
               <View style={styles.sectionHeader}>
                 <FontAwesome name="history" size={16} color={theme.colors.primary} />
                 <Text style={styles.sectionTitle}>Pacientes Recentes</Text>
               </View>
               
-              {recentPatients.map((patient, index) => (
-                <View key={`recent-${patient.cpf || patient.patientCpf || index}`}>
+              {recentPatientsList.map((patient, index) => (
+                <View key={`recent-${patient.cpf || patient.name || index}`}>
                   {renderPatientCard({ item: patient, isRecent: true })}
                 </View>
               ))}
@@ -357,7 +405,7 @@ export const AppointmentStep1Screen: React.FC = () => {
               )}
 
               {!loading && searchResults.map((patient, index) => (
-                <View key={`search-${patient.cpf || patient.patientCpf || index}`}>
+                <View key={`search-${patient.cpf || patient.name || index}`}>
                   {renderPatientCard({ item: patient })}
                 </View>
               ))}

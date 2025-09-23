@@ -41,6 +41,7 @@ interface PatientData {
     city?: string;
     state?: string;
     zipCode?: string;
+    fullAddress?: string;
   };
   healthInsurance?: {
     provider?: string;
@@ -599,6 +600,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+  },
+  avatarContainer: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    padding: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerContent: {
     flex: 1,

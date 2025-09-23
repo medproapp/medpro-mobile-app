@@ -10,11 +10,12 @@ import {
 import { AuthStackParamList } from '../types/navigation';
 import { theme } from '@theme/index';
 
-const Stack = createStackNavigator<AuthStackParamList>();
+const Stack = createStackNavigator<AuthStackParamList, 'AuthNavigator'>();
 
 export const AuthNavigator: React.FC = () => {
   return (
     <Stack.Navigator
+      id="AuthNavigator"
       screenOptions={{
         headerShown: false,
         cardStyle: {

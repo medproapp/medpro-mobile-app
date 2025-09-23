@@ -316,7 +316,13 @@ export const ConversationScreen: React.FC = () => {
           style={styles.messagesList}
           data={threadMessages}
           renderItem={renderMessage}
-          keyExtractor={(item) => item.message_id || item.identifier}
+          keyExtractor={(item, index) =>
+            item.message_id
+              ? String(item.message_id)
+              : item.identifier
+              ? String(item.identifier)
+              : `message-${index}`
+          }
           refreshControl={
             <RefreshControl 
               refreshing={isRefreshing} 

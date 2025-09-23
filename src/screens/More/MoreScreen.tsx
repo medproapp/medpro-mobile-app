@@ -24,6 +24,7 @@ interface MoreOption {
   iconColor?: string;
   onPress: () => void;
   showChevron?: boolean;
+  section: 'account' | 'resources' | 'support' | 'logout';
 }
 
 export const MoreScreen: React.FC = () => {
@@ -57,42 +58,7 @@ export const MoreScreen: React.FC = () => {
       iconColor: theme.colors.primary,
       onPress: () => navigation.navigate('MyProfile'),
       showChevron: true,
-    },
-    {
-      id: 'settings',
-      title: 'Configurações',
-      subtitle: 'Preferências do aplicativo',
-      icon: 'cog',
-      iconColor: theme.colors.textSecondary,
-      onPress: () => Alert.alert('Configurações', 'Funcionalidade em desenvolvimento'),
-      showChevron: true,
-    },
-    {
-      id: 'notifications',
-      title: 'Notificações',
-      subtitle: 'Gerenciar alertas e lembretes',
-      icon: 'bell',
-      iconColor: theme.colors.warning,
-      onPress: () => Alert.alert('Notificações', 'Funcionalidade em desenvolvimento'),
-      showChevron: true,
-    },
-    {
-      id: 'reports',
-      title: 'Relatórios',
-      subtitle: 'Visualizar estatísticas e relatórios',
-      icon: 'bar-chart',
-      iconColor: theme.colors.info,
-      onPress: () => Alert.alert('Relatórios', 'Funcionalidade em desenvolvimento'),
-      showChevron: true,
-    },
-    {
-      id: 'calendar',
-      title: 'Agenda',
-      subtitle: 'Visualizar agenda completa',
-      icon: 'calendar',
-      iconColor: theme.colors.success,
-      onPress: () => Alert.alert('Agenda', 'Funcionalidade em desenvolvimento'),
-      showChevron: true,
+      section: 'account',
     },
     {
       id: 'help',
@@ -102,6 +68,7 @@ export const MoreScreen: React.FC = () => {
       iconColor: theme.colors.info,
       onPress: () => Alert.alert('Ajuda', 'Entre em contato: suporte@medpro.com'),
       showChevron: true,
+      section: 'support',
     },
     {
       id: 'about',
@@ -111,6 +78,7 @@ export const MoreScreen: React.FC = () => {
       iconColor: theme.colors.textSecondary,
       onPress: () => Alert.alert('Sobre', 'MedPro Mobile v1.0.0\nDesenvolvido para profissionais de saúde'),
       showChevron: true,
+      section: 'support',
     },
     {
       id: 'logout',
@@ -120,7 +88,15 @@ export const MoreScreen: React.FC = () => {
       iconColor: theme.colors.error,
       onPress: handleLogout,
       showChevron: false,
+      section: 'logout',
     },
+  ];
+
+  const sections: Array<{ id: MoreOption['section']; title?: string }> = [
+    { id: 'account', title: 'Conta' },
+    { id: 'resources', title: 'Recursos' },
+    { id: 'support', title: 'Suporte' },
+    { id: 'logout' },
   ];
 
   const renderOption = (option: MoreOption) => (
@@ -190,28 +166,24 @@ export const MoreScreen: React.FC = () => {
           contentContainerStyle={styles.scrollContent}
         >
           <View style={styles.optionsContainer}>
-            {/* Profile Section */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Conta</Text>
-              {moreOptions.slice(0, 2).map(renderOption)}
-            </View>
+            {sections.map((section) => {
+              const sectionOptions = moreOptions.filter(
+                (option) => option.section === section.id
+              );
 
-            {/* App Features Section */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Recursos</Text>
-              {moreOptions.slice(2, 5).map(renderOption)}
-            </View>
+              if (!sectionOptions.length) {
+                return null;
+              }
 
-            {/* Support Section */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Suporte</Text>
-              {moreOptions.slice(5, 7).map(renderOption)}
-            </View>
-
-            {/* Logout Section */}
-            <View style={styles.section}>
-              {renderOption(moreOptions[7])}
-            </View>
+              return (
+                <View style={styles.section} key={section.id}>
+                  {section.title && (
+                    <Text style={styles.sectionTitle}>{section.title}</Text>
+                  )}
+                  {sectionOptions.map(renderOption)}
+                </View>
+              );
+            })}
           </View>
         </ScrollView>
       </View>

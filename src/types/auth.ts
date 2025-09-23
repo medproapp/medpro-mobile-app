@@ -5,6 +5,10 @@ export interface User {
   name: string;
   role: 'practitioner' | 'admin' | 'assistant';
   organization: string;
+  organizationId?: string;
+  groupId?: string;
+  groupRole?: string;
+  userRole?: string;
   avatar?: string;
   preferences?: UserPreferences;
   firstLogin?: boolean;

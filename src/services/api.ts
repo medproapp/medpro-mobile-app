@@ -150,8 +150,9 @@ class ApiService {
 
   // Get user to organization mapping
   async getUserToOrg(email: string, role?: string) {
-    const queryParam = role ? `?role=${role}` : '';
-    return this.request(`/login/getusertoorg/${email}${queryParam}`);
+    const queryParam = role ? `?role=${encodeURIComponent(role)}` : '';
+    const encodedEmail = encodeURIComponent(email);
+    return this.request(`/login/getusertoorg/${encodedEmail}${queryParam}`);
   }
 
   // Get next appointments for practitioner
@@ -466,7 +467,24 @@ class ApiService {
       offset: (params.offset || 0).toString(),
     });
 
-    return this.request(`/api/internal-comm/messages/thread/${threadId}?${queryParams}`);
+    console.log('[API] getThreadMessages -> request', {
+      threadId,
+      params,
+      query: queryParams.toString(),
+    });
+
+    const response = await this.request(`/api/internal-comm/messages/thread/${threadId}?${queryParams}`);
+
+    console.log('[API] getThreadMessages <- response', response);
+
+    return response;
+  }
+
+  async getThreadParticipants(threadId: string): Promise<any> {
+    console.log('[API] getThreadParticipants -> request', { threadId });
+    const response = await this.request(`/api/internal-comm/messages/thread/${threadId}/participants`);
+    console.log('[API] getThreadParticipants <- response', response);
+    return response;
   }
 
   // Send a new message or reply
@@ -561,6 +579,42 @@ class ApiService {
     return this.request('/api/notifications/device', {
       method: 'DELETE',
       body: tokenData,
+    });
+  }
+
+  // === NOTIFICATION CENTER ===
+
+  async listNotifications(params: {
+    page?: number;
+    limit?: number;
+    status?: 'delivered' | 'read' | 'archived' | 'all';
+  } = {}): Promise<any> {
+    const query = new URLSearchParams();
+    if (params.page !== undefined) query.set('page', String(params.page));
+    if (params.limit !== undefined) query.set('limit', String(params.limit));
+    if (params.status && params.status !== 'all') {
+      query.set('status', params.status);
+    }
+
+    const queryString = query.toString();
+    const endpoint = queryString ? `/api/notifications?${queryString}` : '/api/notifications';
+    return this.request(endpoint);
+  }
+
+  async acknowledgeNotifications(ids: number[]): Promise<any> {
+    if (!ids.length) {
+      return { affected: 0 };
+    }
+
+    return this.request('/api/notifications/ack', {
+      method: 'POST',
+      body: { ids },
+    });
+  }
+
+  async archiveNotification(id: number): Promise<any> {
+    return this.request(`/api/notifications/${id}`, {
+      method: 'DELETE',
     });
   }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -13,51 +13,94 @@ import {
   ScrollView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
 import api from '../../services/api';
-import { MessageThreadItem } from './MessageThreadItem';
+import { MessageThreadItem, type MessageThreadViewModel } from './MessageThreadItem';
 import { useAuthStore } from '@store/authStore';
+import type { MessageThread as ApiMessageThread } from '../../types/messaging';
+import type { MessagesStackParamList } from '@/types/navigation';
 
-interface MessageThread {
-  identifier: string;
-  subject: string;
-  thread_type: 'direct' | 'group';
-  status: 'active' | 'archived';
-  last_message_at: string;
-  created_at: string;
-  last_message_preview: string;
-  last_sender_name: string;
-  unread_count: number;
-  participants_names: string;
-  priority?: 'normal' | 'high' | 'urgent';
-  has_shared_records?: boolean;
-}
+type ThreadFilter = 'all' | 'unread' | 'shared' | 'patients' | 'requests';
+
+const getThreadId = (thread: ApiMessageThread): string => {
+  const rawId =
+    (thread as any).thread_id ||
+    (thread as any).identifier ||
+    (thread as any).id ||
+    '';
+  return rawId ? String(rawId) : '';
+};
+
+const mapThreadToViewModel = (thread: ApiMessageThread, photoOverride?: string | null): MessageThreadViewModel => {
+  const threadId = getThreadId(thread);
+
+  const participantsNames =
+    (thread as any).participants_names ||
+    ((thread as any).participants
+      ?.map((participant: any) => participant.displayName || participant.display_name)
+      .filter(Boolean)
+      .join(', ') || '');
+
+  const avatarUri =
+    (thread as any).photo_url ||
+    (thread as any).avatar ||
+    (thread as any).avatar_url ||
+    (thread as any).participant_photo ||
+    null;
+
+  const lastSender = thread.participants?.find((participant) => participant.id === thread.created_by)?.displayName;
+
+  return {
+    identifier: String(threadId),
+    subject: thread.subject ?? 'Sem assunto',
+    thread_type: thread.participant_count > 2 ? 'group' : 'direct',
+    status: 'active',
+    last_message_at:
+      (thread as any).last_message_at ||
+      (thread as any).last_message_date ||
+      thread.updated_at ||
+      thread.created_at,
+    created_at: thread.created_at,
+    last_message_preview: thread.last_message_preview ?? '',
+    last_sender_name: lastSender || '',
+    unread_count: thread.unread_count ?? 0,
+    participants_names: String(participantsNames || '').trim(),
+    priority: thread.priority,
+    has_shared_records: thread.has_shared_records,
+    avatar_uri: photoOverride ?? (avatarUri ? String(avatarUri) : null),
+  };
+};
 
 export const MessagesListScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<StackNavigationProp<MessagesStackParamList>>();
   const { user } = useAuthStore();
   
   // State
-  const [threads, setThreads] = useState<MessageThread[]>([]);
+  const [rawThreads, setRawThreads] = useState<ApiMessageThread[]>([]);
+  const [threads, setThreads] = useState<MessageThreadViewModel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filter, setFilter] = useState<'all' | 'unread' | 'shared' | 'patients' | 'requests'>('all');
+  const [filter, setFilter] = useState<ThreadFilter>('all');
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   const [stats, setStats] = useState<any>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
+  const [threadPhotos, setThreadPhotos] = useState<Record<string, string | null>>({});
 
   // Load threads with filtering and search
-  const loadThreads = async (filterType: string = 'all', searchTerm: string = '') => {
+  const loadThreads = async (filterType: ThreadFilter = 'all', searchTerm: string = '') => {
     try {
       const params: any = { filter: filterType };
       if (searchTerm) {
         params.search = searchTerm;
       }
       const response = await api.getMessageThreads(params);
-      setThreads(response.data || []);
+      const apiThreads = Array.isArray(response?.data) ? response.data : [];
+      setRawThreads(apiThreads);
+      setThreads(apiThreads.map(thread => mapThreadToViewModel(thread, threadPhotos[getThreadId(thread)])));
     } catch (error) {
       console.error('Error loading threads:', error);
     }
@@ -122,6 +165,68 @@ export const MessagesListScreen: React.FC = () => {
     return threads;
   };
 
+  // Rebuild thread view models when raw data or photo cache changes
+  useEffect(() => {
+    setThreads(rawThreads.map(thread => mapThreadToViewModel(thread, threadPhotos[getThreadId(thread)])));
+  }, [rawThreads, threadPhotos]);
+
+  // Fetch participant photos for threads without cached images
+  useEffect(() => {
+    const normalizedEmail = user?.email?.toLowerCase();
+
+    const selectPhoto = (participants: any[]): string | null => {
+      if (!Array.isArray(participants)) {
+        return null;
+      }
+
+      const candidates = [
+        participants.find(p => p.participantType === 'patient' && p.photo),
+        participants.find(p => p.participantType === 'practitioner' && p.photo && p.email?.toLowerCase() !== normalizedEmail),
+        participants.find(p => p.photo && p.email?.toLowerCase() !== normalizedEmail),
+        participants.find(p => p.photo),
+      ].filter(Boolean);
+
+      const candidate = candidates[0];
+      const photo = candidate?.photo;
+      return typeof photo === 'string' && photo.startsWith('data:image') ? photo : null;
+    };
+
+    rawThreads.forEach(thread => {
+      const threadId = getThreadId(thread);
+      if (!threadId || Object.prototype.hasOwnProperty.call(threadPhotos, threadId)) {
+        return;
+      }
+
+      setThreadPhotos(prev =>
+        Object.prototype.hasOwnProperty.call(prev, threadId)
+          ? prev
+          : { ...prev, [threadId]: null }
+      );
+
+      api.getThreadParticipants(threadId)
+        .then(response => {
+          const participants = Array.isArray(response?.data) ? response.data : [];
+          const photo = selectPhoto(participants);
+          setThreadPhotos(prev => {
+            if (prev[threadId] === (photo ?? null)) {
+              return prev;
+            }
+            return {
+              ...prev,
+              [threadId]: photo ?? null,
+            };
+          });
+        })
+        .catch(error => {
+          console.error('[MessagesListScreen] Failed to load thread participants photo', { threadId, error });
+          setThreadPhotos(prev => ({
+            ...prev,
+            [threadId]: null,
+          }));
+        });
+    });
+  }, [rawThreads, threadPhotos, user?.email]);
+
   // Handle scroll indicators
   const handleScroll = (event: any) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
@@ -135,6 +240,10 @@ export const MessagesListScreen: React.FC = () => {
   // Handle thread press
   const handleThreadPress = (threadId: string) => {
     console.log('Thread pressed:', threadId);
+    if (!threadId) {
+      console.warn('[MessagesListScreen] Ignoring thread press: missing thread id');
+      return;
+    }
     const thread = threads.find(t => t.identifier === threadId);
     if (thread) {
       navigation.navigate('Conversation', {
@@ -145,7 +254,7 @@ export const MessagesListScreen: React.FC = () => {
   };
 
   // Render thread item
-  const renderThread = ({ item }: { item: MessageThread }) => (
+  const renderThread = ({ item }: { item: MessageThreadViewModel }) => (
     <MessageThreadItem thread={item} onPress={handleThreadPress} />
   );
 
@@ -258,7 +367,9 @@ export const MessagesListScreen: React.FC = () => {
           <FlatList
             data={filteredThreads}
             renderItem={renderThread}
-            keyExtractor={item => item.identifier}
+            keyExtractor={(item, index) =>
+              item.identifier ? item.identifier : `thread-${index}`
+            }
             refreshControl={
               <RefreshControl 
                 refreshing={isRefreshing} 

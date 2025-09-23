@@ -70,8 +70,6 @@ export const AppointmentStep2Screen: React.FC = () => {
       const results = await api.getOfferings('SERVICE', true);
       console.log('[AppointmentStep2] Services results:', results);
       console.log('[AppointmentStep2] Results type:', typeof results);
-      console.log('[AppointmentStep2] Results.data type:', typeof results?.data);
-      console.log('[AppointmentStep2] Is results.data array:', Array.isArray(results?.data));
       console.log('[AppointmentStep2] Results direct array check:', Array.isArray(results));
       
       if (Array.isArray(results)) {

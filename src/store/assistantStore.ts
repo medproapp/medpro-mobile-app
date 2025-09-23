@@ -129,7 +129,6 @@ export const useAssistantStore = create<AssistantStore>()(
             type: MESSAGE_TYPES.TEXT,
             metadata: {
               actions: response.actions,
-              context: response.context,
             },
           };
 
@@ -383,9 +382,7 @@ export const useAssistantStore = create<AssistantStore>()(
             content: response.text,
             timestamp: new Date(),
             type: MESSAGE_TYPES.TEXT,
-            metadata: {
-              context: response.analysis,
-            },
+            metadata: {},
           };
 
           get().addMessage(analysisMessage);
@@ -488,7 +485,6 @@ export const useAssistantStore = create<AssistantStore>()(
             type: MESSAGE_TYPES.TEXT,
             metadata: {
               actions: response.actions,
-              context: response.context,
             },
           };
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -16,9 +16,10 @@ import { Card, Loading, InProgressEncountersAlert } from '@components/common';
 import { theme } from '@theme/index';
 import { useAuthStore } from '@store/authStore';
 import { apiService, API_BASE_URL } from '@services/api';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { DashboardStackParamList } from '@/types/navigation';
+import { useNotificationStore } from '@store/notificationStore';
 
 interface Appointment {
   id: string;
@@ -27,6 +28,7 @@ interface Appointment {
   date: string;
   type: string;
   status: 'scheduled' | 'confirmed' | 'in_progress' | 'completed';
+  patientPhoto?: string | null;
 }
 
 interface DashboardData {
@@ -356,6 +358,9 @@ export const DashboardScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [photoAvailable, setPhotoAvailable] = useState(true);
   const [scheduleSummary, setScheduleSummary] = useState<ScheduleSummaryDay[]>([]);
+  const pendingCount = useNotificationStore(state => state.pendingCount);
+  const isLoadingPendingCount = useNotificationStore(state => state.isLoadingCount);
+  const fetchPendingCount = useNotificationStore(state => state.fetchPendingCount);
 
   const photoUri = useMemo(() => {
     if (!user?.email) {
@@ -392,6 +397,17 @@ export const DashboardScreen: React.FC = () => {
           try {
             // Get patient details for each appointment
             const patientData = await apiService.getPatientDetails(apt.subject);
+            let patientPhoto: string | null = null;
+
+            try {
+              const photoBase64 = await apiService.getPatientPhoto(apt.subject);
+              if (typeof photoBase64 === 'string' && photoBase64.length > 0) {
+                patientPhoto = photoBase64;
+              }
+            } catch (photoError) {
+              const message = photoError instanceof Error ? photoError.message : 'Unknown error';
+              console.log('[Dashboard] No patient photo available:', message);
+            }
             
             // Convert UTC datetime to local for proper date grouping
             const localDateTime = convertUTCToLocalDate(
@@ -405,7 +421,8 @@ export const DashboardScreen: React.FC = () => {
               time: localDateTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }), // Local time
               date: localDateTime.toISOString().split('T')[0], // Local date for grouping
               type: formatAppointmentType(apt.appointmenttype),
-              status: apt.status === 'booked' ? 'confirmed' : apt.status
+              status: apt.status === 'booked' ? 'confirmed' : apt.status,
+              patientPhoto,
             };
           } catch (error) {
             console.error('Error fetching patient details:', error);
@@ -421,7 +438,8 @@ export const DashboardScreen: React.FC = () => {
               time: localDateTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
               date: localDateTime.toISOString().split('T')[0],
               type: formatAppointmentType('ROUTINE'),
-              status: 'scheduled'
+              status: 'scheduled',
+              patientPhoto: null,
             };
           }
         })
@@ -562,9 +580,16 @@ export const DashboardScreen: React.FC = () => {
     fetchDashboardData();
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      fetchPendingCount();
+    }, [fetchPendingCount])
+  );
+
   const handleRefresh = () => {
     setRefreshing(true);
     fetchDashboardData();
+    fetchPendingCount();
   };
 
   const getTimeBasedGreeting = () => {
@@ -574,16 +599,13 @@ export const DashboardScreen: React.FC = () => {
     return 'Boa noite';
   };
 
-  const getCurrentDate = () => {
-    const today = new Date();
-    const options: Intl.DateTimeFormatOptions = { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    };
-    return today.toLocaleDateString('pt-BR', options);
-  };
+  const organizationLabel = useMemo(() => {
+    if (!user?.organization || !user.organization.trim()) {
+      return 'Organização não informada';
+    }
+
+    return user.organization.trim();
+  }, [user?.organization]);
 
   const handleInProgressEncountersPress = () => {
     navigation.navigate('EncounterList', { filterStatus: 'OPEN' });
@@ -638,9 +660,29 @@ export const DashboardScreen: React.FC = () => {
               <View style={styles.headerContent}>
                 <Text style={styles.greeting}>{getTimeBasedGreeting()},</Text>
                 <Text style={styles.userName}>{user?.name || 'Doutor'}</Text>
-                <Text style={styles.dateText}>{getCurrentDate()}</Text>
+                <Text style={styles.dateText} numberOfLines={1}>
+                  {organizationLabel}
+                </Text>
               </View>
             </View>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={[styles.notificationButton, isLoadingPendingCount && styles.notificationButtonLoading]}
+              onPress={() => navigation.navigate('Notifications')}
+            >
+              <MaterialIcons
+                name={pendingCount > 0 ? 'notifications' : 'notifications-none'}
+                size={24}
+                color={theme.colors.white}
+              />
+              {pendingCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>
+                    {pendingCount > 99 ? '99+' : String(pendingCount)}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -661,23 +703,61 @@ export const DashboardScreen: React.FC = () => {
         {/* Quick Stats */}
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
-            <FontAwesome name="calendar-check-o" size={24} color={theme.colors.primary} />
-            <Text style={styles.statNumber}>{data?.nextAppointments.length || 0}</Text>
-            <Text style={styles.statLabel}>Hoje</Text>
+            <FontAwesome
+              name="calendar-check-o"
+              size={20}
+              color={theme.colors.primary}
+              style={styles.statIcon}
+            />
+            <Text style={styles.statNumber} numberOfLines={1}>
+              {data?.nextAppointments.length || 0}
+            </Text>
+            <Text
+              style={styles.statLabel}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              adjustsFontSizeToFit
+            >
+              Hoje
+            </Text>
           </View>
           <View style={styles.statCard}>
-            <FontAwesome name="clock-o" size={24} color={theme.colors.info} />
-            <Text style={styles.statNumber}>
+            <FontAwesome
+              name="clock-o"
+              size={20}
+              color={theme.colors.info}
+              style={styles.statIcon}
+            />
+            <Text style={styles.statNumber} numberOfLines={1}>
               {data?.nextAppointments.filter(apt => apt.status === 'scheduled').length || 0}
             </Text>
-            <Text style={styles.statLabel}>Pendentes</Text>
+            <Text
+              style={styles.statLabel}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              adjustsFontSizeToFit
+            >
+              Pendentes
+            </Text>
           </View>
           <View style={styles.statCard}>
-            <FontAwesome name="check-circle" size={24} color={theme.colors.success} />
-            <Text style={styles.statNumber}>
+            <FontAwesome
+              name="check-circle"
+              size={20}
+              color={theme.colors.success}
+              style={styles.statIcon}
+            />
+            <Text style={styles.statNumber} numberOfLines={1}>
               {data?.nextAppointments.filter(apt => apt.status === 'confirmed').length || 0}
             </Text>
-            <Text style={styles.statLabel}>Confirmadas</Text>
+            <Text
+              style={styles.statLabel}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              adjustsFontSizeToFit
+            >
+              Confirmadas
+            </Text>
           </View>
         </View>
 
@@ -693,7 +773,14 @@ export const DashboardScreen: React.FC = () => {
             <View style={styles.iconContainer}>
               <FontAwesome name="calendar" size={22} color={theme.colors.primary} />
             </View>
-            <Text style={styles.cardTitle}>Próximas Consultas</Text>
+            <Text
+              style={styles.cardTitle}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              adjustsFontSizeToFit
+            >
+              Próximos Agendamentos
+            </Text>
             <View style={styles.cardHeaderBadge}>
               <Text style={styles.cardHeaderBadgeText}>
                 {data?.nextAppointments.length || 0}
@@ -721,28 +808,42 @@ export const DashboardScreen: React.FC = () => {
                       activeOpacity={0.7}
                       onPress={() => navigation.navigate('AppointmentDetails', { appointmentId: appointment.id })}
                     >
-                      <View style={styles.appointmentTimeContainer}>
-                        <Text style={styles.timeText}>{appointment.time}</Text>
-                        <View style={[styles.timeIndicator, { backgroundColor: getStatusColor(appointment.status) }]} />
-                      </View>
-                      <View style={styles.appointmentInfo}>
-                        <Text style={styles.patientName}>{appointment.patientName}</Text>
-                        <Text style={styles.appointmentType}>{appointment.type}</Text>
-                      </View>
-                      <View style={styles.statusContainer}>
-                        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(appointment.status) + '20' }]}>
-                          <FontAwesome 
-                            name={appointment.status === 'confirmed' ? 'check-circle' : 
-                                  appointment.status === 'scheduled' ? 'clock-o' : 
-                                  'circle'} 
-                            size={14} 
-                            color={getStatusColor(appointment.status)} 
-                          />
-                          <Text style={[styles.statusText, { color: getStatusColor(appointment.status) }]}>
-                            {appointment.status === 'confirmed' ? 'Confirmada' :
-                             appointment.status === 'scheduled' ? 'Agendada' :
-                             appointment.status === 'in_progress' ? 'Em andamento' : 'Concluída'}
-                          </Text>
+                      <View style={styles.appointmentRowContent}>
+                        <View style={styles.patientAvatar}>
+                          {appointment.patientPhoto ? (
+                            <Image
+                              source={{ uri: appointment.patientPhoto }}
+                              style={styles.patientAvatarImage}
+                            />
+                          ) : (
+                            <FontAwesome name="user" size={18} color={theme.colors.primary} />
+                          )}
+                        </View>
+                        <View style={styles.appointmentContent}>
+                          <View style={styles.timeRow}>
+                            <Text style={styles.timeText}>{appointment.time}</Text>
+                            <View style={[styles.timeIndicator, { backgroundColor: getStatusColor(appointment.status) }]} />
+                          </View>
+                          <Text style={styles.patientName}>{appointment.patientName}</Text>
+                          <View style={styles.appointmentFooter}>
+                            <Text style={styles.appointmentType} numberOfLines={1}>
+                              {appointment.type}
+                            </Text>
+                            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(appointment.status) + '20' }]}>
+                              <FontAwesome 
+                                name={appointment.status === 'confirmed' ? 'check-circle' : 
+                                      appointment.status === 'scheduled' ? 'clock-o' : 
+                                      'circle'} 
+                                size={12} 
+                                color={getStatusColor(appointment.status)} 
+                              />
+                              <Text style={[styles.statusText, { color: getStatusColor(appointment.status) }]}>
+                                {appointment.status === 'confirmed' ? 'Confirmada' :
+                                 appointment.status === 'scheduled' ? 'Agendada' :
+                                 appointment.status === 'in_progress' ? 'Em andamento' : 'Concluída'}
+                              </Text>
+                            </View>
+                          </View>
                         </View>
                       </View>
                     </TouchableOpacity>
@@ -753,13 +854,13 @@ export const DashboardScreen: React.FC = () => {
           ) : (
             <View style={styles.emptyState}>
               <FontAwesome name="calendar-o" size={48} color={theme.colors.textSecondary} style={styles.emptyIcon} />
-              <Text style={styles.emptyTitle}>Nenhuma consulta agendada</Text>
+              <Text style={styles.emptyTitle}>Nenhum agendamento</Text>
               <Text style={styles.emptySubtitle}>
-                Você não possui consultas marcadas para hoje.
+                Você não possui agendamentos.
               </Text>
               <TouchableOpacity style={styles.emptyAction} activeOpacity={0.7}>
                 <FontAwesome name="plus" size={16} color={theme.colors.primary} />
-                <Text style={styles.emptyActionText}>Agendar nova consulta</Text>
+                <Text style={styles.emptyActionText}>Criar novo agendamento</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -913,10 +1014,10 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'flex-start',
+    justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.sm,
+    paddingTop: theme.spacing.xs,
   },
   userSection: {
     flexDirection: 'row',
@@ -951,39 +1052,74 @@ const styles = StyleSheet.create({
   headerContent: {
     flex: 1,
   },
+  notificationButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: theme.colors.white + '1F',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  notificationButtonLoading: {
+    opacity: 0.7,
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: theme.colors.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  notificationBadgeText: {
+    color: theme.colors.white,
+    fontSize: 11,
+    fontWeight: '700',
+  },
   greeting: {
     ...theme.typography.body,
     color: theme.colors.white + 'CC',
-    fontSize: 14,
+    fontSize: 13,
+    lineHeight: 18,
   },
   userName: {
     ...theme.typography.h1,
     color: theme.colors.white,
-    fontSize: 22,
+    fontSize: 19,
     fontWeight: '700',
-    marginTop: theme.spacing.xs,
+    marginTop: 2,
+    lineHeight: 24,
   },
   dateText: {
     ...theme.typography.caption,
     color: theme.colors.white + 'AA',
-    fontSize: 12,
-    marginTop: theme.spacing.xs,
+    fontSize: 11,
+    marginTop: 2,
+    lineHeight: 16,
     textTransform: 'capitalize',
   },
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.lg,
-    marginTop: theme.spacing.lg,
-    marginBottom: theme.spacing.lg,
+    marginTop: theme.spacing.md,
+    marginBottom: theme.spacing.md,
   },
   statCard: {
     backgroundColor: theme.colors.surface,
-    borderRadius: 16,
-    padding: theme.spacing.md,
+    borderRadius: 12,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.sm,
     alignItems: 'center',
+    justifyContent: 'center',
     flex: 1,
     marginHorizontal: theme.spacing.xs,
+    minHeight: 92,
     shadowColor: theme.colors.shadow,
     shadowOffset: {
       width: 0,
@@ -993,18 +1129,25 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  statIcon: {
+    marginBottom: theme.spacing.xs,
+  },
   statNumber: {
     ...theme.typography.h1,
-    fontSize: 28,
+    fontSize: 20,
     fontWeight: '700',
     color: theme.colors.text,
-    marginTop: theme.spacing.sm,
+    marginTop: theme.spacing.xs,
+    width: '100%',
+    textAlign: 'center',
   },
   statLabel: {
     ...theme.typography.caption,
     color: theme.colors.textSecondary,
-    fontSize: 12,
+    fontSize: 10,
     marginTop: theme.spacing.xs,
+    width: '100%',
+    textAlign: 'center',
   },
   appointmentsCard: {
     marginHorizontal: theme.spacing.lg,
@@ -1029,7 +1172,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     ...theme.typography.h2,
     color: theme.colors.text,
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '600',
     flex: 1,
   },
@@ -1184,9 +1327,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   appointmentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderLight,
     borderRadius: 8,
@@ -1196,54 +1337,77 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
     marginBottom: 0,
   },
-  appointmentTimeContainer: {
+  appointmentRowContent: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginRight: theme.spacing.lg,
-    position: 'relative',
+    width: '100%',
+  },
+  appointmentContent: {
+    flex: 1,
+    marginLeft: theme.spacing.md,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.xs,
   },
   timeText: {
     ...theme.typography.h3,
     color: theme.colors.text,
-    fontWeight: '700',
-    fontSize: 16,
+    fontWeight: '600',
+    fontSize: 14,
   },
   timeIndicator: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    marginTop: theme.spacing.xs,
-  },
-  appointmentInfo: {
-    flex: 1,
-    marginRight: theme.spacing.sm,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginLeft: theme.spacing.xs,
   },
   patientName: {
     ...theme.typography.body,
     color: theme.colors.text,
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: 14,
     marginBottom: theme.spacing.xs,
   },
   appointmentType: {
     ...theme.typography.caption,
     color: theme.colors.textSecondary,
-    fontSize: 14,
+    fontSize: 12,
+    flex: 1,
+    marginRight: theme.spacing.sm,
   },
-  statusContainer: {
-    alignItems: 'flex-end',
+  appointmentFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: theme.spacing.xs,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.xs,
+    paddingVertical: 4,
     borderRadius: 12,
   },
   statusText: {
     ...theme.typography.caption,
     fontWeight: '600',
-    fontSize: 11,
+    fontSize: 10,
     marginLeft: theme.spacing.xs,
+  },
+  patientAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.primary + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  patientAvatarImage: {
+    width: '100%',
+    height: '100%',
   },
   dateGroupHeader: {
     flexDirection: 'row',
@@ -1289,7 +1453,7 @@ const styles = StyleSheet.create({
   emptyTitle: {
     ...theme.typography.h3,
     color: theme.colors.text,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     marginBottom: theme.spacing.sm,
     textAlign: 'center',
@@ -1297,7 +1461,7 @@ const styles = StyleSheet.create({
   emptySubtitle: {
     ...theme.typography.body,
     color: theme.colors.textSecondary,
-    fontSize: 14,
+    fontSize: 13,
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: theme.spacing.xl,

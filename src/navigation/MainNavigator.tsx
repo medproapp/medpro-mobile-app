@@ -1,10 +1,13 @@
 import React from 'react';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createBottomTabNavigator, type BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
+import { PlatformPressable } from '@react-navigation/elements';
 import { createStackNavigator } from '@react-navigation/stack';
-import { Text, View, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { Text, View, StyleSheet, Image } from 'react-native';
+import { getFocusedRouteNameFromRoute, RouteProp } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { DashboardScreen } from '@screens/Dashboard';
+import { NotificationsScreen } from '@screens/Notifications';
 import { EncounterListScreen } from '@screens/Encounters';
 import { EncounterViewScreen } from '@screens/Encounters/EncounterViewScreen';
 import { AppointmentStep1Screen } from '@screens/Appointments/AppointmentStep1Screen';
@@ -27,11 +30,36 @@ import { theme } from '@theme/index';
 import { useNotifications } from '../hooks/useNotifications';
 import { useMessagingUnreadCount } from '@store/messagingStore';
 
-const Tab = createBottomTabNavigator<MainTabParamList>();
-const DashboardStack = createStackNavigator<DashboardStackParamList>();
-const PatientsStack = createStackNavigator<PatientsStackParamList>();
-const MessagesStack = createStackNavigator<MessagesStackParamList>();
-const MoreStack = createStackNavigator<MoreStackParamList>();
+const Tab = createBottomTabNavigator<MainTabParamList, 'MainTabNavigator'>();
+const DashboardStack = createStackNavigator<DashboardStackParamList, 'DashboardStackNavigator'>();
+const PatientsStack = createStackNavigator<PatientsStackParamList, 'PatientsStackNavigator'>();
+const MessagesStack = createStackNavigator<MessagesStackParamList, 'MessagesStackNavigator'>();
+const MoreStack = createStackNavigator<MoreStackParamList, 'MoreStackNavigator'>();
+
+const TAB_BAR_BASE_STYLE = {
+  backgroundColor: theme.colors.surface,
+  borderTopColor: theme.colors.border,
+  borderTopWidth: 1,
+  paddingBottom: 10,
+  paddingTop: 10,
+  height: 90,
+  shadowColor: theme.colors.shadow,
+  shadowOffset: {
+    width: 0,
+    height: -2,
+  },
+  shadowOpacity: 0.1,
+  shadowRadius: 3,
+  elevation: 8,
+};
+
+const getDashboardTabBarStyle = (route: RouteProp<MainTabParamList, 'Dashboard'>): typeof TAB_BAR_BASE_STYLE & { display?: 'none' } => {
+  const routeName = getFocusedRouteNameFromRoute(route) ?? 'DashboardHome';
+  if (['Notifications'].includes(routeName)) {
+    return { ...TAB_BAR_BASE_STYLE, display: 'none' };
+  }
+  return TAB_BAR_BASE_STYLE;
+};
 
 // Dual-color Tab Icon Component
 interface TabIconProps {
@@ -138,10 +166,37 @@ const MessagesTabIcon: React.FC<{ focused: boolean; color: string }> = ({ focuse
 // Assistant screen - now fully implemented
 // Using AssistantScreen instead of placeholder
 
+const TabBarButton = React.forwardRef<
+  React.ElementRef<typeof PlatformPressable>,
+  BottomTabBarButtonProps
+>(({ style, children, ...rest }, ref) => {
+  return (
+    <PlatformPressable
+      ref={ref}
+      {...rest}
+      pressOpacity={0.7}
+      style={[
+        style,
+        {
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingVertical: 8,
+        },
+      ]}
+    >
+      {children}
+    </PlatformPressable>
+  );
+});
+
+TabBarButton.displayName = 'TabBarButton';
+
 // Messages Stack Navigator
 const MessagesStackNavigator: React.FC = () => {
   return (
     <MessagesStack.Navigator
+      id="MessagesStackNavigator"
       screenOptions={{
         headerShown: false,
       }}
@@ -158,11 +213,13 @@ const MessagesStackNavigator: React.FC = () => {
 const DashboardStackNavigator: React.FC = () => {
   return (
     <DashboardStack.Navigator
+      id="DashboardStackNavigator"
       screenOptions={{
         headerShown: false,
       }}
     >
       <DashboardStack.Screen name="DashboardHome" component={DashboardScreen} />
+      <DashboardStack.Screen name="Notifications" component={NotificationsScreen} />
       <DashboardStack.Screen name="AppointmentDetails" component={AppointmentDetailsScreen} />
       <DashboardStack.Screen name="EncounterList" component={EncounterListScreen} />
       <DashboardStack.Screen name="EncounterView" component={EncounterViewScreen} />
@@ -181,6 +238,7 @@ const DashboardStackNavigator: React.FC = () => {
 const PatientsStackNavigator: React.FC = () => {
   return (
     <PatientsStack.Navigator
+      id="PatientsStackNavigator"
       screenOptions={{
         headerShown: false,
       }}
@@ -197,6 +255,7 @@ const PatientsStackNavigator: React.FC = () => {
 const MoreStackNavigator: React.FC = () => {
   return (
     <MoreStack.Navigator
+      id="MoreStackNavigator"
       screenOptions={{
         headerShown: false,
       }}
@@ -213,24 +272,10 @@ export const MainNavigator: React.FC = () => {
 
   return (
     <Tab.Navigator
+      id="MainTabNavigator"
       screenOptions={{
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: theme.colors.surface,
-          borderTopColor: theme.colors.border,
-          borderTopWidth: 1,
-          paddingBottom: 10,
-          paddingTop: 10,
-          height: 90,
-          shadowColor: theme.colors.shadow,
-          shadowOffset: {
-            width: 0,
-            height: -2,
-          },
-          shadowOpacity: 0.1,
-          shadowRadius: 3,
-          elevation: 8,
-        },
+        tabBarStyle: TAB_BAR_BASE_STYLE,
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.textSecondary,
         tabBarLabelStyle: {
@@ -245,31 +290,15 @@ export const MainNavigator: React.FC = () => {
         tabBarItemStyle: {
           paddingVertical: 4,
         },
-        tabBarButton: ({ style, delayLongPress, children, ...rest }) => (
-          <TouchableOpacity
-            {...rest}
-            {...(delayLongPress != null ? { delayLongPress } : {})}
-            style={[
-              style,
-              {
-                flex: 1,
-                alignItems: 'center',
-                justifyContent: 'center',
-                paddingVertical: 8,
-              }
-            ]}
-            activeOpacity={0.7}
-          >
-            {children}
-          </TouchableOpacity>
-        ),
+        tabBarButton: (props) => <TabBarButton {...props} />,
       }}
     >
       <Tab.Screen
         name="Dashboard"
         component={DashboardStackNavigator}
-        options={{
+        options={({ route }) => ({
           title: 'Painél',
+          tabBarStyle: getDashboardTabBarStyle(route),
           tabBarIcon: ({ focused, color }) => (
             <TabIcon 
               name="bar-chart" 
@@ -277,7 +306,7 @@ export const MainNavigator: React.FC = () => {
               color={color} 
             />
           ),
-        }}
+        })}
       />
       
       <Tab.Screen

@@ -156,8 +156,8 @@ export const EncounterListScreen: React.FC<EncounterListProps> = ({ route }) => 
     console.log('Open encounter:', encounter.Identifier);
     (navigation as any).navigate('EncounterView', {
       encounterId: encounter.Identifier,
-      patientName: encounter.Patient?.Name || 'Paciente Desconhecido',
-      patientCpf: encounter.Patient?.CPF || '',
+      patientName: encounter.patientName || 'Paciente Desconhecido',
+      patientCpf: encounter.Subject || '',
     });
   };
 

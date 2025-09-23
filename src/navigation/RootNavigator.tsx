@@ -9,7 +9,7 @@ import { Loading } from '@components/common';
 import { useAuthStore } from '@store/authStore';
 import { RootStackParamList } from '../types/navigation';
 
-const Stack = createStackNavigator<RootStackParamList>();
+const Stack = createStackNavigator<RootStackParamList, 'RootNavigator'>();
 
 export const RootNavigator: React.FC = () => {
   const { isAuthenticated, isLoading, user } = useAuthStore();
@@ -20,6 +20,7 @@ export const RootNavigator: React.FC = () => {
     <NavigationContainer>
       <StatusBar style="dark" backgroundColor="transparent" />
       <Stack.Navigator
+        id="RootNavigator"
         screenOptions={{
           headerShown: false,
           presentation: 'card',

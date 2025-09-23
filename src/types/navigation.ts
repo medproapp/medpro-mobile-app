@@ -40,6 +40,7 @@ export type DashboardStackParamList = {
     patientName: string;
     patientCpf: string;
   };
+  Notifications: undefined;
   // Appointment Creation Flow
   AppointmentStep1: undefined;
   AppointmentStep2: undefined;

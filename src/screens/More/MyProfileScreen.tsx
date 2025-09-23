@@ -12,7 +12,7 @@ import {
   Alert,
   Platform,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import * as ImagePicker from 'expo-image-picker';
 import { theme } from '@theme/index';
@@ -23,6 +23,7 @@ import { PractitionerProfile, PractitionerProfileField } from '@/types/practitio
 const TEXT_INPUT_HEIGHT = Platform.select({ ios: 46, android: 48, default: 46 });
 
 export const MyProfileScreen: React.FC = () => {
+  const navigation = useNavigation();
   const { user, token } = useAuthStore();
   const email = user?.email || '';
 
@@ -32,6 +33,24 @@ export const MyProfileScreen: React.FC = () => {
   const [photoAvailable, setPhotoAvailable] = useState(true);
   const [photoVersion, setPhotoVersion] = useState(0);
   const [formValues, setFormValues] = useState<Partial<PractitionerProfile>>({});
+
+  const userTypeLabel = useMemo(() => {
+    const roleSource = user?.userRole || user?.role;
+    if (!roleSource) {
+      return 'Não informado';
+    }
+
+    const normalized = roleSource.toLowerCase();
+    const roleMap: Record<string, string> = {
+      pract: 'Profissional de saúde',
+      practitioner: 'Profissional de saúde',
+      assist: 'Assistente',
+      assistant: 'Assistente',
+      admin: 'Administrador',
+    };
+
+    return roleMap[normalized] || roleSource;
+  }, [user?.role, user?.userRole]);
 
   const photoUri = useMemo(() => {
     if (!email || !token) {
@@ -52,28 +71,22 @@ export const MyProfileScreen: React.FC = () => {
       console.log('[MyProfileScreen] Raw profile payload:', profile);
 
       setFormValues({
-        name: profile.name || '',
+        name: profile.name || user?.name || '',
+        cpf: profile.cpf || '',
         phone: profile.phone || '',
+        gender: profile.gender || '',
+        birthDate: profile.birthDate || '',
         crm: profile.crm || '',
-        qualification: profile.qualification || '',
+        cnpj: profile.cnpj || '',
+        qualification: profile.qualification || profile.category || '',
+        qualifications: profile.qualifications || '',
+        certifications: profile.certifications || '',
         medsite: profile.medsite || '',
         address: profile.address || '',
         cep: profile.cep || '',
-        cityname: profile.cityname || '',
+        cityname: profile.cityname || profile.city || '',
         state: profile.state || '',
         bio: profile.bio || '',
-        valoratendimento:
-          profile.valoratendimento !== null && typeof profile.valoratendimento !== 'undefined'
-            ? String(profile.valoratendimento)
-            : '',
-        tempoatendimento:
-          profile.tempoatendimento !== null && typeof profile.tempoatendimento !== 'undefined'
-            ? String(profile.tempoatendimento)
-            : '',
-        intervaloatendimentos:
-          profile.intervaloatendimentos !== null && typeof profile.intervaloatendimentos !== 'undefined'
-            ? String(profile.intervaloatendimentos)
-            : '',
       });
       setPhotoAvailable(true);
     } catch (error) {
@@ -82,13 +95,30 @@ export const MyProfileScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [email]);
+  }, [email, user?.name]);
 
   useFocusEffect(
     useCallback(() => {
       loadProfile();
     }, [loadProfile])
   );
+
+  useFocusEffect(
+    useCallback(() => {
+      const parent = navigation.getParent?.();
+      parent?.setOptions({ tabBarStyle: { display: 'none' } });
+
+      return () => {
+        parent?.setOptions({ tabBarStyle: undefined });
+      };
+    }, [navigation])
+  );
+
+  const handleGoBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    }
+  };
 
   const handleChange = (field: PractitionerProfileField, value: string) => {
     setFormValues(prev => ({
@@ -217,6 +247,44 @@ export const MyProfileScreen: React.FC = () => {
     );
   };
 
+  const renderReadOnlyField = (
+    label: string,
+    value?: string | null,
+    options?: {
+      variant?: 'badge';
+      tone?: 'primary' | 'success' | 'muted';
+    }
+  ) => {
+    const resolvedValue = value && value.trim().length ? value : 'Não informado';
+    const isBadge = options?.variant === 'badge';
+
+    return (
+      <View style={styles.readOnlyField} key={label}>
+        <Text style={styles.readOnlyLabel}>{label}</Text>
+        {isBadge ? (
+          <View
+            style={[
+              styles.badge,
+              options?.tone === 'success' && styles.badgeSuccess,
+              options?.tone === 'muted' && styles.badgeMuted,
+            ]}
+          >
+            <Text
+              style={[
+                styles.badgeText,
+                options?.tone === 'muted' && styles.badgeTextMuted,
+              ]}
+            >
+              {resolvedValue}
+            </Text>
+          </View>
+        ) : (
+          <Text style={styles.readOnlyValue}>{resolvedValue}</Text>
+        )}
+      </View>
+    );
+  };
+
   return (
     <>
       <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
@@ -228,6 +296,14 @@ export const MyProfileScreen: React.FC = () => {
             resizeMode="contain"
           />
           <View style={styles.header}>
+            <TouchableOpacity
+              onPress={handleGoBack}
+              style={styles.backButton}
+              accessibilityRole="button"
+              accessibilityLabel="Voltar"
+            >
+              <FontAwesome name="chevron-left" size={18} color={theme.colors.white} />
+            </TouchableOpacity>
             <View style={styles.headerContent}>
               <Text style={styles.greeting}>Meu Perfil</Text>
               <Text style={styles.subheading}>Atualize suas informações profissionais</Text>
@@ -246,8 +322,34 @@ export const MyProfileScreen: React.FC = () => {
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
+            <View style={[styles.card, styles.readOnlyCard]}>
+              <View style={styles.readOnlyHeader}>
+                <View style={styles.readOnlyIconWrapper}>
+                  <FontAwesome name="id-card" size={18} color={theme.colors.primary} />
+                </View>
+                <View style={styles.readOnlyHeaderText}>
+                  <Text style={styles.sectionTitle}>Informações do usuário</Text>
+                  <View style={styles.badgeRow}>
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{userTypeLabel}</Text>
+                    </View>
+                    {user?.isAdmin && (
+                      <View style={[styles.badge, styles.badgeSuccess]}>
+                        <Text style={styles.badgeText}>Admin</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.readOnlyGrid}>
+                {renderReadOnlyField('Email', user?.email)}
+                {renderReadOnlyField('Organização', user?.organization)}
+              </View>
+            </View>
+
             <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Foto do perfil</Text>
+              <Text style={styles.sectionTitle}>Foto e identificação</Text>
               <View style={styles.photoRow}>
                 <View style={styles.photoWrapper}>
                   {photoUri && photoAvailable ? (
@@ -284,43 +386,80 @@ export const MyProfileScreen: React.FC = () => {
                   </Text>
                 </TouchableOpacity>
               </View>
-            </View>
 
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Informações básicas</Text>
-              {renderInput('Nome completo', 'name', { placeholder: 'Como deseja ser chamado(a)' })}
-              {renderInput('Telefone', 'phone', { placeholder: '+55 11 99999-0000', keyboardType: 'phone-pad' })}
-              {renderInput('CRM', 'crm', { placeholder: 'Número do CRM' })}
-              {renderInput('Especialidade', 'qualification', { placeholder: 'Ex: Cardiologia' })}
-            </View>
+              <View style={styles.cardDivider} />
 
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Informações profissionais</Text>
-              {renderInput('Site profissional', 'medsite', { placeholder: 'https://', keyboardType: 'url' })}
-              {renderInput('Valor por consulta', 'valoratendimento', {
-                placeholder: 'Ex: 350',
-                keyboardType: 'numeric',
+              {renderInput('Nome completo', 'name', {
+                placeholder: 'Como deseja ser chamado(a)',
               })}
-              {renderInput('Tempo de atendimento (minutos)', 'tempoatendimento', {
-                placeholder: 'Ex: 45',
+              {renderInput('CPF', 'cpf', {
+                placeholder: '000.000.000-00',
                 keyboardType: 'numeric',
+                maxLength: 14,
               })}
-              {renderInput('Intervalo entre atendimentos (minutos)', 'intervaloatendimentos', {
-                placeholder: 'Ex: 15',
-                keyboardType: 'numeric',
+              {renderInput('Telefone', 'phone', {
+                placeholder: '+55 11 99999-0000',
+                keyboardType: 'phone-pad',
               })}
-              {renderInput('Biografia', 'bio', {
-                placeholder: 'Conte um pouco sobre sua experiência...',
-                multiline: true,
+              {renderInput('Gênero', 'gender', {
+                placeholder: 'Masculino, Feminino, Outro',
+              })}
+              {renderInput('Data de nascimento', 'birthDate', {
+                placeholder: 'DD/MM/AAAA',
               })}
             </View>
 
             <View style={styles.card}>
               <Text style={styles.sectionTitle}>Endereço</Text>
-              {renderInput('Endereço', 'address', { placeholder: 'Rua, número e complemento' })}
-              {renderInput('CEP', 'cep', { placeholder: '00000-000', keyboardType: 'numeric', maxLength: 9 })}
-              {renderInput('Cidade', 'cityname', { placeholder: 'Cidade' })}
-              {renderInput('Estado', 'state', { placeholder: 'UF', maxLength: 2 })}
+              {renderInput('CEP', 'cep', {
+                placeholder: '00000-000',
+                keyboardType: 'numeric',
+                maxLength: 9,
+              })}
+              {renderInput('Estado', 'state', {
+                placeholder: 'UF',
+                maxLength: 2,
+              })}
+              {renderInput('Cidade', 'cityname', {
+                placeholder: 'Cidade',
+              })}
+              {renderInput('Endereço completo', 'address', {
+                placeholder: 'Rua, número e complemento',
+              })}
+            </View>
+
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>Informações profissionais</Text>
+              {renderInput('CRM', 'crm', {
+                placeholder: 'Número do CRM',
+              })}
+              {renderInput('CNPJ', 'cnpj', {
+                placeholder: '00.000.000/0000-00',
+                keyboardType: 'numeric',
+              })}
+              {renderInput('Especialidade médica', 'qualification', {
+                placeholder: 'Selecione sua especialidade',
+              })}
+              {renderInput('Qualificações', 'qualifications', {
+                placeholder: 'Formações, cursos e experiências relevantes',
+                multiline: true,
+              })}
+              {renderInput('Certificações', 'certifications', {
+                placeholder: 'Certificações profissionais',
+                multiline: true,
+              })}
+            </View>
+
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>Presença online</Text>
+              {renderInput('Site profissional', 'medsite', {
+                placeholder: 'https://',
+                keyboardType: 'url',
+              })}
+              {renderInput('Biografia profissional', 'bio', {
+                placeholder: 'Conte um pouco sobre sua experiência...',
+                multiline: true,
+              })}
             </View>
 
             <TouchableOpacity
@@ -377,9 +516,18 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.md,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.colors.white + '22',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: theme.spacing.md,
   },
   headerContent: {
     flex: 1,
@@ -422,12 +570,39 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     ...theme.shadows.small,
   },
+  readOnlyCard: {
+    backgroundColor: theme.colors.primary + '08',
+    borderColor: theme.colors.primary + '30',
+    padding: theme.spacing.md,
+  },
   sectionTitle: {
     ...theme.typography.h3,
     fontSize: 16,
     fontWeight: '700',
     color: theme.colors.text,
     marginBottom: theme.spacing.md,
+  },
+  readOnlyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  readOnlyIconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: theme.spacing.md,
+  },
+  readOnlyHeaderText: {
+    flex: 1,
+  },
+  readOnlySubtitle: {
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
+    marginTop: 2,
   },
   photoRow: {
     flexDirection: 'row',
@@ -486,6 +661,57 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
     fontWeight: '600',
   },
+  readOnlyGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -theme.spacing.xs,
+  },
+  readOnlyField: {
+    flexBasis: '48%',
+    flexGrow: 1,
+    minWidth: 140,
+    paddingHorizontal: theme.spacing.xs,
+    marginBottom: theme.spacing.md,
+  },
+  readOnlyLabel: {
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
+    marginBottom: theme.spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    fontSize: 11,
+  },
+  readOnlyValue: {
+    ...theme.typography.bodySmall,
+    color: theme.colors.text,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.xs,
+  },
+  badge: {
+    alignSelf: 'flex-start',
+    borderRadius: theme.borderRadius.round,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    backgroundColor: theme.colors.primary + '18',
+  },
+  badgeSuccess: {
+    backgroundColor: theme.colors.success + '20',
+  },
+  badgeMuted: {
+    backgroundColor: theme.colors.border + '40',
+  },
+  badgeText: {
+    ...theme.typography.bodySmall,
+    fontSize: 12,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  badgeTextMuted: {
+    color: theme.colors.textSecondary,
+  },
   fieldContainer: {
     marginBottom: theme.spacing.md,
   },
@@ -508,6 +734,11 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 120,
     paddingTop: theme.spacing.md,
+  },
+  cardDivider: {
+    height: 1,
+    backgroundColor: theme.colors.border,
+    marginVertical: theme.spacing.lg,
   },
   saveButton: {
     flexDirection: 'row',

@@ -9,12 +9,15 @@ import {
   DocumentAnalysisResponse,
   ActionButton,
   Patient,
+  Encounter,
   ApiError,
   ACTION_TYPES,
   ACTION_STYLES,
 } from '../types/assistant';
 
 const API_BASE_URL = 'http://192.168.2.30:3333';
+
+type RequestOptions = Omit<RequestInit, 'body'> & { body?: unknown };
 
 class AssistantApiService {
   private getAuthHeaders(): Record<string, string> {
@@ -25,24 +28,57 @@ class AssistantApiService {
     };
   }
 
+  private normalizeHeaders(headers?: HeadersInit): Record<string, string> {
+    if (!headers) {
+      return {};
+    }
+
+    if (headers instanceof Headers) {
+      const normalized: Record<string, string> = {};
+      headers.forEach((value, key) => {
+        normalized[key] = value;
+      });
+      return normalized;
+    }
+
+    if (Array.isArray(headers)) {
+      return headers.reduce<Record<string, string>>((acc, [key, value]) => {
+        acc[key] = value;
+        return acc;
+      }, {});
+    }
+
+    return { ...headers };
+  }
+
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestOptions = {}
   ): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
-    const { method = 'GET', body, headers = {} } = options;
+    const { method = 'GET', body, headers } = options;
 
-    const requestHeaders = {
+    const normalizedHeaders = this.normalizeHeaders(headers);
+    const requestHeaders: Record<string, string> = {
       ...this.getAuthHeaders(),
-      ...headers,
+      ...normalizedHeaders,
     };
+
+    const authorizationHeader = requestHeaders['Authorization'];
+
+    const serializedBody =
+      body instanceof FormData || typeof body === 'string'
+        ? (body as BodyInit)
+        : body != null
+          ? JSON.stringify(body)
+          : undefined;
 
     console.log('[AssistantAPI] Request:', {
       method,
       url,
       headers: {
         ...requestHeaders,
-        Authorization: requestHeaders.Authorization ? '[REDACTED]' : undefined,
+        Authorization: authorizationHeader ? '[REDACTED]' : undefined,
       },
     });
 
@@ -50,7 +86,7 @@ class AssistantApiService {
       const response = await fetch(url, {
         method,
         headers: requestHeaders,
-        body: body ? JSON.stringify(body) : undefined,
+        body: serializedBody,
       });
 
       console.log('[AssistantAPI] Response status:', response.status);

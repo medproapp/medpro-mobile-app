@@ -91,7 +91,18 @@ class MessagingService {
         }
       }
 
+      console.log('[MessagingService] loadMessages -> calling API', {
+        threadId,
+        params,
+      });
+
       const response = await api.getThreadMessages(threadId, params);
+
+      console.log('[MessagingService] loadMessages <- API response', {
+        hasData: !!response?.data,
+        messageCount: response?.data?.messages?.length,
+        hasThreadInfo: !!response?.data?.thread_info,
+      });
       
       if (response.data) {
         // Map identifier to message_id for compatibility
@@ -119,6 +130,24 @@ class MessagingService {
     }
   }
 
+  async loadThreadParticipants(threadId: string): Promise<Array<{ email: string; name: string; participantType: string; photo?: string | null }>> {
+    if (!threadId) {
+      console.warn('[MessagingService] loadThreadParticipants called without threadId');
+      return [];
+    }
+
+    try {
+      console.log('[MessagingService] loadThreadParticipants -> calling API', { threadId });
+      const response = await api.getThreadParticipants(threadId);
+      const data = Array.isArray(response?.data) ? response.data : [];
+      console.log('[MessagingService] loadThreadParticipants <- API response', { count: data.length });
+      return data;
+    } catch (error) {
+      console.error('[MessagingService] Error loading thread participants:', { threadId, error });
+      return [];
+    }
+  }
+
   /**
    * Load available contacts
    */
@@ -132,7 +161,14 @@ class MessagingService {
         return this.cache.contacts;
       }
 
+      console.log('[MessagingService] loadContacts -> calling API', { params });
+
       const response = await api.getContacts(params);
+
+      console.log('[MessagingService] loadContacts <- API response', {
+        hasData: !!response?.data,
+        count: response?.data?.length,
+      });
       
       if (response.data) {
         // Update cache only for unfiltered requests

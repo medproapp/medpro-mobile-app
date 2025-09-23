@@ -5,6 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import notificationService from '@services/notificationService';
 import { useAuthStore } from '@store/authStore';
 import { useMessagingStore } from '@store/messagingStore';
+import { useNotificationStore } from '@store/notificationStore';
 
 export const useNotifications = () => {
   const navigation = useNavigation<any>();
@@ -14,9 +15,10 @@ export const useNotifications = () => {
   const loadMessages = useMessagingStore(state => state.loadMessages);
   const loadStats = useMessagingStore(state => state.loadStats);
   const handleRealtimeUpdate = useMessagingStore(state => state.handleRealtimeUpdate);
+  const fetchPendingCount = useNotificationStore(state => state.fetchPendingCount);
   
-  const notificationListener = useRef<Subscription>();
-  const responseListener = useRef<Subscription>();
+  const notificationListener = useRef<Subscription | null>(null);
+  const responseListener = useRef<Subscription | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated || !user) {
@@ -27,8 +29,11 @@ export const useNotifications = () => {
     const initializeNotifications = async () => {
       try {
         await notificationService.initialize();
-        // Ensure unread stats are available for tab badge
-        await loadStats();
+        // Ensure badges are populated
+        await Promise.all([
+          loadStats(),
+          fetchPendingCount(),
+        ]);
       } catch (error) {
         console.error('[useNotifications] Failed to initialize notifications:', error);
       }
@@ -53,6 +58,8 @@ export const useNotifications = () => {
           content: notification.request.content.body,
           created_at: new Date().toISOString(),
         });
+
+        fetchPendingCount();
       }
     });
 
@@ -87,12 +94,14 @@ export const useNotifications = () => {
       
       if (notificationListener.current && typeof notificationListener.current.remove === 'function') {
         notificationListener.current.remove();
+        notificationListener.current = null;
       }
       if (responseListener.current && typeof responseListener.current.remove === 'function') {
         responseListener.current.remove();
+        responseListener.current = null;
       }
     };
-  }, [isAuthenticated, user, navigation, loadThreads, loadMessages, loadStats, handleRealtimeUpdate]);
+  }, [isAuthenticated, user, navigation, loadThreads, loadMessages, loadStats, handleRealtimeUpdate, fetchPendingCount]);
 
   // Handle app state changes
   useEffect(() => {
@@ -101,12 +110,13 @@ export const useNotifications = () => {
         // App came to foreground, refresh data
         loadThreads();
         loadStats();
+        fetchPendingCount();
       }
     };
 
     // Note: AppState listener would be added here in a real implementation
     // For now, we'll rely on the real-time connection for updates
-  }, [isAuthenticated, loadThreads, loadStats]);
+  }, [isAuthenticated, loadThreads, loadStats, fetchPendingCount]);
 
   return {
     // Return any notification-related state or functions that components might need

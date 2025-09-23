@@ -111,7 +111,7 @@ export const AppointmentDetailsScreen: React.FC = () => {
         // Get patient details
         let patientName = 'Paciente';
         let patientCpf = '';
-        let patientPhoto = null;
+        let patientPhoto: string | undefined;
         try {
           const patientData = await apiService.getPatientDetails(apt.subject);
           patientName = patientData.data?.name || 'Paciente';
@@ -120,12 +120,13 @@ export const AppointmentDetailsScreen: React.FC = () => {
           // Try to get patient photo using the API service method
           try {
             const photoBase64 = await apiService.getPatientPhoto(apt.subject);
-            if (photoBase64) {
+            if (typeof photoBase64 === 'string' && photoBase64.length > 0) {
               patientPhoto = photoBase64;
               console.log('Patient photo loaded successfully, length:', photoBase64.length);
             }
           } catch (photoError) {
-            console.log('No patient photo available:', photoError.message);
+            const message = photoError instanceof Error ? photoError.message : 'Unknown error';
+            console.log('No patient photo available:', message);
           }
         } catch (error) {
           console.error('Error fetching patient details:', error);

@@ -4,11 +4,12 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
 
-interface MessageThread {
+export interface MessageThreadViewModel {
   identifier: string;
   subject: string;
   thread_type: 'direct' | 'group';
@@ -21,10 +22,11 @@ interface MessageThread {
   participants_names: string;
   priority?: 'normal' | 'high' | 'urgent';
   has_shared_records?: boolean;
+  avatar_uri?: string | null;
 }
 
 interface MessageThreadItemProps {
-  thread: MessageThread;
+  thread: MessageThreadViewModel;
   onPress: (threadId: string) => void;
 }
 
@@ -57,60 +59,78 @@ export const MessageThreadItem: React.FC<MessageThreadItemProps> = ({ thread, on
     }
   };
 
-  // Count participants from the names string
-  const participantCount = thread.participants_names ? thread.participants_names.split(',').length : 0;
-
   return (
     <TouchableOpacity 
       style={styles.container}
       onPress={() => onPress(thread.identifier)}
       activeOpacity={0.7}
     >
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <View style={styles.titleRow}>
-            {thread.priority && thread.priority !== 'normal' && (
-              <FontAwesome 
-                name="exclamation-circle" 
-                size={16} 
-                color={getPriorityColor()} 
-                style={styles.priorityIcon}
-              />
-            )}
-            <Text style={styles.subject} numberOfLines={1}>
-              {thread.subject || 'Sem assunto'}
+      <View style={styles.row}>
+        <View style={styles.avatarWrapper}>
+          {thread.avatar_uri ? (
+            <Image
+              source={{ uri: thread.avatar_uri }}
+              style={styles.avatar}
+              onError={(event) => {
+                console.warn('[MessageThreadItem] Failed to load avatar image', {
+                  uri: thread.avatar_uri,
+                  threadId: thread.identifier,
+                });
+              }}
+            />
+          ) : (
+            <View style={styles.avatarFallback}>
+              <FontAwesome name={thread.thread_type === 'direct' ? 'user' : 'users'} size={18} color={theme.colors.white} />
+            </View>
+          )}
+        </View>
+
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <View style={styles.titleRow}>
+              {thread.priority && thread.priority !== 'normal' && (
+                <FontAwesome 
+                  name="exclamation-circle" 
+                  size={16} 
+                  color={getPriorityColor()} 
+                  style={styles.priorityIcon}
+                />
+              )}
+              <Text style={styles.subject} numberOfLines={1}>
+                {thread.subject || 'Sem assunto'}
+              </Text>
+            </View>
+            <Text style={styles.date}>
+              {formatDate(thread.last_message_at)}
             </Text>
           </View>
-          <Text style={styles.date}>
-            {formatDate(thread.last_message_at)}
+
+          <Text style={styles.preview} numberOfLines={2}>
+            {thread.last_message_preview || 'Nenhuma mensagem'}
           </Text>
-        </View>
-        
-        <Text style={styles.preview} numberOfLines={2}>
-          {thread.last_message_preview || 'Nenhuma mensagem'}
-        </Text>
-        
-        <View style={styles.footer}>
-          <View style={styles.footerLeft}>
-            <Text style={styles.participants}>
-              <FontAwesome name={thread.thread_type === 'direct' ? 'user' : 'users'} size={12} color={theme.colors.textSecondary} />
-              {' '}{thread.participants_names || 'Sem participantes'}
-            </Text>
-            {thread.has_shared_records && (
-              <View style={styles.sharedBadge}>
-                <FontAwesome name="paperclip" size={12} color={theme.colors.primary} />
-                <Text style={styles.sharedText}>Anexos</Text>
+
+          <View style={styles.footer}>
+            <View style={styles.footerLeft}>
+              <Text style={styles.participants}>
+                <FontAwesome name={thread.thread_type === 'direct' ? 'user' : 'users'} size={12} color={theme.colors.textSecondary} />
+                {' '}{thread.participants_names || 'Sem participantes'}
+              </Text>
+              {thread.has_shared_records && (
+                <View style={styles.sharedBadge}>
+                  <FontAwesome name="paperclip" size={12} color={theme.colors.primary} />
+                  <Text style={styles.sharedText}>Anexos</Text>
+                </View>
+              )}
+            </View>
+
+            {thread.unread_count > 0 && (
+              <View style={styles.unreadBadge}>
+                <Text style={styles.unreadText}>
+                  {thread.unread_count > 99 ? '99+' : thread.unread_count}
+                </Text>
               </View>
             )}
           </View>
-          
-          {thread.unread_count > 0 && (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadText}>
-                {thread.unread_count > 99 ? '99+' : thread.unread_count}
-              </Text>
-            </View>
-          )}
         </View>
       </View>
     </TouchableOpacity>
@@ -123,8 +143,30 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
   },
+  row: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  avatarWrapper: {
+    marginRight: 12,
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: theme.colors.primaryLight,
+  },
+  avatarFallback: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   content: {
-    padding: 16,
+    flex: 1,
   },
   header: {
     flexDirection: 'row',

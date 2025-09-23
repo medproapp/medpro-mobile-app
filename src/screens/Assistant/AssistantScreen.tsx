@@ -46,7 +46,7 @@ const getMarkdownStyles = (isError: boolean = false) => ({
     color: isError ? theme.colors.error : theme.colors.text,
   },
   em: {
-    fontStyle: 'italic',
+    fontStyle: 'italic' as const,
     color: isError ? theme.colors.error : theme.colors.text,
   },
   list_item: {

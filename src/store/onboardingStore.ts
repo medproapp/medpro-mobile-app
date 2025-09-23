@@ -613,7 +613,15 @@ export const useOnboardingStore = create<OnboardingStore>()(
 
           if (!locationId) {
             const org = await onboardingService.getPractitionerOrganization(targetPractId).catch(() => null);
-            const organizationId = org?.managing_entity || org?.managingEntity || org?.orgId;
+            const orgData = (org ?? {}) as Record<string, unknown>;
+            const organizationId =
+              typeof orgData.managing_entity === 'string'
+                ? orgData.managing_entity
+                : typeof orgData.managingEntity === 'string'
+                  ? orgData.managingEntity
+                  : typeof orgData.orgId === 'string'
+                    ? orgData.orgId
+                    : undefined;
 
             const fullAddress = [
               form.addressLine?.trim(),
@@ -641,10 +649,17 @@ export const useOnboardingStore = create<OnboardingStore>()(
               operation: 'NEW',
             });
 
-            locationId =
-              locationResponse?.id ||
-              (locationResponse as Record<string, any>)?.location_id ||
-              (locationResponse as Record<string, any>)?.locationId;
+            const locationData = (locationResponse ?? {}) as Record<string, unknown>;
+            const resolvedLocationId =
+              typeof locationData.id === 'string'
+                ? locationData.id
+                : typeof locationData.location_id === 'string'
+                  ? locationData.location_id
+                  : typeof locationData.locationId === 'string'
+                    ? locationData.locationId
+                    : undefined;
+
+            locationId = resolvedLocationId;
           }
 
           if (canManagePricing) {
@@ -698,11 +713,20 @@ export const useOnboardingStore = create<OnboardingStore>()(
               operation: 'New',
             });
 
-            scheduleId =
-              scheduleResponse?.id ||
-              (scheduleResponse as Record<string, any>)?.schedule_id ||
-              (scheduleResponse as Record<string, any>)?.scheduleId ||
-              (scheduleResponse as Record<string, any>)?.schedule?.id;
+            const scheduleData = (scheduleResponse ?? {}) as Record<string, unknown>;
+            const scheduleRecord = scheduleData.schedule as Record<string, unknown> | undefined;
+            const resolvedScheduleId =
+              typeof scheduleData.id === 'string'
+                ? scheduleData.id
+                : typeof scheduleData.schedule_id === 'string'
+                  ? scheduleData.schedule_id
+                  : typeof scheduleData.scheduleId === 'string'
+                    ? scheduleData.scheduleId
+                    : typeof scheduleRecord?.id === 'string'
+                      ? (scheduleRecord.id as string)
+                      : undefined;
+
+            scheduleId = resolvedScheduleId;
           }
 
           if (scheduleId) {
@@ -792,12 +816,13 @@ export const useOnboardingStore = create<OnboardingStore>()(
   )
 );
 
-useAuthStore.subscribe(
-  state => state.user,
-  (user, previousUser) => {
-    if (!user && previousUser) {
-      debugLog('Auth user cleared; resetting onboarding store');
-      useOnboardingStore.getState().reset();
-    }
+let previousAuthUser = useAuthStore.getState().user;
+
+useAuthStore.subscribe((state) => {
+  const currentUser = state.user;
+  if (!currentUser && previousAuthUser) {
+    debugLog('Auth user cleared; resetting onboarding store');
+    useOnboardingStore.getState().reset();
   }
-);
+  previousAuthUser = currentUser;
+});

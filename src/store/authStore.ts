@@ -86,6 +86,7 @@ export const useAuthStore = create<AuthStore>()(
             organization: inferredOrganization,
             firstLogin: inferredFirstLogin,
             isAdmin: data.role === 'admin' || data.admin === 1 || data.admin === '1',
+            userRole: data.role,
           };
 
           // Set initial state with token
@@ -105,6 +106,7 @@ export const useAuthStore = create<AuthStore>()(
 
             const userInfo = await api.getUserInfo(credentials.email);
             if (userInfo) {
+              console.log('👤 Raw userInfo payload:', userInfo);
               console.log('👤 User info received:', userInfo.fullname);
 
               // Update user with real information
@@ -113,6 +115,10 @@ export const useAuthStore = create<AuthStore>()(
                 name: userInfo.fullname || credentials.email,
                 role:
                   userInfo.role === 'pract' ? 'practitioner' : userInfo.role,
+                userRole:
+                  typeof userInfo.role === 'string' && userInfo.role.trim().length > 0
+                    ? userInfo.role
+                    : user.userRole,
                 firstLogin:
                   typeof userInfo.first_login === 'number'
                     ? userInfo.first_login === 1
@@ -131,17 +137,35 @@ export const useAuthStore = create<AuthStore>()(
 
               // Try to get organization info
               try {
-                const orgData = await api.getUserToOrg(
-                  credentials.email,
-                  user.role === 'practitioner' ? 'member' : undefined
-                );
+                const orgData = await api.getUserToOrg(credentials.email);
                 if (orgData && orgData.length > 0) {
-                  const org = orgData[0];
-              user.organization =
-                (typeof org.org_name === 'string' && org.org_name.trim().length > 0 && org.org_name.trim()) ||
-                (typeof org.managingEntity === 'string' && org.managingEntity.trim().length > 0 && org.managingEntity.trim()) ||
-                user.organization;
-                  console.log('🏢 Organization info received:', org.org_name);
+                  console.log('🏢 Raw organization payload:', orgData);
+                  const org = orgData.find(o => o?.groupStatus === 'active') || orgData[0];
+                  user.organization =
+                    (typeof org.org_name === 'string' && org.org_name.trim().length > 0 && org.org_name.trim()) ||
+                    (typeof org.group_name === 'string' && org.group_name.trim().length > 0 && org.group_name.trim()) ||
+                    user.organization;
+                  user.organizationId =
+                    (typeof org.managingEntity === 'string' && org.managingEntity.trim().length > 0 && org.managingEntity.trim()) ||
+                    user.organizationId;
+                  user.groupId = typeof org.groupId === 'string' ? org.groupId : user.groupId;
+                  user.groupRole =
+                    (typeof org.group_role === 'string' && org.group_role.trim().length > 0 && org.group_role.trim()) ||
+                    user.groupRole;
+                  user.userRole =
+                    (typeof org.user_role === 'string' && org.user_role.trim().length > 0 && org.user_role.trim()) ||
+                    user.userRole;
+                  if (typeof org.admin !== 'undefined') {
+                    user.isAdmin =
+                      user.isAdmin || Number(org.admin) === 1 || org.admin === true;
+                  }
+                  console.log('🏢 Organization info received:', {
+                    organization: user.organization,
+                    organizationId: user.organizationId,
+                    groupRole: user.groupRole,
+                    userRole: user.userRole,
+                    isAdmin: user.isAdmin,
+                  });
                 }
               } catch (orgError) {
                 console.warn('⚠️ Could not fetch organization info:', orgError);

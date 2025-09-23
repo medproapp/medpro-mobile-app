@@ -19,6 +19,7 @@ import {
 export const useMessagingStore = create<MessagingState>((set, get) => ({
   // === DATA STATE ===
   threads: [],
+  threadParticipants: {},
   currentThread: null,
   messages: {},
   contacts: [],
@@ -54,7 +55,7 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
       console.log('[MessagingStore] Loading threads with params:', params);
       
       const threads = await messagingService.loadThreads(params);
-      
+
       set(state => ({
         threads: params?.offset && params.offset > 0 
           ? [...state.threads, ...threads] // Append for pagination
@@ -64,6 +65,7 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
       }));
       
       console.log('[MessagingStore] Threads loaded successfully:', threads.length);
+
     } catch (error) {
       console.error('[MessagingStore] Error loading threads:', error);
       set({ 
@@ -83,10 +85,16 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
     });
 
     try {
-      console.log('[MessagingStore] Loading messages for thread:', threadId);
-      
+      console.log('[MessagingStore] Loading messages for thread:', threadId, 'with params:', params);
+
       const { messages: newMessages, thread_info } = await messagingService.loadMessages(threadId, params);
-      
+
+      console.log('[MessagingStore] Loaded messages response meta:', {
+        threadId,
+        messagesCount: newMessages.length,
+        hasThreadInfo: !!thread_info,
+      });
+
       set(state => ({
         messages: {
           ...state.messages,
@@ -102,7 +110,11 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
       
       console.log('[MessagingStore] Messages loaded successfully:', newMessages.length);
     } catch (error) {
-      console.error('[MessagingStore] Error loading messages:', error);
+      console.error('[MessagingStore] Error loading messages:', {
+        threadId,
+        params,
+        error,
+      });
       set({ 
         isLoadingMessages: false, 
         error: error instanceof Error ? error.message : 'Failed to load messages' 

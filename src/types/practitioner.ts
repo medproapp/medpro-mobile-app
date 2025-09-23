@@ -9,6 +9,8 @@ export interface PractitionerProfile {
   phone?: string;
   photo?: string;
   qualification?: string;
+  qualifications?: string;
+  certifications?: string;
   crm?: string;
   cnpj?: string;
   category?: string;
