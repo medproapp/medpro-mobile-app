@@ -6,3 +6,4 @@ export { AppointmentStep5Screen } from './AppointmentStep5Screen';
 export { AppointmentStep6Screen } from './AppointmentStep6Screen';
 export { AppointmentReviewScreen } from './AppointmentReviewScreen';
 export { AppointmentDetailsScreen } from './AppointmentDetailsScreen';
+export { AppointmentListScreen } from './AppointmentListScreen';

@@ -18,6 +18,7 @@ import { AppointmentStep5Screen } from '@screens/Appointments/AppointmentStep5Sc
 import { AppointmentStep6Screen } from '@screens/Appointments/AppointmentStep6Screen';
 import { AppointmentReviewScreen } from '@screens/Appointments/AppointmentReviewScreen';
 import { AppointmentDetailsScreen } from '@screens/Appointments/AppointmentDetailsScreen';
+import { AppointmentListScreen } from '@screens/Appointments/AppointmentListScreen';
 import { PatientsScreen } from '@screens/Patients';
 import { PatientDashboardScreen } from '@screens/Patients/PatientDashboardScreen';
 import { PatientHistoryScreen } from '@screens/Patients/PatientHistoryScreen';
@@ -55,7 +56,15 @@ const TAB_BAR_BASE_STYLE = {
 
 const getDashboardTabBarStyle = (route: RouteProp<MainTabParamList, 'Dashboard'>): typeof TAB_BAR_BASE_STYLE & { display?: 'none' } => {
   const routeName = getFocusedRouteNameFromRoute(route) ?? 'DashboardHome';
-  if (['Notifications'].includes(routeName)) {
+  if (['Notifications', 'AppointmentList', 'AppointmentDetails'].includes(routeName)) {
+    return { ...TAB_BAR_BASE_STYLE, display: 'none' };
+  }
+  return TAB_BAR_BASE_STYLE;
+};
+
+const getPatientsTabBarStyle = (route: RouteProp<MainTabParamList, 'Patients'>): typeof TAB_BAR_BASE_STYLE & { display?: 'none' } => {
+  const routeName = getFocusedRouteNameFromRoute(route) ?? 'PatientsList';
+  if (routeName === 'PatientDashboard' || routeName === 'PatientHistory' || routeName === 'EncounterDetails') {
     return { ...TAB_BAR_BASE_STYLE, display: 'none' };
   }
   return TAB_BAR_BASE_STYLE;
@@ -219,6 +228,7 @@ const DashboardStackNavigator: React.FC = () => {
       }}
     >
       <DashboardStack.Screen name="DashboardHome" component={DashboardScreen} />
+      <DashboardStack.Screen name="AppointmentList" component={AppointmentListScreen} />
       <DashboardStack.Screen name="Notifications" component={NotificationsScreen} />
       <DashboardStack.Screen name="AppointmentDetails" component={AppointmentDetailsScreen} />
       <DashboardStack.Screen name="EncounterList" component={EncounterListScreen} />
@@ -312,8 +322,9 @@ export const MainNavigator: React.FC = () => {
       <Tab.Screen
         name="Patients"
         component={PatientsStackNavigator}
-        options={{
+        options={({ route }) => ({
           title: 'Pacientes',
+          tabBarStyle: getPatientsTabBarStyle(route),
           tabBarIcon: ({ focused, color }) => (
             <TabIcon 
               name="users" 
@@ -321,7 +332,7 @@ export const MainNavigator: React.FC = () => {
               color={color} 
             />
           ),
-        }}
+        })}
       />
       
       <Tab.Screen

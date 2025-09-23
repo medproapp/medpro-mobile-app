@@ -791,65 +791,77 @@ export const DashboardScreen: React.FC = () => {
           {data?.nextAppointments && data.nextAppointments.length > 0 ? (
             (() => {
               const groupedAppointments = groupAppointmentsByDate(data.nextAppointments);
-              return Object.entries(groupedAppointments).map(([dateGroup, appointments]) => (
-                <View key={dateGroup}>
-                  <View style={styles.dateGroupHeader}>
-                    <Text style={styles.dateGroupTitle}>{dateGroup}</Text>
-                    <View style={styles.dateGroupLine} />
-                    <Text style={styles.dateGroupCount}>{appointments.length}</Text>
-                  </View>
-                  {appointments.map((appointment, index) => (
-                    <TouchableOpacity 
-                      key={appointment.id} 
-                      style={[
-                        styles.appointmentRow,
-                        index === appointments.length - 1 && styles.lastAppointmentRow
-                      ]}
-                      activeOpacity={0.7}
-                      onPress={() => navigation.navigate('AppointmentDetails', { appointmentId: appointment.id })}
-                    >
-                      <View style={styles.appointmentRowContent}>
-                        <View style={styles.patientAvatar}>
-                          {appointment.patientPhoto ? (
-                            <Image
-                              source={{ uri: appointment.patientPhoto }}
-                              style={styles.patientAvatarImage}
-                            />
-                          ) : (
-                            <FontAwesome name="user" size={18} color={theme.colors.primary} />
-                          )}
-                        </View>
-                        <View style={styles.appointmentContent}>
-                          <View style={styles.timeRow}>
-                            <Text style={styles.timeText}>{appointment.time}</Text>
-                            <View style={[styles.timeIndicator, { backgroundColor: getStatusColor(appointment.status) }]} />
-                          </View>
-                          <Text style={styles.patientName}>{appointment.patientName}</Text>
-                          <View style={styles.appointmentFooter}>
-                            <Text style={styles.appointmentType} numberOfLines={1}>
-                              {appointment.type}
-                            </Text>
-                            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(appointment.status) + '20' }]}>
-                              <FontAwesome 
-                                name={appointment.status === 'confirmed' ? 'check-circle' : 
-                                      appointment.status === 'scheduled' ? 'clock-o' : 
-                                      'circle'} 
-                                size={12} 
-                                color={getStatusColor(appointment.status)} 
-                              />
-                              <Text style={[styles.statusText, { color: getStatusColor(appointment.status) }]}>
-                                {appointment.status === 'confirmed' ? 'Confirmada' :
-                                 appointment.status === 'scheduled' ? 'Agendada' :
-                                 appointment.status === 'in_progress' ? 'Em andamento' : 'Concluída'}
-                              </Text>
+              return (
+                <>
+                  {Object.entries(groupedAppointments).map(([dateGroup, appointments]) => (
+                    <View key={dateGroup}>
+                      <View style={styles.dateGroupHeader}>
+                        <Text style={styles.dateGroupTitle}>{dateGroup}</Text>
+                        <View style={styles.dateGroupLine} />
+                        <Text style={styles.dateGroupCount}>{appointments.length}</Text>
+                      </View>
+                      {appointments.map((appointment, index) => (
+                        <TouchableOpacity 
+                          key={appointment.id} 
+                          style={[
+                            styles.appointmentRow,
+                            index === appointments.length - 1 && styles.lastAppointmentRow
+                          ]}
+                          activeOpacity={0.7}
+                          onPress={() => navigation.navigate('AppointmentDetails', { appointmentId: appointment.id })}
+                        >
+                          <View style={styles.appointmentRowContent}>
+                            <View style={styles.patientAvatar}>
+                              {appointment.patientPhoto ? (
+                                <Image
+                                  source={{ uri: appointment.patientPhoto }}
+                                  style={styles.patientAvatarImage}
+                                />
+                              ) : (
+                                <FontAwesome name="user" size={18} color={theme.colors.primary} />
+                              )}
+                            </View>
+                            <View style={styles.appointmentContent}>
+                              <View style={styles.timeRow}>
+                                <Text style={styles.timeText}>{appointment.time}</Text>
+                                <View style={[styles.timeIndicator, { backgroundColor: getStatusColor(appointment.status) }]} />
+                              </View>
+                              <Text style={styles.patientName}>{appointment.patientName}</Text>
+                              <View style={styles.appointmentFooter}>
+                                <Text style={styles.appointmentType} numberOfLines={1}>
+                                  {appointment.type}
+                                </Text>
+                                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(appointment.status) + '20' }]}>
+                                  <FontAwesome 
+                                    name={appointment.status === 'confirmed' ? 'check-circle' : 
+                                          appointment.status === 'scheduled' ? 'clock-o' : 
+                                          'circle'} 
+                                    size={12} 
+                                    color={getStatusColor(appointment.status)} 
+                                  />
+                                  <Text style={[styles.statusText, { color: getStatusColor(appointment.status) }]}>
+                                    {appointment.status === 'confirmed' ? 'Confirmada' :
+                                     appointment.status === 'scheduled' ? 'Agendada' :
+                                     appointment.status === 'in_progress' ? 'Em andamento' : 'Concluída'}
+                                  </Text>
+                                </View>
+                              </View>
                             </View>
                           </View>
-                        </View>
-                      </View>
-                    </TouchableOpacity>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
                   ))}
-                </View>
-              ));
+                  <TouchableOpacity
+                    style={styles.appointmentMoreButton}
+                    activeOpacity={0.7}
+                    onPress={() => navigation.navigate('AppointmentList')}
+                  >
+                    <Text style={styles.appointmentMoreText}>Ver mais</Text>
+                    <FontAwesome name="angle-right" size={14} color={theme.colors.primary} />
+                  </TouchableOpacity>
+                </>
+              );
             })()
           ) : (
             <View style={styles.emptyState}>
@@ -1382,6 +1394,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: theme.spacing.xs,
+  },
+  appointmentMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: 12,
+    backgroundColor: theme.colors.primary + '12',
+  },
+  appointmentMoreText: {
+    ...theme.typography.caption,
+    color: theme.colors.primary,
+    fontWeight: '600',
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginRight: theme.spacing.xs,
   },
   statusBadge: {
     flexDirection: 'row',

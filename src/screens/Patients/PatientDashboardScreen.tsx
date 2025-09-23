@@ -10,10 +10,11 @@ import {
   ActivityIndicator,
   Alert,
   StatusBar,
-  Dimensions,
+  Platform,
 } from 'react-native';
 import { RouteProp, useRoute, useNavigation, NavigationProp } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
+import Markdown from 'react-native-markdown-display';
 import { theme } from '@theme/index';
 import { api } from '@services/api';
 import { PatientsStackParamList } from '@/types/navigation';
@@ -33,6 +34,9 @@ interface PatientData {
   conditions?: string[];
   allergies?: string[];
   medications?: string[];
+  summary?: string;
+  lastPrescriptions?: string;
+  conditionDiagnostics?: string;
   address?: {
     street?: string;
     number?: string;
@@ -66,6 +70,10 @@ interface PatientAppointment {
   notes?: string;
 }
 
+const HEADER_TOP_PADDING = Platform.OS === 'android'
+  ? (StatusBar.currentHeight || 44)
+  : 52;
+
 export const PatientDashboardScreen: React.FC = () => {
   const route = useRoute<PatientDashboardRouteProp>();
   const navigation = useNavigation<NavigationProp<PatientsStackParamList>>();
@@ -76,6 +84,19 @@ export const PatientDashboardScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeSection, setActiveSection] = useState<'overview' | 'history' | 'medical' | 'contact'>('overview');
+
+  const renderMarkdownContent = (value: string | undefined | null, fallback: string) => {
+    const trimmedValue = value?.trim();
+    if (trimmedValue) {
+      return (
+        <Markdown style={markdownStyles}>
+          {trimmedValue}
+        </Markdown>
+      );
+    }
+
+    return <Text style={styles.textBlock}>{fallback}</Text>;
+  };
 
   const loadPatientData = async () => {
     try {
@@ -95,21 +116,29 @@ export const PatientDashboardScreen: React.FC = () => {
       
       // Extract patient data from API response structure
       const rawData = response.data || response;
-      console.log('[PatientDashboard] Raw data keys:', Object.keys(rawData));
+      const patientPayload =
+        rawData && typeof rawData === 'object' && 'data' in rawData && rawData.data && typeof rawData.data === 'object'
+          ? rawData.data
+          : rawData;
+
+      console.log('[PatientDashboard] Raw data keys:', Object.keys(patientPayload));
       
       // Map API fields to component expected fields
       const patientData = {
-        ...rawData,
-        birthDate: rawData.birthdate || rawData.birthDate, // API uses 'birthdate'
-        conditions: rawData.conditions || [], // Default empty array
-        allergies: rawData.allergies || [], // Default empty array
-        medications: rawData.medications || [], // Default empty array
+        ...patientPayload,
+        birthDate: patientPayload.birthdate || patientPayload.birthDate, // API uses 'birthdate'
+        conditions: patientPayload.conditions || [], // Default empty array
+        allergies: patientPayload.allergies || [], // Default empty array
+        medications: patientPayload.medications || [], // Default empty array
+        summary: patientPayload.summary,
+        lastPrescriptions: patientPayload.lastprescriptions || patientPayload.lastPrescriptions,
+        conditionDiagnostics: patientPayload.condanddiag || patientPayload.conditionDiagnostics,
         photo: photoResponse, // Photo is now a data URI string or null
         // Just use the address as it comes from API
-        address: rawData.address ? {
-          fullAddress: rawData.address,
-          city: rawData.city,
-          state: rawData.state,
+        address: patientPayload.address ? {
+          fullAddress: patientPayload.address,
+          city: patientPayload.city,
+          state: patientPayload.state,
         } : null,
       };
       
@@ -406,22 +435,29 @@ export const PatientDashboardScreen: React.FC = () => {
                 <Text style={styles.infoValue}>{formatDate(patient.lastAppointment)}</Text>
               </View>
             </View>
+
+            <View style={styles.infoSection}>
+              <Text style={styles.sectionTitle}>Resumo Clínico</Text>
+              {renderMarkdownContent(patient.summary, 'Nenhum resumo clínico informado.')}
+            </View>
+
+            <View style={styles.infoSection}>
+              <Text style={styles.sectionTitle}>Últimas Prescrições</Text>
+              {renderMarkdownContent(patient.lastPrescriptions, 'Nenhuma prescrição registrada.')}
+            </View>
+
+            <View style={styles.infoSection}>
+              <Text style={styles.sectionTitle}>Condições e Diagnósticos</Text>
+              {renderMarkdownContent(
+                patient.conditionDiagnostics,
+                'Nenhuma condição ou diagnóstico detalhado disponível.'
+              )}
+            </View>
           </View>
         )}
 
         {activeSection === 'history' && (
           <View>
-            <View style={styles.historyHeader}>
-              <Text style={styles.sectionTitle}>Histórico Médico</Text>
-              <TouchableOpacity 
-                style={styles.viewAllButton}
-                onPress={() => navigation.navigate('PatientHistory', { patientCpf, patientName })}
-              >
-                <Text style={styles.viewAllButtonText}>Ver Histórico Completo</Text>
-                <FontAwesome name="chevron-right" size={12} color={theme.colors.primary} />
-              </TouchableOpacity>
-            </View>
-            
             <View style={styles.historyPreview}>
               <View style={styles.historyPreviewCard}>
                 <FontAwesome name="history" size={24} color={theme.colors.primary} />
@@ -577,10 +613,17 @@ const styles = StyleSheet.create({
   },
   headerBackground: {
     backgroundColor: theme.colors.primary,
-    paddingTop: 40,
+    paddingTop: HEADER_TOP_PADDING,
     paddingBottom: 20,
     position: 'relative',
     overflow: 'hidden',
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   backgroundLogo: {
     position: 'absolute',
@@ -797,7 +840,7 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
     color: theme.colors.text,
     marginBottom: 12,
@@ -840,6 +883,11 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     fontStyle: 'italic',
   },
+  textBlock: {
+    fontSize: 14,
+    color: theme.colors.text,
+    lineHeight: 20,
+  },
   appointmentCard: {
     backgroundColor: theme.colors.backgroundSecondary,
     padding: 16,
@@ -880,22 +928,6 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   // History section styles
-  historyHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  viewAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  viewAllButtonText: {
-    fontSize: 14,
-    color: theme.colors.primary,
-    fontWeight: '500',
-  },
   historyPreview: {
     gap: 16,
   },
@@ -937,5 +969,54 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: theme.colors.white,
+  },
+});
+
+const markdownStyles = StyleSheet.create({
+  body: {
+    fontSize: 14,
+    color: theme.colors.text,
+    lineHeight: 20,
+  },
+  heading1: {
+    fontSize: 15,
+    color: theme.colors.text,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  heading2: {
+    fontSize: 14,
+    color: theme.colors.text,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  heading3: {
+    fontSize: 13,
+    color: theme.colors.text,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  heading4: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  strong: {
+    fontWeight: '600',
+  },
+  em: {
+    fontStyle: 'italic',
+  },
+  bullet_list: {
+    marginBottom: 0,
+    paddingLeft: 12,
+  },
+  ordered_list: {
+    marginBottom: 0,
+    paddingLeft: 12,
+  },
+  list_item: {
+    marginBottom: 4,
   },
 });

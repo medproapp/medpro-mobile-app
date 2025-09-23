@@ -11,7 +11,6 @@ import {
   StatusBar,
 } from 'react-native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
-import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Card, Loading } from '@components/common';
 import { theme } from '@theme/index';
 import { apiService } from '@services/api';
@@ -41,9 +40,14 @@ interface AppointmentDetails {
   status: 'booked' | 'arrived' | 'fulfilled' | 'cancelled' | 'checked-in';
   serviceCategory: string;
   serviceType: string;
+  serviceCategoryCode?: string;
+  serviceTypeCode?: string;
   location?: {
     name: string;
+    id: string;
     address: string;
+    phone?: string;
+    email?: string;
   };
   practitioner?: {
     name: string;
@@ -60,6 +64,38 @@ const formatAppointmentType = (type: string): string => {
     EMERGENCY: "Emergência",
   };
   return types[type] || type || "Não especificado";
+};
+
+const toLocalDateTime = (utcDate?: string, utcTime?: string): Date => {
+  if (!utcDate) {
+    return new Date();
+  }
+
+  const trimmedDate = utcDate.trim();
+  const baseDate = trimmedDate.includes('T') ? trimmedDate.slice(0, 10) : trimmedDate;
+
+  let timePart = (utcTime || '').trim();
+  if (timePart.includes(' ')) {
+    timePart = timePart.split(' ')[0];
+  }
+  if (timePart.endsWith('Z')) {
+    timePart = timePart.slice(0, -1);
+  }
+  if (/^\d{2}:\d{2}$/.test(timePart)) {
+    timePart = `${timePart}:00`;
+  }
+  if (!/^\d{2}:\d{2}:\d{2}$/.test(timePart)) {
+    timePart = '00:00:00';
+  }
+
+  const isoString = `${baseDate}T${timePart}Z`;
+  const localDate = new Date(isoString);
+
+  if (Number.isNaN(localDate.getTime())) {
+    return new Date(trimmedDate);
+  }
+
+  return localDate;
 };
 
 const getStatusColor = (status: string) => {
@@ -132,14 +168,83 @@ export const AppointmentDetailsScreen: React.FC = () => {
           console.error('Error fetching patient details:', error);
         }
 
+        const localStartDate = toLocalDateTime(apt.startdate, apt.starttime);
+
+        let serviceCategoryDisplay = apt.servicecategory || 'Não especificado';
+        let serviceTypeDisplay = apt.servicetype || 'Não especificado';
+
+        try {
+          if (apt.servicecategory || apt.servicetype) {
+            const serviceInfo = await apiService.getServiceDescriptions(
+              apt.servicecategory || null,
+              apt.servicetype || null
+            );
+
+            if (serviceInfo?.category) {
+              serviceCategoryDisplay =
+                serviceInfo.category.categoryDesc ||
+                serviceInfo.category.description ||
+                serviceCategoryDisplay;
+            }
+
+            if (serviceInfo?.type) {
+              serviceTypeDisplay =
+                serviceInfo.type.servicetypeDesc ||
+                serviceInfo.type.description ||
+                serviceTypeDisplay;
+            }
+          }
+        } catch (error) {
+          console.error('[AppointmentDetails] Error fetching service descriptions:', error);
+        }
+
+        let locationDetails: AppointmentDetails['location'] | undefined;
+        if (apt.locationid) {
+          try {
+            const location = await apiService.getLocationById(
+              String(apt.locationid),
+              user?.email || undefined
+            );
+
+            if (location) {
+              locationDetails = {
+                id: String(apt.locationid),
+                name:
+                  location.locName ??
+                  location.locationname ??
+                  location.name ??
+                  '',
+                address:
+                  location.locAddress ??
+                  location.locationaddress ??
+                  location.address ??
+                  location.addressline1 ??
+                  '',
+                phone:
+                  location.locContact ??
+                  location.phone ??
+                  location.contactphone ??
+                  location.phoneNumber ??
+                  '',
+                email: location.email ?? location.contactemail ?? '',
+              };
+            }
+          } catch (error) {
+            console.error('[AppointmentDetails] Error fetching location info:', error);
+          }
+        }
+
         const appointmentDetails: AppointmentDetails = {
           id: apt.identifier?.toString() || appointmentId,
           identifier: apt.identifier?.toString() || appointmentId,
           patientName,
           patientCpf,
           patientPhoto,
-          date: apt.startdate ? new Date(apt.startdate).toLocaleDateString('pt-BR') : 'Data não disponível',
-          time: apt.starttime?.substring(0, 5) || '00:00',
+          date: localStartDate.toLocaleDateString('pt-BR'),
+          time: localStartDate.toLocaleTimeString('pt-BR', {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
           startdate: apt.startdate || '',
           starttime: apt.starttime || '',
           duration: apt.duration ? `${apt.duration} min` : '60 min',
@@ -148,12 +253,11 @@ export const AppointmentDetailsScreen: React.FC = () => {
           description: apt.description || 'Sem descrição',
           note: apt.note || 'Sem observações',
           status: apt.status || 'booked',
-          serviceCategory: apt.servicecategory || 'Não especificado',
-          serviceType: apt.servicetype || 'Não especificado',
-          location: apt.locationid ? {
-            name: `Local ${apt.locationid}`,
-            address: 'Endereço não disponível'
-          } : undefined,
+          serviceCategory: serviceCategoryDisplay,
+          serviceCategoryCode: apt.servicecategory || undefined,
+          serviceType: serviceTypeDisplay,
+          serviceTypeCode: apt.servicetype || undefined,
+          location: locationDetails,
           practitioner: apt.practitionerid ? {
             name: apt.practitionerid,
             crm: ''
@@ -209,7 +313,13 @@ export const AppointmentDetailsScreen: React.FC = () => {
 
   const handleViewPatient = () => {
     if (appointment && appointment.patientCpf) {
-      navigation.navigate('PatientDetails', { patientId: appointment.patientCpf });
+      navigation.navigate('Patients', {
+        screen: 'PatientDashboard',
+        params: {
+          patientCpf: appointment.patientCpf,
+          patientName: appointment.patientName,
+        },
+      });
     }
   };
 
@@ -224,15 +334,15 @@ export const AppointmentDetailsScreen: React.FC = () => {
         `Deseja cancelar o agendamento com ${appointment.patientName}?`,
         [
           { text: 'Não', style: 'cancel' },
-          { 
-            text: 'Sim, Cancelar', 
+          {
+            text: 'Sim, Cancelar',
             style: 'destructive',
             onPress: () => {
               console.log('Cancelling appointment:', appointmentId);
               Alert.alert('Info', 'Funcionalidade de cancelamento será implementada em breve.');
-            }
-          }
-        ]
+            },
+          },
+        ],
       );
     }
   };
@@ -373,12 +483,24 @@ export const AppointmentDetailsScreen: React.FC = () => {
           
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Categoria:</Text>
-            <Text style={styles.detailValue}>{appointment.serviceCategory}</Text>
+            <View style={styles.detailValueContainer}>
+              <View style={[styles.detailBadge, styles.categoryBadge]}>
+                <Text style={[styles.detailBadgeText, styles.categoryBadgeText]}>
+                  {appointment.serviceCategory}
+                </Text>
+              </View>
+            </View>
           </View>
-          
+
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Especialidade:</Text>
-            <Text style={styles.detailValue}>{appointment.serviceType}</Text>
+            <View style={styles.detailValueContainer}>
+              <View style={[styles.detailBadge, styles.typeBadge]}>
+                <Text style={[styles.detailBadgeText, styles.typeBadgeText]}>
+                  {appointment.serviceType}
+                </Text>
+              </View>
+            </View>
           </View>
         </Card>
 
@@ -403,15 +525,16 @@ export const AppointmentDetailsScreen: React.FC = () => {
               <FontAwesome name="edit" size={16} color={theme.colors.primary} />
               <Text style={styles.secondaryButtonText}>Editar</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity style={[styles.secondaryButton, styles.cancelButton]} onPress={handleCancelAppointment}>
+
+            <TouchableOpacity
+              style={[styles.secondaryButton, styles.cancelButton]}
+              onPress={handleCancelAppointment}
+            >
               <FontAwesome name="times" size={16} color={theme.colors.error} />
               <Text style={[styles.secondaryButtonText, { color: theme.colors.error }]}>Cancelar</Text>
             </TouchableOpacity>
           </View>
         </View>
-
-          <View style={styles.bottomSpacing} />
         </ScrollView>
       </View>
     </>
@@ -473,19 +596,19 @@ const styles = StyleSheet.create({
   greeting: {
     ...theme.typography.body,
     color: theme.colors.white + 'CC',
-    fontSize: 16,
+    fontSize: 14,
   },
   userName: {
     ...theme.typography.h1,
     color: theme.colors.white,
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '700',
     marginTop: theme.spacing.xs,
   },
   dateText: {
     ...theme.typography.caption,
     color: theme.colors.white + 'AA',
-    fontSize: 14,
+    fontSize: 12,
     marginTop: theme.spacing.xs,
     textTransform: 'capitalize',
   },
@@ -504,7 +627,7 @@ const styles = StyleSheet.create({
   appointmentBadgeText: {
     ...theme.typography.caption,
     color: theme.colors.white,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
   statusContainer: {
@@ -521,6 +644,7 @@ const styles = StyleSheet.create({
     ...theme.typography.button,
     color: theme.colors.white,
     fontWeight: '600',
+    fontSize: 13,
   },
   patientCard: {
     marginBottom: theme.spacing.lg,
@@ -554,7 +678,7 @@ const styles = StyleSheet.create({
   patientName: {
     ...theme.typography.h3,
     color: theme.colors.text,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     marginTop: theme.spacing.xs,
   },
@@ -576,6 +700,7 @@ const styles = StyleSheet.create({
     ...theme.typography.button,
     color: theme.colors.primary,
     marginLeft: theme.spacing.sm,
+    fontSize: 12,
   },
   timeCard: {
     marginBottom: theme.spacing.lg,
@@ -584,7 +709,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     ...theme.typography.h3,
     color: theme.colors.text,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     marginBottom: theme.spacing.md,
   },
@@ -598,7 +723,7 @@ const styles = StyleSheet.create({
   timeLabel: {
     ...theme.typography.caption,
     color: theme.colors.textSecondary,
-    fontSize: 12,
+    fontSize: 11,
     marginTop: theme.spacing.sm,
   },
   timeValue: {
@@ -606,6 +731,7 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontWeight: '600',
     marginTop: theme.spacing.xs,
+    fontSize: 14,
   },
   detailsCard: {
     marginBottom: theme.spacing.lg,
@@ -618,7 +744,7 @@ const styles = StyleSheet.create({
   detailLabel: {
     ...theme.typography.body,
     color: theme.colors.textSecondary,
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '500',
     width: 100,
   },
@@ -626,6 +752,39 @@ const styles = StyleSheet.create({
     ...theme.typography.body,
     color: theme.colors.text,
     flex: 1,
+    fontSize: 14,
+  },
+  detailValueContainer: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  detailBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 999,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 6,
+    borderWidth: 1,
+  },
+  detailBadgeText: {
+    ...theme.typography.caption,
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  categoryBadge: {
+    backgroundColor: theme.colors.primary + '15',
+    borderColor: theme.colors.primary + '40',
+  },
+  categoryBadgeText: {
+    color: theme.colors.primary,
+  },
+  typeBadge: {
+    backgroundColor: theme.colors.info + '15',
+    borderColor: theme.colors.info + '40',
+  },
+  typeBadgeText: {
+    color: theme.colors.info,
   },
   locationCard: {
     marginBottom: theme.spacing.lg,
@@ -644,13 +803,16 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontWeight: '600',
     marginBottom: theme.spacing.xs,
+    fontSize: 14,
   },
   locationAddress: {
     ...theme.typography.caption,
     color: theme.colors.textSecondary,
+    fontSize: 12,
   },
   actionButtons: {
     marginTop: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
   },
   actionButton: {
     flexDirection: 'row',
@@ -716,8 +878,5 @@ const styles = StyleSheet.create({
   backButtonText: {
     ...theme.typography.button,
     color: theme.colors.primary,
-  },
-  bottomSpacing: {
-    height: theme.spacing.xl,
   },
 });

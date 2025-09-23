@@ -32,6 +32,7 @@ export type MoreStackParamList = {
 // Dashboard Stack
 export type DashboardStackParamList = {
   DashboardHome: undefined;
+  AppointmentList: undefined;
   AppointmentDetails: { appointmentId: string };
   PatientDetails: { patientId: string };
   EncounterList: { filterStatus?: 'OPEN' | 'ALL' };
@@ -57,7 +58,7 @@ export type PatientsStackParamList = {
   PatientProfile: { patientId: string };
   PatientDashboard: { patientCpf: string; patientName: string };
   PatientHistory: { patientCpf: string; patientName: string };
-  EncounterDetails: { encounterId: string; patientName: string };
+  EncounterDetails: { encounterId: string; patientName: string; patientCpf: string };
   AddPatient: undefined;
   EditPatient: { patientId: string };
 };

@@ -1,4 +1,5 @@
 import { useAuthStore } from '../store/authStore';
+import { Buffer } from 'buffer';
 import { PractitionerProfile } from '@/types/practitioner';
 import { 
   NewMessageData, 
@@ -269,9 +270,9 @@ class ApiService {
   async getPatientPhoto(patientCpf: string) {
     const { user } = useAuthStore.getState();
     const { token } = useAuthStore.getState();
-    
+
     console.log('[API] getPatientPhoto called for CPF:', patientCpf);
-    
+
     const url = `${API_BASE_URL}/patient/getpatientphoto?patientCpf=${patientCpf}`;
     const headers = {
       'Content-Type': 'application/json',
@@ -291,6 +292,11 @@ class ApiService {
       console.log('[API] Patient photo response status:', response.status);
       console.log('[API] Patient photo response headers:', Object.fromEntries(response.headers.entries()));
 
+      if (response.status === 404) {
+        console.log('[API] Patient photo not found (404)');
+        return null;
+      }
+
       if (!response.ok) {
         throw new Error(`Photo API Error: ${response.status} ${response.statusText}`);
       }
@@ -304,29 +310,17 @@ class ApiService {
         return null;
       }
 
-      // Get the response as blob for image data
-      const blob = await response.blob();
-      console.log('[API] Photo blob received, size:', blob.size, 'type:', blob.type);
-
-      if (blob.size === 0) {
-        console.log('[API] No photo data available (empty blob)');
+      const arrayBuffer = await response.arrayBuffer();
+      if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+        console.log('[API] No photo data available (empty buffer)');
         return null;
       }
 
-      // Convert blob to base64 for React Native
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const base64data = reader.result;
-          console.log('[API] Photo converted to base64, length:', base64data?.toString().length);
-          resolve(base64data);
-        };
-        reader.onerror = (error) => {
-          console.error('[API] Error converting photo to base64:', error);
-          reject(error);
-        };
-        reader.readAsDataURL(blob);
-      });
+      const base64 = Buffer.from(arrayBuffer).toString('base64');
+      const contentType = response.headers.get('content-type') || 'image/jpeg';
+      const dataUri = `data:${contentType};base64,${base64}`;
+      console.log('[API] Photo converted to base64, length:', dataUri.length);
+      return dataUri;
     } catch (error) {
       console.error('[API] Error fetching patient photo:', error);
       throw error;
@@ -376,6 +370,40 @@ class ApiService {
     });
 
     return this.request(`/encounter/getencounters/patient/${patientCpf}?${params}`, {
+      headers: {
+        'managingorg': user?.organization,
+        'practid': user?.email || '',
+      },
+    });
+  }
+
+  async getPatientLastEncounterSummary(patientCpf: string, currentEncounterId?: string) {
+    const { user } = useAuthStore.getState();
+    const query = currentEncounterId ? `?curEnc=${encodeURIComponent(currentEncounterId)}` : '';
+
+    return this.request(`/encounter/patient/lastencounter/${patientCpf}${query}`, {
+      headers: {
+        'managingorg': user?.organization,
+        'practid': user?.email || '',
+      },
+    });
+  }
+
+  async getEncounterInfoById(encounterId: string) {
+    const { user } = useAuthStore.getState();
+
+    return this.request(`/encounter/getencounterinfobyid/${encounterId}`, {
+      headers: {
+        'managingorg': user?.organization,
+        'practid': user?.email || '',
+      },
+    });
+  }
+
+  async getEncounterInfoById(encounterId: string) {
+    const { user } = useAuthStore.getState();
+
+    return this.request(`/encounter/getencounterinfobyid/${encounterId}`, {
       headers: {
         'managingorg': user?.organization,
         'practid': user?.email || '',
@@ -440,6 +468,26 @@ class ApiService {
   async getEncounterAttachments(encounterId: string) {
     const { user } = useAuthStore.getState();
     return this.request(`/attach/getbyencounter/${encounterId}`, {
+      headers: {
+        'managingorg': user?.organization,
+        'practid': user?.email || '',
+      },
+    });
+  }
+
+  async getEncounterServices(encounterId: string) {
+    const { user } = useAuthStore.getState();
+    return this.request(`/encounter/getencounterservices/${encounterId}`, {
+      headers: {
+        'managingorg': user?.organization,
+        'practid': user?.email || '',
+      },
+    });
+  }
+
+  async getEncounterFinancials(encounterId: string) {
+    const { user } = useAuthStore.getState();
+    return this.request(`/encounter/getencounterfinancials/${encounterId}`, {
       headers: {
         'managingorg': user?.organization,
         'practid': user?.email || '',
@@ -960,6 +1008,39 @@ class ApiService {
     }
   }
 
+  async getLocationById(locationId: string, practitionerEmail?: string) {
+    const { user } = useAuthStore.getState();
+
+    if (!locationId) {
+      throw new Error('Location ID is required');
+    }
+
+    const params = new URLSearchParams();
+    if (practitionerEmail) {
+      params.append('email', practitionerEmail);
+    }
+
+    const url = `/location/getlocationbyid/${encodeURIComponent(locationId)}${
+      params.toString() ? `?${params.toString()}` : ''
+    }`;
+
+    console.log('[API] getLocationById called with:', { locationId, practitionerEmail });
+
+    try {
+      const result = await this.request(url, {
+        headers: {
+          'managingorg': user?.organization,
+          'practid': user?.email || '',
+        },
+      });
+      console.log('[API] getLocationById success:', result);
+      return result;
+    } catch (error) {
+      console.error('[API] getLocationById error:', error);
+      throw error;
+    }
+  }
+
   // Get available dates for appointment scheduling
   async getAvailableDates(practitionerId: string, locationId: string, year: number, month: number, duration: number = 60) {
     const { user } = useAuthStore.getState();
@@ -1132,6 +1213,41 @@ class ApiService {
       return result;
     } catch (error) {
       console.error('[API] getServiceTypes error:', error);
+      throw error;
+    }
+  }
+
+  async getServiceDescriptions(categoryId?: string | null, typeId?: string | null) {
+    const { user } = useAuthStore.getState();
+
+    if (!categoryId && !typeId) {
+      console.log('[API] getServiceDescriptions skipped (no ids provided)');
+      return { category: null, type: null };
+    }
+
+    const params = new URLSearchParams();
+    if (categoryId) {
+      params.append('categoryId', categoryId);
+    }
+    if (typeId) {
+      params.append('typeId', typeId);
+    }
+
+    const url = `/pract/getservicedescriptions?${params.toString()}`;
+
+    console.log('[API] getServiceDescriptions called with:', { categoryId, typeId });
+
+    try {
+      const result = await this.request(url, {
+        headers: {
+          'managingorg': user?.organization,
+          'practid': user?.email || '',
+        },
+      });
+      console.log('[API] getServiceDescriptions success:', result);
+      return result;
+    } catch (error) {
+      console.error('[API] getServiceDescriptions error:', error);
       throw error;
     }
   }

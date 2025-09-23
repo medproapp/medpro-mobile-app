@@ -10,9 +10,11 @@ import {
   Alert,
   Image,
   StatusBar,
+  Platform,
 } from 'react-native';
 import { RouteProp, useRoute, useNavigation, NavigationProp } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
+import Markdown from 'react-native-markdown-display';
 import { theme } from '@theme/index';
 import { api } from '@services/api';
 import { PatientsStackParamList } from '@/types/navigation';
@@ -45,6 +47,10 @@ interface EncounterWithDetails extends Encounter {
   imageCount: number;
   attachmentCount: number;
 }
+
+const HEADER_TOP_PADDING = Platform.OS === 'android'
+  ? (StatusBar.currentHeight || 44)
+  : 52;
 
 export const PatientHistoryScreen: React.FC = () => {
   const route = useRoute<PatientHistoryRouteProp>();
@@ -184,7 +190,8 @@ export const PatientHistoryScreen: React.FC = () => {
   const navigateToEncounterDetails = (encounter: EncounterWithDetails) => {
     navigation.navigate('EncounterDetails', { 
       encounterId: encounter.Identifier, 
-      patientName 
+      patientName,
+      patientCpf,
     });
   };
 
@@ -198,6 +205,23 @@ export const PatientHistoryScreen: React.FC = () => {
         return theme.colors.info;
       default:
         return theme.colors.textSecondary;
+    }
+  };
+
+  const getStatusLabel = (status: string): string => {
+    switch (status.toLowerCase()) {
+      case 'completed':
+        return 'Concluído';
+      case 'in-progress':
+        return 'Em andamento';
+      case 'planned':
+        return 'Planejado';
+      case 'cancelled':
+        return 'Cancelado';
+      case 'on-hold':
+        return 'Em espera';
+      default:
+        return status;
     }
   };
 
@@ -226,7 +250,7 @@ export const PatientHistoryScreen: React.FC = () => {
           
           <View style={styles.encounterHeaderRight}>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(encounter.Status) }]}>
-              <Text style={styles.statusText}>{encounter.Status}</Text>
+              <Text style={styles.statusText}>{getStatusLabel(encounter.Status)}</Text>
             </View>
             <FontAwesome name="chevron-right" size={12} color={theme.colors.textSecondary} />
           </View>
@@ -235,7 +259,9 @@ export const PatientHistoryScreen: React.FC = () => {
         {/* AI Summary */}
         {encounter.shortAISummary && (
           <View style={styles.aiSummaryContainer}>
-            <Text style={styles.aiSummaryText}>{encounter.shortAISummary}</Text>
+            <Markdown style={markdownStyles}>
+              {encounter.shortAISummary.trim()}
+            </Markdown>
           </View>
         )}
 
@@ -404,10 +430,17 @@ const styles = StyleSheet.create({
   },
   headerBackground: {
     backgroundColor: theme.colors.primary,
-    paddingTop: 40,
+    paddingTop: HEADER_TOP_PADDING,
     paddingBottom: 20,
     position: 'relative',
     overflow: 'hidden',
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   backgroundLogo: {
     position: 'absolute',
@@ -540,12 +573,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 16,
   },
-  aiSummaryText: {
-    fontSize: 14,
-    color: theme.colors.text,
-    fontStyle: 'italic',
-    lineHeight: 20,
-  },
   dataCountsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -611,5 +638,48 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
+  },
+});
+
+const markdownStyles = StyleSheet.create({
+  body: {
+    fontSize: 14,
+    color: theme.colors.text,
+    lineHeight: 20,
+  },
+  heading1: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text,
+    marginBottom: 8,
+  },
+  heading2: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.text,
+    marginBottom: 6,
+  },
+  heading3: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.text,
+    marginBottom: 4,
+  },
+  bullet_list: {
+    marginBottom: 0,
+    paddingLeft: 12,
+  },
+  ordered_list: {
+    marginBottom: 0,
+    paddingLeft: 12,
+  },
+  list_item: {
+    marginBottom: 4,
+  },
+  strong: {
+    fontWeight: '600',
+  },
+  em: {
+    fontStyle: 'italic',
   },
 });
