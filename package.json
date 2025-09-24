@@ -46,7 +46,9 @@
     "zustand": "^5.0.6",
     "expo-dev-client": "~5.2.4",
     "react-native-gesture-handler": "~2.24.0",
-    "expo-notifications": "~0.31.4"
+    "expo-notifications": "~0.31.4",
+    "expo-intent-launcher": "~12.1.5",
+    "expo-sharing": "~13.1.5"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

@@ -23,6 +23,7 @@ import { PatientsScreen } from '@screens/Patients';
 import { PatientDashboardScreen } from '@screens/Patients/PatientDashboardScreen';
 import { PatientHistoryScreen } from '@screens/Patients/PatientHistoryScreen';
 import { EncounterDetailsScreen } from '@screens/Patients/EncounterDetailsScreen';
+import { ClinicalRecordDetailsScreen } from '@screens/Patients/ClinicalRecordDetailsScreen';
 import { MoreScreen, MyProfileScreen } from '@screens/More';
 import { MessagesListScreen, ConversationScreen, NewMessageScreen } from '@screens/Messages';
 import { AssistantScreen } from '@screens/Assistant';
@@ -64,7 +65,7 @@ const getDashboardTabBarStyle = (route: RouteProp<MainTabParamList, 'Dashboard'>
 
 const getPatientsTabBarStyle = (route: RouteProp<MainTabParamList, 'Patients'>): typeof TAB_BAR_BASE_STYLE & { display?: 'none' } => {
   const routeName = getFocusedRouteNameFromRoute(route) ?? 'PatientsList';
-  if (routeName === 'PatientDashboard' || routeName === 'PatientHistory' || routeName === 'EncounterDetails') {
+  if (routeName === 'PatientDashboard' || routeName === 'PatientHistory' || routeName === 'EncounterDetails' || routeName === 'ClinicalRecordDetails') {
     return { ...TAB_BAR_BASE_STYLE, display: 'none' };
   }
   return TAB_BAR_BASE_STYLE;
@@ -257,6 +258,7 @@ const PatientsStackNavigator: React.FC = () => {
       <PatientsStack.Screen name="PatientDashboard" component={PatientDashboardScreen} />
       <PatientsStack.Screen name="PatientHistory" component={PatientHistoryScreen} />
       <PatientsStack.Screen name="EncounterDetails" component={EncounterDetailsScreen} />
+      <PatientsStack.Screen name="ClinicalRecordDetails" component={ClinicalRecordDetailsScreen} />
     </PatientsStack.Navigator>
   );
 };

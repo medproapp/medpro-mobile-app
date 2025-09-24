@@ -406,7 +406,7 @@ export const DashboardScreen: React.FC = () => {
               }
             } catch (photoError) {
               const message = photoError instanceof Error ? photoError.message : 'Unknown error';
-              console.log('[Dashboard] No patient photo available:', message);
+              console.warn('[Dashboard] No patient photo available:', message);
             }
             
             // Convert UTC datetime to local for proper date grouping

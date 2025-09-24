@@ -13,11 +13,18 @@ import {
   StatusBar,
   Platform,
 } from 'react-native';
-import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
+import { RouteProp, useRoute, useNavigation, NavigationProp } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
 import { api } from '@services/api';
 import { PatientsStackParamList } from '@/types/navigation';
+import {
+  translateClinicalType,
+  translateClinicalStatus,
+  translateClinicalCategory,
+  formatClinicalDateTime,
+  getStatusBadgeStyle,
+} from '@/utils/clinical';
 
 type EncounterDetailsRouteProp = RouteProp<PatientsStackParamList, 'EncounterDetails'>;
 
@@ -221,13 +228,119 @@ const formatStatusLabel = (status?: string | null): string | null => {
   return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
 };
 
+const quillDeltaToPlainText = (input: unknown): string => {
+  if (input === null || input === undefined) {
+    return '';
+  }
+
+  const ensureArrayOps = (value: any): any[] | null => {
+    if (!value) return null;
+    if (Array.isArray(value)) return value;
+    if (Array.isArray(value.ops)) return value.ops;
+    return null;
+  };
+
+  const normalizeString = (value: string): string => value.replace(/\r\n/g, '\n');
+
+  if (typeof input === 'string') {
+    const trimmed = input.trim();
+    if (!trimmed) return '';
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      const ops = ensureArrayOps(parsed);
+      if (!ops) {
+        return normalizeString(trimmed);
+      }
+      input = ops;
+    } catch (error) {
+      // Not a JSON payload; return raw text normalized
+      return normalizeString(trimmed);
+    }
+  }
+
+  const ops = ensureArrayOps(input);
+  if (!ops) {
+    return typeof input === 'string' ? normalizeString(input) : '';
+  }
+
+  const parts: string[] = [];
+  const orderedCounters: number[] = [];
+
+  const resetOrderedCounters = (level: number = 0) => {
+    orderedCounters.splice(level);
+  };
+
+  const formatListLine = (text: string, indent: number, prefix: string): string => {
+    const trimmed = text.replace(/\n+$/, '');
+    if (!trimmed.trim()) {
+      return '';
+    }
+    const indentation = '  '.repeat(indent);
+    return `${indentation}${prefix}${trimmed}\n`;
+  };
+
+  for (const op of ops) {
+    if (!op) continue;
+    const insertValue = op.insert ?? op.value ?? '';
+    const attributes = op.attributes || {};
+
+    if (typeof insertValue === 'string') {
+      const value = insertValue.replace(/\r\n/g, '\n');
+
+      if (attributes.list === 'ordered' || attributes.list === 'bullet') {
+        const indentLevel = Number(attributes.indent || 0);
+        if (attributes.list === 'ordered') {
+          orderedCounters[indentLevel] = (orderedCounters[indentLevel] ?? 0) + 1;
+          orderedCounters.length = indentLevel + 1;
+          const listIndex = orderedCounters[indentLevel];
+          const line = formatListLine(value, indentLevel, `${listIndex}. `);
+          if (line) {
+            parts.push(line);
+          }
+        } else {
+          resetOrderedCounters(indentLevel);
+          const line = formatListLine(value, indentLevel, '• ');
+          if (line) {
+            parts.push(line);
+          }
+        }
+        continue;
+      }
+
+      resetOrderedCounters();
+
+      if (value === '\n' && attributes.header) {
+        parts.push('\n');
+        continue;
+      }
+
+      parts.push(value);
+    } else if (insertValue && typeof insertValue === 'object') {
+      resetOrderedCounters();
+      if ('image' in insertValue) {
+        parts.push('[Imagem]');
+      } else if ('video' in insertValue) {
+        parts.push('[Vídeo]');
+      } else {
+        parts.push('[Conteúdo não textual]');
+      }
+    }
+  }
+
+  const rawText = parts.join('');
+  return rawText
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+};
+
 const HEADER_TOP_PADDING = Platform.OS === 'android'
   ? (StatusBar.currentHeight || 44)
   : 52;
 
 export const EncounterDetailsScreen: React.FC = () => {
   const route = useRoute<EncounterDetailsRouteProp>();
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp<PatientsStackParamList>>();
   const { encounterId, patientName, patientCpf } = route.params;
 
   const [encounterDetails, setEncounterDetails] = useState<EncounterDetails | null>(null);
@@ -289,7 +402,16 @@ export const EncounterDetailsScreen: React.FC = () => {
       }
 
       // Extract data from settled promises - all should be successful now
-      const clinicalRecords = clinicalResponse.status === 'fulfilled' ? (clinicalResponse.value?.data || []) : [];
+      const clinicalRecords = clinicalResponse.status === 'fulfilled'
+        ? (clinicalResponse.value?.data || []).map((record: any) => ({
+            ...record,
+            clinicalId: record?.clinicalId ?? record?.identifier ?? record?.id ?? record?.ID ?? null,
+            clinicalType: record?.clinicalType ?? record?.type ?? record?.resourceType ?? null,
+            clinicalStatus: record?.clinicalStatus ?? record?.status ?? null,
+            clinicalDate: record?.clinicalDate ?? record?.date ?? record?.authoredOn ?? record?.occurrence ?? record?.createdAt ?? null,
+            clinicalMetadata: record?.clinicalMetadata ?? record?.metadata ?? record?.meta ?? null,
+          }))
+        : [];
       const medications = medicationResponse.status === 'fulfilled' ? (medicationResponse.value?.data || []) : [];
       const diagnostics = diagnosticResponse.status === 'fulfilled' ? (Array.isArray(diagnosticResponse.value) ? diagnosticResponse.value : []) : [];
       const images = imageResponse.status === 'fulfilled' ? (Array.isArray(imageResponse.value) ? imageResponse.value : []) : [];
@@ -553,13 +675,18 @@ export const EncounterDetailsScreen: React.FC = () => {
     loadData();
   }, [encounterId, patientCpf]);
 
-  const formatDateTime = (dateString: string): string => {
-    return new Date(dateString).toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+  const formatDateTime = (dateString?: string | null): string => {
+    return formatClinicalDateTime(dateString) ?? '—';
+  };
+
+  const handleClinicalRecordPress = (record: any) => {
+    if (!record) return;
+
+    navigation.navigate('ClinicalRecordDetails', {
+      encounterId,
+      patientCpf,
+      patientName,
+      clinicalRecord: record,
     });
   };
 
@@ -884,6 +1011,16 @@ export const EncounterDetailsScreen: React.FC = () => {
       }
       
       case 'notes':
+        const noteSource =
+          (encounterInfo as any)?.Note ??
+          (encounterInfo as any)?.note ??
+          (encounterInfo as any)?.encounter?.Note ??
+          (encounterInfo as any)?.encounter?.note ??
+          encounterDetails.encounter?.Note ??
+          encounterDetails.encounter?.note ??
+          null;
+        const formattedNote = (quillDeltaToPlainText(noteSource) || '').trim();
+
         return (
           <View style={styles.tabContent}>
             <Text style={styles.tabTitle}>Notas</Text>
@@ -894,16 +1031,10 @@ export const EncounterDetailsScreen: React.FC = () => {
               </View>
             ) : null}
 
-            {Array.isArray(encounterDetails.encounter?.notes) && encounterDetails.encounter.notes.length > 0 ? (
-              encounterDetails.encounter.notes.map((note: any, index: number) => (
-                <View key={index} style={styles.notesCard}>
-                  <View style={styles.notesHeader}>
-                    <Text style={styles.notesAuthor}>{note.author || 'Autor desconhecido'}</Text>
-                    {note.time && <Text style={styles.notesDate}>{formatDateTime(note.time)}</Text>}
-                  </View>
-                  <Text style={styles.notesText}>{note.text}</Text>
-                </View>
-              ))
+            {formattedNote ? (
+              <View style={styles.notesCard}>
+                <Text style={styles.notesText}>{formattedNote}</Text>
+              </View>
             ) : (
               !encounterDetails.encounter?.shortAISummary && (
                 <Text style={styles.emptyMessage}>Nenhuma nota disponível</Text>
@@ -917,21 +1048,90 @@ export const EncounterDetailsScreen: React.FC = () => {
           <View style={styles.tabContent}>
             <Text style={styles.tabTitle}>Registros Clínicos ({encounterDetails.clinicalRecords.length})</Text>
             {encounterDetails.clinicalRecords.length > 0 ? (
-              encounterDetails.clinicalRecords.map((record: any, index: number) => (
-                <View key={index} style={styles.itemCard}>
-                  <View style={styles.itemHeader}>
-                    <FontAwesome name="file-text-o" size={16} color={theme.colors.info} />
-                    <Text style={styles.itemTitle}>
-                      {record.clinicalType || 'ServiceRequest'} #{record.clinicalId}
-                    </Text>
-                  </View>
-                  <Text style={styles.itemDate}>{formatDateTime(record.clinicalDate)}</Text>
-                  <Text style={styles.itemStatus}>Status: {record.clinicalStatus}</Text>
-                  {record.clinicalMetadata?.servicerequestCategory && (
-                    <Text style={styles.itemCategory}>Categoria: {record.clinicalMetadata.servicerequestCategory}</Text>
-                  )}
-                </View>
-              ))
+              encounterDetails.clinicalRecords.map((record: any, index: number) => {
+                const typeLabel = translateClinicalType(record.clinicalType) || translateClinicalType(record.type) || 'Registro Clínico';
+                const statusLabel = translateClinicalStatus(record.clinicalStatus) || record.clinicalStatus || null;
+                const categoryLabel = translateClinicalCategory(
+                  record.clinicalMetadata?.servicerequestCategory ||
+                  record.clinicalMetadata?.category ||
+                  record.category
+                );
+                const recordId = record.clinicalId || record.identifier || record.id || `registro-${index}`;
+                const rawStatus = (record.clinicalStatus || record.status || '').toString().trim().toLowerCase();
+
+                const badges: Array<{
+                  key: string;
+                  label: string;
+                  icon: string;
+                  containerStyle: any[];
+                  textStyle: any[];
+                  iconColor: string;
+                }> = [];
+
+                if (typeLabel) {
+                  badges.push({
+                    key: 'type',
+                    label: typeLabel,
+                    icon: 'tag',
+                    containerStyle: [styles.clinicalBadge, styles.clinicalBadgeInfo],
+                    textStyle: [styles.clinicalBadgeText, styles.clinicalBadgeTextOnDark],
+                    iconColor: theme.colors.white,
+                  });
+                }
+
+                if (statusLabel) {
+                  const statusBadge = getStatusBadgeStyle(rawStatus);
+
+                  badges.push({
+                    key: 'status',
+                    label: statusLabel,
+                    icon: statusBadge.icon,
+                    containerStyle: [styles.clinicalBadge, statusBadge.container],
+                    textStyle: [styles.clinicalBadgeText, { color: statusBadge.textColor }],
+                    iconColor: statusBadge.iconColor,
+                  });
+                }
+
+                if (categoryLabel) {
+                  badges.push({
+                    key: 'category',
+                    label: categoryLabel,
+                    icon: 'folder-open',
+                    containerStyle: [styles.clinicalBadge, styles.clinicalBadgeNeutral],
+                    textStyle: [styles.clinicalBadgeText],
+                    iconColor: theme.colors.primary,
+                  });
+                }
+
+                return (
+                  <TouchableOpacity
+                    key={recordId}
+                    style={styles.itemCard}
+                    activeOpacity={0.85}
+                    onPress={() => handleClinicalRecordPress(record)}
+                  >
+                    <View style={styles.itemHeader}>
+                      <FontAwesome name="file-text-o" size={16} color={theme.colors.info} />
+                      <Text style={styles.itemTitle}>
+                        {typeLabel} #{recordId}
+                      </Text>
+                    </View>
+                    {record.clinicalDate && (
+                      <Text style={styles.itemDate}>{formatDateTime(record.clinicalDate)}</Text>
+                    )}
+                    {badges.length > 0 && (
+                      <View style={styles.clinicalBadgeRow}>
+                        {badges.map((badge) => (
+                          <View key={`${recordId}-${badge.key}`} style={badge.containerStyle}>
+                            <FontAwesome name={badge.icon} size={11} color={badge.iconColor} />
+                            <Text style={badge.textStyle}>{badge.label}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })
             ) : (
               <Text style={styles.emptyMessage}>Nenhum registro clínico encontrado</Text>
             )}
@@ -1522,6 +1722,58 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.textSecondary,
     marginBottom: 4,
+  },
+  clinicalBadgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  clinicalBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.colors.borderLight,
+    backgroundColor: theme.colors.backgroundSecondary,
+  },
+  clinicalBadgeInfo: {
+    backgroundColor: theme.colors.info,
+    borderColor: theme.colors.info,
+  },
+  clinicalBadgeSuccess: {
+    backgroundColor: theme.colors.success,
+    borderColor: theme.colors.success,
+  },
+  clinicalBadgeActive: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  clinicalBadgeWarning: {
+    backgroundColor: theme.colors.warningLight,
+    borderColor: theme.colors.warning,
+  },
+  clinicalBadgeError: {
+    backgroundColor: theme.colors.error,
+    borderColor: theme.colors.error,
+  },
+  clinicalBadgeNeutral: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderColor: theme.colors.borderLight,
+  },
+  clinicalBadgeMuted: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderColor: theme.colors.border,
+  },
+  clinicalBadgeText: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+  },
+  clinicalBadgeTextOnDark: {
+    color: theme.colors.white,
   },
   itemFileType: {
     fontSize: 14,

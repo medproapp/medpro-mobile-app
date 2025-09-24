@@ -59,6 +59,12 @@ export type PatientsStackParamList = {
   PatientDashboard: { patientCpf: string; patientName: string };
   PatientHistory: { patientCpf: string; patientName: string };
   EncounterDetails: { encounterId: string; patientName: string; patientCpf: string };
+  ClinicalRecordDetails: {
+    encounterId: string;
+    patientCpf: string;
+    patientName: string;
+    clinicalRecord: any;
+  };
   AddPatient: undefined;
   EditPatient: { patientId: string };
 };

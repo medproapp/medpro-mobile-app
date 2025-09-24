@@ -39,14 +39,14 @@ class ApiService {
       ...config.headers,
     };
 
-    console.log('[API] Making request:', {
-      method,
-      url,
-      headers: {
-        ...headers,
-        Authorization: headers.Authorization ? '[REDACTED]' : undefined
-      }
-    });
+    // console.log('[API] Making request:', {
+    //   method,
+    //   url,
+    //   headers: {
+    //     ...headers,
+    //     Authorization: headers.Authorization ? '[REDACTED]' : undefined
+    //   }
+    // });
 
     const response = await fetch(url, {
       method,
@@ -54,7 +54,7 @@ class ApiService {
       body: body ? JSON.stringify(body) : undefined,
     });
 
-    console.log('[API] Response status:', response.status, response.statusText);
+    // console.log('[API] Response status:', response.status, response.statusText);
 
     if (!response.ok) {
       // Handle 404 as empty data for patient history endpoints
@@ -73,7 +73,7 @@ class ApiService {
     }
 
     const result = await response.json();
-    console.log('[API] Response data:', result);
+    // console.log('[API] Response data:', result);
     return result as T;
   }
 
@@ -136,7 +136,7 @@ class ApiService {
     const url = query.toString() ? `${basePath}?${query.toString()}` : basePath;
 
     try {
-      console.log('[API] Fetching practitioner schedule summary:', { email, days });
+      // console.log('[API] Fetching practitioner schedule summary:', { email, days });
       return await this.request(url);
     } catch (error) {
       console.error('[API] getPractitionerScheduleSummary error:', error);
@@ -170,7 +170,7 @@ class ApiService {
   // Get appointment details by ID
   async getAppointmentById(appointmentId: string) {
     const { user } = useAuthStore.getState();
-    console.log('[API] getAppointmentById called with ID:', appointmentId);
+    // console.log('[API] getAppointmentById called with ID:', appointmentId);
     return this.request(`/appointment/getappointmentbyid/${appointmentId}`, {
       headers: {
         'managingorg': user?.organization,
@@ -181,9 +181,9 @@ class ApiService {
 
   // Get patient details by CPF
   async getPatientDetails(cpf: string) {
-    console.log('[API] getPatientDetails called with CPF:', cpf);
+    // console.log('[API] getPatientDetails called with CPF:', cpf);
     const { user } = useAuthStore.getState();
-    console.log('[API] User context:', { organization: user?.organization, email: user?.email });
+    // console.log('[API] User context:', { organization: user?.organization, email: user?.email });
     
     try {
       const result = await this.request(`/patient/getpatientdetails/${cpf}`, {
@@ -192,7 +192,7 @@ class ApiService {
           'practid': user?.email || '',
         },
       });
-      console.log('[API] getPatientDetails success:', result);
+      // console.log('[API] getPatientDetails success:', result);
       return result;
     } catch (error) {
       console.error('[API] getPatientDetails error:', error);
@@ -222,7 +222,7 @@ class ApiService {
   // Search patients for appointment booking - using the same endpoint as web frontend
   async searchPatients(searchTerm: string, searchType: 'name' | 'cpf' | 'phone', page: number = 1, limit: number = 10) {
     const { user } = useAuthStore.getState();
-    console.log('[API] searchPatients called with term:', searchTerm, 'type:', searchType);
+    // console.log('[API] searchPatients called with term:', searchTerm, 'type:', searchType);
     
     try {
       // Use the same endpoint as web frontend: /patient/getpatientbyname/${practId}
@@ -238,7 +238,7 @@ class ApiService {
           'practid': user?.email || '',
         },
       });
-      console.log('[API] searchPatients success:', result);
+      // console.log('[API] searchPatients success:', result);
       return result;
     } catch (error) {
       console.error('[API] searchPatients error:', error);
@@ -249,7 +249,7 @@ class ApiService {
   // Get patient appointments
   async getPatientAppointments(patientCpf: string) {
     const { user } = useAuthStore.getState();
-    console.log('[API] getPatientAppointments called with CPF:', patientCpf);
+    // console.log('[API] getPatientAppointments called with CPF:', patientCpf);
     
     try {
       const result = await this.request(`/appointment/getnextpatientappointments/${patientCpf}`, {
@@ -258,7 +258,7 @@ class ApiService {
           'practid': user?.email || '',
         },
       });
-      console.log('[API] getPatientAppointments success:', result);
+      // console.log('[API] getPatientAppointments success:', result);
       return result;
     } catch (error) {
       console.error('[API] getPatientAppointments error:', error);
@@ -400,16 +400,16 @@ class ApiService {
     });
   }
 
-  async getEncounterInfoById(encounterId: string) {
-    const { user } = useAuthStore.getState();
+  // async getEncounterInfoById(encounterId: string) {
+  //   const { user } = useAuthStore.getState();
 
-    return this.request(`/encounter/getencounterinfobyid/${encounterId}`, {
-      headers: {
-        'managingorg': user?.organization,
-        'practid': user?.email || '',
-      },
-    });
-  }
+  //   return this.request(`/encounter/getencounterinfobyid/${encounterId}`, {
+  //     headers: {
+  //       'managingorg': user?.organization,
+  //       'practid': user?.email || '',
+  //     },
+  //   });
+  // }
 
   async getEncounterClinicalRecords(encounterId: string, options: { page?: number; limit?: number; type?: string } = {}) {
     const { user } = useAuthStore.getState();
@@ -419,12 +419,16 @@ class ApiService {
       ...(options.type && { type: options.type })
     });
 
-    return this.request(`/clinical/records/encounter/${encounterId}?${params}`, {
+    const response = await this.request(`/clinical/records/encounter/${encounterId}?${params}`, {
       headers: {
         'managingorg': user?.organization,
         'practid': user?.email || '',
       },
     });
+
+    // console.log('[API] getEncounterClinicalRecords response:', JSON.stringify(response, null, 2));
+
+    return response;
   }
 
   async getEncounterMedications(patientCpf: string, encounterId: string, options: { page?: number; limit?: number; type?: string } = {}) {
@@ -473,6 +477,21 @@ class ApiService {
         'practid': user?.email || '',
       },
     });
+  }
+
+  async getClinicalRecordAttachments(clinicalId: string) {
+    const { user } = useAuthStore.getState();
+
+    const response = await this.request(`/clinical/record/${clinicalId}/attachments`, {
+      headers: {
+        'managingorg': user?.organization,
+        'practid': user?.email || '',
+      },
+    });
+
+    console.log('[API] getClinicalRecordAttachments response:', JSON.stringify(response, null, 2));
+
+    return response;
   }
 
   async getEncounterServices(encounterId: string) {

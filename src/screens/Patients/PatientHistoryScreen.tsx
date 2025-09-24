@@ -64,11 +64,11 @@ export const PatientHistoryScreen: React.FC = () => {
 
   const loadPatientHistory = async () => {
     try {
-      console.log('[PatientHistory] Loading history for CPF:', patientCpf);
+      // console.log('[PatientHistory] Loading history for CPF:', patientCpf);
       
       // First, get all encounters
       const encountersResponse = await api.getPatientEncounters(patientCpf, { limit: 50 });
-      console.log('[PatientHistory] Encounters response:', encountersResponse);
+      // console.log('[PatientHistory] Encounters response:', encountersResponse);
       
       if (!encountersResponse?.data || !Array.isArray(encountersResponse.data)) {
         console.warn('[PatientHistory] No encounters found or invalid response format');
