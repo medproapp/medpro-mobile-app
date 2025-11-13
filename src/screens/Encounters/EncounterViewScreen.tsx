@@ -8,6 +8,8 @@ import {
   Alert,
   ActivityIndicator,
   StatusBar,
+  Image,
+  RefreshControl,
 } from 'react-native';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
@@ -27,7 +29,7 @@ interface EncounterBasicInfo {
   patientCpf: string;
   date: string;
   status: string;
-  duration?: string;
+  actualStart?: string;
 }
 
 export const EncounterViewScreen: React.FC = () => {
@@ -44,26 +46,92 @@ export const EncounterViewScreen: React.FC = () => {
   const [isUploadingAudio, setIsUploadingAudio] = useState(false);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadEncounterBasicInfo();
   }, []);
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadEncounterBasicInfo();
+    setRefreshing(false);
+  };
+
+  const translateStatus = (status: string): string => {
+    switch (status) {
+      case 'in-progress':
+        return 'Em Andamento';
+      case 'on-hold':
+        return 'Pausado';
+      case 'completed':
+        return 'Finalizado';
+      case 'cancelled':
+        return 'Cancelado';
+      case 'entered-in-error':
+        return 'Erro de Entrada';
+      default:
+        return status || 'N/A';
+    }
+  };
+
+  const getStatusColor = (status: string): string => {
+    // Get the original status from translated text for color mapping
+    const statusLower = status.toLowerCase();
+    if (statusLower.includes('andamento')) return theme.colors.info;
+    if (statusLower.includes('pausado')) return theme.colors.warning;
+    if (statusLower.includes('finalizado')) return theme.colors.success;
+    if (statusLower.includes('cancelado')) return theme.colors.error;
+    return theme.colors.textSecondary;
+  };
+
+
   const loadEncounterBasicInfo = async () => {
     try {
-      // Mock data for now - replace with actual API call
-      const mockEncounter: EncounterBasicInfo = {
-        id: encounterId,
-        patientName,
-        patientCpf,
-        date: new Date().toLocaleDateString('pt-BR'),
-        status: 'Em andamento',
-        duration: '15 min'
+      console.log('[EncounterView] Loading encounter info for ID:', encounterId);
+
+      // Fetch real encounter data from API
+      const response = await apiService.getEncounterInfoById(encounterId);
+      console.log('[EncounterView] API response:', response);
+
+      // Extract encounter data (API returns array)
+      const encounterData = Array.isArray(response) ? response[0] : response;
+
+      if (!encounterData) {
+        throw new Error('Encounter not found');
+      }
+
+      // Format the date from actualStart field
+      let formattedDate = 'N/A';
+      if (encounterData.actualStart) {
+        try {
+          const date = new Date(encounterData.actualStart);
+          formattedDate = date.toLocaleDateString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+        } catch (dateError) {
+          console.error('[EncounterView] Error formatting date:', dateError);
+        }
+      }
+
+      // Map backend fields to our interface
+      const encounterInfo: EncounterBasicInfo = {
+        id: encounterData.Identifier || encounterId,
+        patientName: patientName, // Already passed from route params
+        patientCpf: encounterData.Subject || patientCpf, // Use from API or route params
+        date: formattedDate,
+        status: translateStatus(encounterData.Status), // Translated status
+        actualStart: encounterData.actualStart, // For duration calculation
       };
-      
-      setEncounter(mockEncounter);
+
+      console.log('[EncounterView] Mapped encounter info:', encounterInfo);
+      setEncounter(encounterInfo);
     } catch (error) {
-      console.error('Error loading encounter:', error);
+      console.error('[EncounterView] Error loading encounter:', error);
       Alert.alert('Erro', 'Não foi possível carregar os dados do encontro.');
     } finally {
       setLoading(false);
@@ -231,57 +299,66 @@ export const EncounterViewScreen: React.FC = () => {
     <>
       <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
       <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <FontAwesome name="arrow-left" size={20} color={theme.colors.white} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Encontro</Text>
-          <View style={styles.headerRight} />
+        {/* Header with gradient background - same as other screens */}
+        <View style={styles.headerBackground}>
+          {/* Background Logo */}
+          <Image
+            source={require('../../assets/medpro-logo.png')}
+            style={styles.backgroundLogo}
+            resizeMode="contain"
+          />
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              style={styles.backButton}
+            >
+              <FontAwesome name="arrow-left" size={20} color={theme.colors.white} />
+            </TouchableOpacity>
+            <View style={styles.headerContent}>
+              <Text style={styles.greeting}>Encontro</Text>
+              <Text style={styles.patientNameHeader}>{encounter?.patientName}</Text>
+              <Text style={styles.dateText}>{encounter?.date}</Text>
+              <View style={styles.badgesRow}>
+                <View style={styles.idBadgeHeader}>
+                  <Text style={styles.idText}>#{encounter?.id}</Text>
+                </View>
+                <View style={[
+                  styles.statusBadgeHeader,
+                  { backgroundColor: getStatusColor(encounter?.status || '') + '25' }
+                ]}>
+                  <Text style={[
+                    styles.statusTextHeader,
+                    { color: getStatusColor(encounter?.status || '') }
+                  ]}>
+                    {encounter?.status}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
         </View>
 
-        <ScrollView style={styles.scrollContainer}>
-          {/* Encounter Info Card */}
-          <View style={styles.infoCard}>
-            <View style={styles.infoHeader}>
-              <FontAwesome name="user-md" size={24} color={theme.colors.primary} />
-              <Text style={styles.infoHeaderText}>Informações do Encontro</Text>
-            </View>
-            
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Paciente:</Text>
-              <Text style={styles.infoValue}>{encounter.patientName}</Text>
-            </View>
-            
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Data:</Text>
-              <Text style={styles.infoValue}>{encounter.date}</Text>
-            </View>
-            
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Status:</Text>
-              <View style={styles.statusBadge}>
-                <Text style={styles.statusText}>{encounter.status}</Text>
-              </View>
-            </View>
-            
-            {encounter.duration && (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Duração:</Text>
-                <Text style={styles.infoValue}>{encounter.duration}</Text>
-              </View>
-            )}
-          </View>
+        <ScrollView
+          style={styles.scrollContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              colors={[theme.colors.primary]}
+              tintColor={theme.colors.primary}
+            />
+          }
+        >
 
           {/* Action Buttons */}
           <View style={styles.actionsContainer}>
             <Text style={styles.actionsTitle}>Ações Disponíveis</Text>
-            
+
             {/* Add Attachment Button */}
-            <TouchableOpacity 
-              style={[styles.actionButton, isUploadingAttachment && styles.actionButtonDisabled]} 
+            <TouchableOpacity
+              style={[styles.actionButton, (isUploadingAttachment || encounter?.status === 'Finalizado' || encounter?.status === 'Cancelado') && styles.actionButtonDisabled]}
               onPress={handleAddAttachment}
-              disabled={isUploadingAttachment}
+              disabled={isUploadingAttachment || encounter?.status === 'Finalizado' || encounter?.status === 'Cancelado'}
             >
               <View style={styles.actionButtonContent}>
                 <FontAwesome name="paperclip" size={24} color={theme.colors.primary} />
@@ -298,10 +375,10 @@ export const EncounterViewScreen: React.FC = () => {
             </TouchableOpacity>
 
             {/* Add Image Button */}
-            <TouchableOpacity 
-              style={[styles.actionButton, isUploadingImage && styles.actionButtonDisabled]} 
+            <TouchableOpacity
+              style={[styles.actionButton, (isUploadingImage || encounter?.status === 'Finalizado' || encounter?.status === 'Cancelado') && styles.actionButtonDisabled]}
               onPress={handleAddImage}
-              disabled={isUploadingImage}
+              disabled={isUploadingImage || encounter?.status === 'Finalizado' || encounter?.status === 'Cancelado'}
             >
               <View style={styles.actionButtonContent}>
                 <FontAwesome name="camera" size={24} color={theme.colors.primary} />
@@ -318,10 +395,10 @@ export const EncounterViewScreen: React.FC = () => {
             </TouchableOpacity>
 
             {/* Start Recording Button */}
-            <TouchableOpacity 
-              style={[styles.actionButton, isUploadingAudio && styles.actionButtonDisabled]} 
+            <TouchableOpacity
+              style={[styles.actionButton, (isUploadingAudio || encounter?.status === 'Finalizado' || encounter?.status === 'Cancelado') && styles.actionButtonDisabled]}
               onPress={handleStartRecording}
-              disabled={isUploadingAudio}
+              disabled={isUploadingAudio || encounter?.status === 'Finalizado' || encounter?.status === 'Cancelado'}
             >
               <View style={styles.actionButtonContent}>
                 <FontAwesome name="microphone" size={24} color={theme.colors.primary} />
@@ -349,6 +426,10 @@ export const EncounterViewScreen: React.FC = () => {
               setAudioRecorderVisible(false);
             }
           }}
+          encounterId={encounterId}
+          patientCpf={patientCpf}
+          practitionerId={user?.email}
+          sequence={1}
         />
 
         {/* Attachment Picker Modal */}
@@ -420,32 +501,90 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  headerBackground: {
+    backgroundColor: theme.colors.primary,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    paddingTop: StatusBar.currentHeight || 44,
+    paddingBottom: theme.spacing.lg,
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    position: 'relative',
+    overflow: 'hidden',
+    zIndex: 1,
+  },
+  backgroundLogo: {
+    position: 'absolute',
+    right: -20,
+    top: '50%',
+    width: 120,
+    height: 120,
+    opacity: 0.1,
+    transform: [{ translateY: -60 }],
+    tintColor: theme.colors.white,
+  },
   header: {
     flexDirection: 'row',
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 16,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.md,
   },
   backButton: {
-    padding: 8,
+    padding: theme.spacing.sm,
+    backgroundColor: theme.colors.white + '20',
+    borderRadius: 8,
+    marginRight: theme.spacing.md,
   },
-  headerTitle: {
+  headerContent: {
     flex: 1,
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: theme.colors.white,
-    textAlign: 'center',
-    marginLeft: -32, // Compensate for back button
   },
-  headerRight: {
-    width: 32,
+  greeting: {
+    ...theme.typography.caption,
+    color: theme.colors.white + 'CC',
+    fontSize: 13,
+  },
+  patientNameHeader: {
+    ...theme.typography.h1,
+    color: theme.colors.white,
+    fontSize: 20,
+    fontWeight: '700',
+    marginTop: theme.spacing.xs,
+  },
+  dateText: {
+    ...theme.typography.caption,
+    color: theme.colors.white + 'AA',
+    fontSize: 12,
+    marginTop: theme.spacing.xs,
+  },
+  badgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: theme.spacing.xs,
+  },
+  idBadgeHeader: {
+    backgroundColor: theme.colors.white + '25',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.white + '40',
+    marginRight: 8,
+  },
+  statusBadgeHeader: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.white + '40',
+  },
+  statusTextHeader: {
+    fontSize: 12,
+    color: theme.colors.white,
+    fontWeight: '600',
   },
   scrollContainer: {
     flex: 1,
@@ -499,6 +638,20 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 14,
     color: theme.colors.success,
+    fontWeight: '600',
+  },
+  idBadge: {
+    backgroundColor: theme.colors.info + '15',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.info + '30',
+    flex: 1,
+  },
+  idText: {
+    fontSize: 12,
+    color: theme.colors.white,
     fontWeight: '600',
   },
   actionsContainer: {

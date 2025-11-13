@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL } from '@config/environment';
 import {
   AuthState,
   User,
@@ -9,9 +10,11 @@ import {
   RegisterResponse,
 } from '../types/auth';
 
-const AUTH_API_BASE_URL = 'http://192.168.2.30:3000';
+const AUTH_API_BASE_URL = API_BASE_URL;
 
 interface AuthStore extends AuthState {
+  // Last login email (persists across logouts)
+  lastLoginEmail: string | null;
   // Actions
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (data: RegisterData) => Promise<RegisterResponse>;
@@ -31,6 +34,7 @@ export const useAuthStore = create<AuthStore>()(
       isAuthenticated: false,
       isLoading: false,
       error: null,
+      lastLoginEmail: null,
 
       // Actions
       login: async (credentials: LoginCredentials) => {
@@ -89,13 +93,14 @@ export const useAuthStore = create<AuthStore>()(
             userRole: data.role,
           };
 
-          // Set initial state with token
+          // Set initial state with token and save email for future logins
           set({
             user,
             token: data.token,
             isAuthenticated: true,
             isLoading: false,
             error: null,
+            lastLoginEmail: credentials.email,
           });
 
           // Fetch detailed user info in the background
@@ -273,6 +278,14 @@ export const useAuthStore = create<AuthStore>()(
         AsyncStorage.multiRemove(keysToClear).catch(error => {
           console.warn('[AuthStore] Falha ao limpar armazenamento persistido', error);
         });
+
+        import('../services/messagingService')
+          .then(module => {
+            module.messagingService?.resetCache?.();
+          })
+          .catch(error => {
+            console.warn('[AuthStore] Não foi possível limpar o cache de mensagens', error);
+          });
       },
 
       setUser: (user: User) => {
@@ -299,6 +312,7 @@ export const useAuthStore = create<AuthStore>()(
         user: state.user,
         token: state.token,
         isAuthenticated: state.isAuthenticated,
+        lastLoginEmail: state.lastLoginEmail,
       }),
     }
   )

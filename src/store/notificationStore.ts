@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { NotificationItem, NotificationState, NotificationsQuery } from '@types/notifications';
+import { NotificationItem, NotificationState, NotificationsQuery, NotificationStatus } from '@/types/notifications';
 import { notificationsService } from '@services/notificationsService';
 
 const DEFAULT_QUERY: NotificationsQuery = {
@@ -97,11 +97,11 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
       const now = new Date().toISOString();
       set(state => {
-        const updatedItems = state.items.map(item =>
+        const updatedItems: NotificationItem[] = state.items.map(item =>
           item.id === notificationId
             ? {
                 ...item,
-                status: 'read',
+                status: 'read' as NotificationStatus,
                 read_at: now,
               }
             : item
@@ -142,7 +142,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
           unreadIds.includes(item.id)
             ? {
                 ...item,
-                status: 'read',
+                status: 'read' as NotificationStatus,
                 read_at: now,
               }
             : item

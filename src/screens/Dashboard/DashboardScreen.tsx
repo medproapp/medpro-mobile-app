@@ -870,7 +870,11 @@ export const DashboardScreen: React.FC = () => {
               <Text style={styles.emptySubtitle}>
                 Você não possui agendamentos.
               </Text>
-              <TouchableOpacity style={styles.emptyAction} activeOpacity={0.7}>
+              <TouchableOpacity
+                style={styles.emptyAction}
+                activeOpacity={0.7}
+                onPress={() => navigation.navigate('AppointmentStep1')}
+              >
                 <FontAwesome name="plus" size={16} color={theme.colors.primary} />
                 <Text style={styles.emptyActionText}>Criar novo agendamento</Text>
               </TouchableOpacity>

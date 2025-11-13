@@ -27,6 +27,8 @@ export type MainTabParamList = {
 export type MoreStackParamList = {
   MoreHome: undefined;
   MyProfile: undefined;
+  About: undefined;
+  HelpSupport: undefined;
 };
 
 // Dashboard Stack
@@ -34,10 +36,15 @@ export type DashboardStackParamList = {
   DashboardHome: undefined;
   AppointmentList: undefined;
   AppointmentDetails: { appointmentId: string };
+  FormResponse: {
+    trackingId: string;
+    patientName: string;
+    appointmentDate: string;
+  };
   PatientDetails: { patientId: string };
   EncounterList: { filterStatus?: 'OPEN' | 'ALL' };
-  EncounterView: { 
-    encounterId: string; 
+  EncounterView: {
+    encounterId: string;
     patientName: string;
     patientCpf: string;
   };

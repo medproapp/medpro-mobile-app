@@ -39,8 +39,8 @@ const loginSchema = yup.object({
 export const LoginScreen: React.FC = () => {
   const navigation = useNavigation<LoginNavigationProp>();
   const route = useRoute<LoginRouteProp>();
-  const { login, isLoading, error, clearError } = useAuthStore();
-  const prefilledEmail = route.params?.email ?? '';
+  const { login, isLoading, error, clearError, lastLoginEmail } = useAuthStore();
+  const prefilledEmail = route.params?.email ?? lastLoginEmail ?? '';
 
   const {
     control,

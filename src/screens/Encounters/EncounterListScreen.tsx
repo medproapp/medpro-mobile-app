@@ -7,6 +7,7 @@ import {
   RefreshControl,
   TouchableOpacity,
   StatusBar,
+  Image,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
@@ -169,10 +170,28 @@ export const EncounterListScreen: React.FC<EncounterListProps> = ({ route }) => 
     <>
       <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
       <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <FontAwesome name="hospital-o" size={24} color={theme.colors.white} />
-          <Text style={styles.headerTitle}>Encontros</Text>
+        {/* Header with gradient background - same as main page */}
+        <View style={styles.headerBackground}>
+          {/* Background Logo */}
+          <Image
+            source={require('../../assets/medpro-logo.png')}
+            style={styles.backgroundLogo}
+            resizeMode="contain"
+          />
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              style={styles.backButton}
+            >
+              <FontAwesome name="arrow-left" size={20} color={theme.colors.white} />
+            </TouchableOpacity>
+            <View style={styles.headerContent}>
+              <Text style={styles.greeting}>Encontros</Text>
+              <Text style={styles.dateText}>
+                Visualize e gerencie atendimentos
+              </Text>
+            </View>
+          </View>
         </View>
 
         {/* Filter Tabs */}
@@ -307,20 +326,58 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  header: {
+  headerBackground: {
     backgroundColor: theme.colors.primary,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
     paddingTop: StatusBar.currentHeight || 44,
     paddingBottom: theme.spacing.lg,
-    paddingHorizontal: theme.spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    position: 'relative',
+    overflow: 'hidden',
+    zIndex: 1,
   },
-  headerTitle: {
+  backgroundLogo: {
+    position: 'absolute',
+    right: -20,
+    top: '50%',
+    width: 120,
+    height: 120,
+    opacity: 0.1,
+    transform: [{ translateY: -60 }],
+    tintColor: theme.colors.white,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.md,
+  },
+  backButton: {
+    padding: theme.spacing.sm,
+    backgroundColor: theme.colors.white + '20',
+    borderRadius: 8,
+    marginRight: theme.spacing.md,
+  },
+  headerContent: {
+    flex: 1,
+  },
+  greeting: {
     ...theme.typography.h1,
     color: theme.colors.white,
     fontSize: 24,
     fontWeight: '700',
-    marginLeft: theme.spacing.md,
+  },
+  dateText: {
+    ...theme.typography.caption,
+    color: theme.colors.white + 'AA',
+    fontSize: 14,
+    marginTop: theme.spacing.xs,
   },
   filterTabs: {
     flexDirection: 'row',

@@ -33,9 +33,12 @@
           "icon": "./assets/medpro-logo.png",
           "color": "#2E86C1",
           "defaultChannel": "default",
-          "sounds": ["./assets/notification1.wav"]
+          "sounds": [
+            "./assets/notification1.wav"
+          ]
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "splash": {
       "image": "./assets/medpro-logo.png",
@@ -45,6 +48,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.medproapp.prof.app",
+      "buildNumber": "0.8.1",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Este aplicativo precisa acessar o microfone para gravar áudios dos encontros médicos.",
         "ITSAppUsesNonExemptEncryption": false
@@ -56,7 +60,8 @@
         "backgroundColor": "#F5F5F5"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.medpro.app",
+      "package": "com.medproapp.prof.app",
+      "versionCode": 81,
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
@@ -70,6 +75,7 @@
       "bundler": "metro"
     },
     "extra": {
+      "apiBaseUrl": "https://medproapp.ngrok.dev",
       "eas": {
         "projectId": "bc8e5697-2118-45bb-9c81-8f7a7fa10ab3"
       }

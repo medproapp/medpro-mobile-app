@@ -15,8 +15,8 @@ import {
   getRecordingPermissionsAsync,
   requestRecordingPermissionsAsync,
   RecordingPresets,
+  setAudioModeAsync,
 } from 'expo-audio';
-import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { Feather } from '@expo/vector-icons';
 import { theme } from '../../../theme';
@@ -29,6 +29,53 @@ interface AssistantAudioRecorderProps {
   disabled?: boolean;
   style?: any;
 }
+
+// Helper function to generate beep sounds
+const generateBeepSound = (frequency: number, duration: number): string => {
+  // Generate a simple sine wave beep sound as data URI
+  const sampleRate = 44100;
+  const samples = Math.floor(sampleRate * duration);
+  const buffer = new ArrayBuffer(44 + samples * 2);
+  const view = new DataView(buffer);
+
+  // WAV header
+  const writeString = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) {
+      view.setUint8(offset + i, str.charCodeAt(i));
+    }
+  };
+
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + samples * 2, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeString(36, 'data');
+  view.setUint32(40, samples * 2, true);
+
+  // Generate sine wave
+  let offset = 44;
+  for (let i = 0; i < samples; i++) {
+    const sample = Math.sin(2 * Math.PI * frequency * i / sampleRate) * 0.3; // 30% volume
+    view.setInt16(offset, sample * 32767, true);
+    offset += 2;
+  }
+
+  // Convert to base64 data URI
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  const base64 = btoa(binary);
+  return `data:audio/wav;base64,${base64}`;
+};
 
 export const AssistantAudioRecorder: React.FC<AssistantAudioRecorderProps> = ({
   onAudioRecorded,
@@ -48,10 +95,13 @@ export const AssistantAudioRecorder: React.FC<AssistantAudioRecorderProps> = ({
   const pulseAnim = new Animated.Value(1);
   const scaleAnim = new Animated.Value(1);
 
-  // Audio feedback sounds
-  const [startSound, setStartSound] = useState<Audio.Sound | null>(null);
-  const [stopSound, setStopSound] = useState<Audio.Sound | null>(null);
+  // Generate beep sound URIs
+  const startBeepUri = React.useMemo(() => generateBeepSound(800, 0.1), []); // 800Hz, 0.1s
+  const stopBeepUri = React.useMemo(() => generateBeepSound(400, 0.2), []); // 400Hz, 0.2s
 
+  // Audio feedback sounds using expo-audio
+  const startSoundPlayer = useAudioPlayer({ uri: startBeepUri });
+  const stopSoundPlayer = useAudioPlayer({ uri: stopBeepUri });
 
   // Audio recorder hook
   const recorder = useAudioRecorder(
@@ -66,109 +116,41 @@ export const AssistantAudioRecorder: React.FC<AssistantAudioRecorderProps> = ({
 
   useEffect(() => {
     checkPermissions();
-    loadSounds();
-    
+    setAudioMode();
+
     return () => {
       if (durationInterval) {
         clearInterval(durationInterval);
       }
-      // Cleanup sounds
-      startSound?.unloadAsync();
-      stopSound?.unloadAsync();
     };
   }, []);
 
-  const loadSounds = async () => {
+  const setAudioMode = async () => {
     try {
-      // Set audio mode to allow playback during recording
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: false,
-        playThroughEarpieceAndroid: false,
+      // Set audio mode to allow playback during recording using expo-audio
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
       });
-
-      // Create sounds programmatically using web audio
-      const startSoundObj = new Audio.Sound();
-      const stopSoundObj = new Audio.Sound();
-      
-      // Generate simple beep sounds using data URIs
-      const startBeepUri = generateBeepSound(800, 0.1); // 800Hz, 0.1s duration
-      const stopBeepUri = generateBeepSound(400, 0.2); // 400Hz, 0.2s duration
-      
-      await startSoundObj.loadAsync({ uri: startBeepUri });
-      await stopSoundObj.loadAsync({ uri: stopBeepUri });
-      
-      setStartSound(startSoundObj);
-      setStopSound(stopSoundObj);
     } catch (error) {
-      console.error('[AssistantAudioRecorder] Error loading sounds:', error);
+      console.error('[AssistantAudioRecorder] Error setting audio mode:', error);
     }
-  };
-
-  const generateBeepSound = (frequency: number, duration: number): string => {
-    // Generate a simple sine wave beep sound as data URI
-    const sampleRate = 44100;
-    const samples = Math.floor(sampleRate * duration);
-    const buffer = new ArrayBuffer(44 + samples * 2);
-    const view = new DataView(buffer);
-    
-    // WAV header
-    const writeString = (offset: number, str: string) => {
-      for (let i = 0; i < str.length; i++) {
-        view.setUint8(offset + i, str.charCodeAt(i));
-      }
-    };
-    
-    writeString(0, 'RIFF');
-    view.setUint32(4, 36 + samples * 2, true);
-    writeString(8, 'WAVE');
-    writeString(12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);
-    view.setUint16(22, 1, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * 2, true);
-    view.setUint16(32, 2, true);
-    view.setUint16(34, 16, true);
-    writeString(36, 'data');
-    view.setUint32(40, samples * 2, true);
-    
-    // Generate sine wave
-    let offset = 44;
-    for (let i = 0; i < samples; i++) {
-      const sample = Math.sin(2 * Math.PI * frequency * i / sampleRate) * 0.3; // 30% volume
-      view.setInt16(offset, sample * 32767, true);
-      offset += 2;
-    }
-    
-    // Convert to base64 data URI
-    const bytes = new Uint8Array(buffer);
-    let binary = '';
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    const base64 = btoa(binary);
-    return `data:audio/wav;base64,${base64}`;
   };
 
   // Audio and haptic feedback functions
   const playStartFeedback = async () => {
     try {
       console.log('[AssistantAudioRecorder] Playing start feedback');
-      
-      // Audio feedback - high pitched beep
-      if (startSound) {
-        await startSound.replayAsync();
-      }
-      
+
+      // Audio feedback - high pitched beep using expo-audio
+      startSoundPlayer.play();
+
       // Haptic feedback for start (double tap)
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       setTimeout(async () => {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }, 100);
-      
+
     } catch (error) {
       console.error('[AssistantAudioRecorder] Error playing start feedback:', error);
     }
@@ -177,15 +159,13 @@ export const AssistantAudioRecorder: React.FC<AssistantAudioRecorderProps> = ({
   const playStopFeedback = async () => {
     try {
       console.log('[AssistantAudioRecorder] Playing stop feedback');
-      
-      // Audio feedback - low pitched beep
-      if (stopSound) {
-        await stopSound.replayAsync();
-      }
-      
+
+      // Audio feedback - low pitched beep using expo-audio
+      stopSoundPlayer.play();
+
       // Haptic feedback for stop (single strong tap)
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-      
+
     } catch (error) {
       console.error('[AssistantAudioRecorder] Error playing stop feedback:', error);
     }

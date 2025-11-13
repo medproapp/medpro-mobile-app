@@ -1,4 +1,4 @@
-import type { NotificationItem } from '@types/notifications';
+import type { NotificationItem } from '@/types/notifications';
 import type { DashboardStackParamList, MessagesStackParamList } from '@/types/navigation';
 
 export type NotificationNavigationTarget =

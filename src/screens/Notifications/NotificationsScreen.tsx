@@ -16,7 +16,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { theme } from '@theme/index';
 import { useNotificationStore } from '@store/notificationStore';
-import type { NotificationItem, NotificationStatus } from '@types/notifications';
+import type { NotificationItem, NotificationStatus } from '@/types/notifications';
 import type { DashboardStackParamList } from '@/types/navigation';
 import { resolveNotificationNavigation } from '@utils/notificationNavigation';
 

@@ -18,6 +18,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { DashboardStackParamList } from '@/types/navigation';
 import { useAuthStore } from '@store/authStore';
+import { PreAppointmentFormStatus } from '@/types/preAppointment';
 
 type AppointmentDetailsScreenProps = RouteProp<DashboardStackParamList, 'AppointmentDetails'>;
 type AppointmentDetailsNavigationProp = StackNavigationProp<DashboardStackParamList, 'AppointmentDetails'>;
@@ -120,6 +121,40 @@ const getStatusText = (status: string) => {
   }
 };
 
+// Pre-appointment form status helpers
+const getFormStatusColor = (status: string) => {
+  switch (status) {
+    case 'submitted': return theme.colors.success;
+    case 'started': return theme.colors.warning;
+    case 'pending': return theme.colors.textSecondary;
+    case 'expired': return theme.colors.error;
+    case 'dismissed': return theme.colors.textSecondary;
+    default: return theme.colors.textSecondary;
+  }
+};
+
+const getFormStatusIcon = (status: string) => {
+  switch (status) {
+    case 'submitted': return 'check-circle';
+    case 'started': return 'clock-o';
+    case 'pending': return 'circle-o';
+    case 'expired': return 'exclamation-triangle';
+    case 'dismissed': return 'times-circle';
+    default: return 'circle-o';
+  }
+};
+
+const getFormStatusText = (status: string) => {
+  switch (status) {
+    case 'submitted': return 'Completo';
+    case 'started': return 'Em Andamento';
+    case 'pending': return 'Pendente';
+    case 'expired': return 'Expirado';
+    case 'dismissed': return 'Dispensado';
+    default: return status;
+  }
+};
+
 export const AppointmentDetailsScreen: React.FC = () => {
   const navigation = useNavigation<AppointmentDetailsNavigationProp>();
   const route = useRoute<AppointmentDetailsScreenProps>();
@@ -127,8 +162,10 @@ export const AppointmentDetailsScreen: React.FC = () => {
   const { user } = useAuthStore();
 
   const [appointment, setAppointment] = useState<AppointmentDetails | null>(null);
+  const [formStatus, setFormStatus] = useState<PreAppointmentFormStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
 
   const fetchAppointmentDetails = async () => {
@@ -267,6 +304,22 @@ export const AppointmentDetailsScreen: React.FC = () => {
         console.log('Final appointment details:', appointmentDetails);
 
         setAppointment(appointmentDetails);
+
+        // Fetch pre-appointment form status
+        try {
+          const formData = await apiService.getPreAppointmentFormStatus(appointmentId);
+          if (formData) {
+            console.log('[AppointmentDetails] Pre-appointment form status:', formData);
+            setFormStatus(formData);
+          } else {
+            console.log('[AppointmentDetails] No pre-appointment form found for this appointment');
+            setFormStatus(null);
+          }
+        } catch (formError) {
+          console.log('[AppointmentDetails] Error fetching pre-appointment form:', formError);
+          // Don't throw - form is optional
+          setFormStatus(null);
+        }
       }
     } catch (error) {
       console.error('Error fetching appointment details:', error);
@@ -312,15 +365,25 @@ export const AppointmentDetailsScreen: React.FC = () => {
   };
 
   const handleViewPatient = () => {
-    if (appointment && appointment.patientCpf) {
-      navigation.navigate('Patients', {
+    if (!appointment?.patientCpf) {
+      return;
+    }
+
+    const tabNavigation = navigation.getParent();
+    if (tabNavigation) {
+      tabNavigation.navigate('Patients', {
         screen: 'PatientDashboard',
         params: {
           patientCpf: appointment.patientCpf,
           patientName: appointment.patientName,
         },
       });
+      return;
     }
+
+    navigation.navigate('PatientDetails', {
+      patientId: appointment.patientCpf,
+    });
   };
 
   const handleEditAppointment = () => {
@@ -328,23 +391,60 @@ export const AppointmentDetailsScreen: React.FC = () => {
   };
 
   const handleCancelAppointment = () => {
-    if (appointment) {
-      Alert.alert(
-        'Cancelar Agendamento',
-        `Deseja cancelar o agendamento com ${appointment.patientName}?`,
-        [
-          { text: 'Não', style: 'cancel' },
-          {
-            text: 'Sim, Cancelar',
-            style: 'destructive',
-            onPress: () => {
-              console.log('Cancelling appointment:', appointmentId);
-              Alert.alert('Info', 'Funcionalidade de cancelamento será implementada em breve.');
-            },
-          },
-        ],
-      );
+    if (!appointment) return;
+
+    // Don't allow cancelling if already cancelled
+    if (appointment.status === 'cancelled') {
+      Alert.alert('Atenção', 'Este agendamento já foi cancelado.');
+      return;
     }
+
+    Alert.alert(
+      'Cancelar Agendamento',
+      `Deseja cancelar o agendamento com ${appointment.patientName}?`,
+      [
+        { text: 'Não', style: 'cancel' },
+        {
+          text: 'Sim, Cancelar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setCancelling(true);
+              console.log('[AppointmentDetails] Cancelling appointment:', appointmentId);
+
+              await apiService.cancelAppointment(appointmentId);
+
+              console.log('[AppointmentDetails] Appointment cancelled successfully');
+
+              // Show success message
+              Alert.alert(
+                'Sucesso',
+                'Agendamento cancelado com sucesso.',
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => {
+                      // Refresh the appointment details to show updated status
+                      fetchAppointmentDetails();
+                      // Optionally navigate back to appointment list
+                      // navigation.goBack();
+                    }
+                  }
+                ]
+              );
+            } catch (error: any) {
+              console.error('[AppointmentDetails] Error cancelling appointment:', error);
+              Alert.alert(
+                'Erro',
+                error.message || 'Não foi possível cancelar o agendamento. Tente novamente.'
+              );
+            } finally {
+              setCancelling(false);
+            }
+          },
+        },
+      ],
+    );
   };
 
   if (loading) {
@@ -415,15 +515,17 @@ export const AppointmentDetailsScreen: React.FC = () => {
         <Card style={styles.patientCard}>
           <View style={styles.patientHeader}>
             <View style={styles.patientImageContainer}>
-              <Image
-                source={
-                  appointment.patientPhoto 
-                    ? { uri: appointment.patientPhoto }
-                    : require('../../assets/medpro-logo.png')
-                }
-                style={styles.patientImage}
-                resizeMode="cover"
-              />
+              {appointment.patientPhoto ? (
+                <Image
+                  source={{ uri: appointment.patientPhoto }}
+                  style={styles.patientImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.patientImagePlaceholder}>
+                  <FontAwesome name="user" size={30} color={theme.colors.primary} />
+                </View>
+              )}
             </View>
             <View style={styles.patientInfo}>
               <Text style={styles.patientLabel}>Agendamento com:</Text>
@@ -504,6 +606,81 @@ export const AppointmentDetailsScreen: React.FC = () => {
           </View>
         </Card>
 
+        {/* Pre-Appointment Form Status */}
+        {formStatus && (
+          <Card style={styles.formStatusCard}>
+            <Text style={styles.sectionTitle}>Formulário Pré-Consulta</Text>
+
+            <View style={styles.formStatusRow}>
+              <View style={styles.formStatusInfo}>
+                <View style={styles.formStatusBadge}>
+                  <FontAwesome
+                    name={getFormStatusIcon(formStatus.formStatus)}
+                    size={18}
+                    color={getFormStatusColor(formStatus.formStatus)}
+                    style={styles.formStatusIconStyle}
+                  />
+                  <Text style={[styles.formStatusLabel, { color: getFormStatusColor(formStatus.formStatus) }]}>
+                    {getFormStatusText(formStatus.formStatus)}
+                  </Text>
+                </View>
+                {formStatus.totalFormsCount > 0 && (
+                  <Text style={styles.formCount}>
+                    {formStatus.totalFormsCount} {formStatus.totalFormsCount === 1 ? 'formulário' : 'formulários'}
+                  </Text>
+                )}
+              </View>
+
+              <View style={styles.formProgressContainer}>
+                <Text style={styles.formProgressLabel}>Progresso</Text>
+                <View style={styles.formProgressBar}>
+                  <View
+                    style={[
+                      styles.formProgressFill,
+                      {
+                        width: `${formStatus.progressPercentage}%`,
+                        backgroundColor: getFormStatusColor(formStatus.formStatus),
+                      },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.formProgressText}>{formStatus.progressPercentage}%</Text>
+              </View>
+            </View>
+
+            {formStatus.formSubmittedAt && (
+              <View style={styles.formTimestampRow}>
+                <FontAwesome name="check-circle" size={12} color={theme.colors.success} />
+                <Text style={styles.formTimestampText}>
+                  Enviado em {new Date(formStatus.formSubmittedAt).toLocaleString('pt-BR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </Text>
+              </View>
+            )}
+
+            {(formStatus.formStatus === 'submitted' || formStatus.formStatus === 'started') && (
+              <TouchableOpacity
+                style={styles.viewFormButton}
+                onPress={() => {
+                  navigation.navigate('FormResponse', {
+                    trackingId: formStatus.trackingId,
+                    patientName: formStatus.patientName,
+                    appointmentDate: `${formStatus.appointmentDate} às ${formStatus.appointmentTime}`,
+                  });
+                }}
+              >
+                <FontAwesome name="file-text-o" size={16} color={theme.colors.primary} />
+                <Text style={styles.viewFormButtonText}>Ver Respostas</Text>
+              </TouchableOpacity>
+            )}
+          </Card>
+        )}
+
         {/* Location Info */}
         {appointment.location && (
           <Card style={styles.locationCard}>
@@ -527,11 +704,33 @@ export const AppointmentDetailsScreen: React.FC = () => {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.secondaryButton, styles.cancelButton]}
+              style={[
+                styles.secondaryButton,
+                styles.cancelButton,
+                (cancelling || appointment?.status === 'cancelled') && styles.disabledButton
+              ]}
               onPress={handleCancelAppointment}
+              disabled={cancelling || appointment?.status === 'cancelled'}
             >
-              <FontAwesome name="times" size={16} color={theme.colors.error} />
-              <Text style={[styles.secondaryButtonText, { color: theme.colors.error }]}>Cancelar</Text>
+              <FontAwesome
+                name={cancelling ? "spinner" : "times"}
+                size={16}
+                color={
+                  (cancelling || appointment?.status === 'cancelled')
+                    ? theme.colors.textSecondary
+                    : theme.colors.error
+                }
+              />
+              <Text style={[
+                styles.secondaryButtonText,
+                {
+                  color: (cancelling || appointment?.status === 'cancelled')
+                    ? theme.colors.textSecondary
+                    : theme.colors.error
+                }
+              ]}>
+                {cancelling ? 'Cancelando...' : 'Cancelar'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -665,6 +864,16 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primary + '20',
     borderWidth: 2,
     borderColor: theme.colors.primary + '30',
+  },
+  patientImagePlaceholder: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: theme.colors.primary + '20',
+    borderWidth: 2,
+    borderColor: theme.colors.primary + '30',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   patientInfo: {
     flex: 1,
@@ -851,6 +1060,11 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.error,
     backgroundColor: theme.colors.error + '10',
   },
+  disabledButton: {
+    opacity: 0.5,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.background,
+  },
   secondaryButtonText: {
     ...theme.typography.button,
     color: theme.colors.primary,
@@ -878,5 +1092,98 @@ const styles = StyleSheet.create({
   backButtonText: {
     ...theme.typography.button,
     color: theme.colors.primary,
+  },
+  // Form Status Card Styles
+  formStatusCard: {
+    marginBottom: theme.spacing.lg,
+    padding: theme.spacing.lg,
+  },
+  formStatusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginTop: theme.spacing.md,
+  },
+  formStatusInfo: {
+    flex: 1,
+    marginRight: theme.spacing.md,
+  },
+  formStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.sm,
+  },
+  formStatusIconStyle: {
+    marginRight: theme.spacing.sm,
+  },
+  formStatusLabel: {
+    ...theme.typography.body,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  formCount: {
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    marginTop: theme.spacing.xs,
+  },
+  formProgressContainer: {
+    alignItems: 'flex-end',
+    width: 120,
+  },
+  formProgressLabel: {
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
+    fontSize: 11,
+    marginBottom: theme.spacing.xs,
+  },
+  formProgressBar: {
+    width: '100%',
+    height: 8,
+    backgroundColor: theme.colors.border,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: theme.spacing.xs,
+  },
+  formProgressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  formProgressText: {
+    ...theme.typography.caption,
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  formTimestampRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: theme.spacing.md,
+    paddingTop: theme.spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  formTimestampText: {
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    marginLeft: theme.spacing.sm,
+  },
+  viewFormButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.primary + '15',
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    borderRadius: 8,
+    marginTop: theme.spacing.md,
+  },
+  viewFormButtonText: {
+    ...theme.typography.button,
+    color: theme.colors.primary,
+    marginLeft: theme.spacing.sm,
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

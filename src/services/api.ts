@@ -1,19 +1,23 @@
 import { useAuthStore } from '../store/authStore';
 import { Buffer } from 'buffer';
 import { PractitionerProfile } from '@/types/practitioner';
-import { 
-  NewMessageData, 
-  MessagingApiResponse, 
-  MessageThread, 
-  Message, 
-  Contact, 
+import { API_BASE_URL } from '@config/environment';
+import {
+  NewMessageData,
+  MessagingApiResponse,
+  MessageThread,
+  Message,
+  Contact,
   MessageStats,
   PaginationParams,
   ThreadsFilter,
-  ContactsFilter 
+  ContactsFilter
 } from '../types/messaging';
-
-export const API_BASE_URL = 'http://192.168.2.30:3000';
+import {
+  PreAppointmentApiResponse,
+  FormDetailApiResponse,
+  PreAppointmentFormStatus,
+} from '../types/preAppointment';
 
 interface ApiConfig {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -60,15 +64,30 @@ class ApiService {
       // Handle 404 as empty data for patient history endpoints
       if (response.status === 404) {
         const url = response.url || '';
-        if (url.includes('/encounter/') || url.includes('/clinical/') || url.includes('/medication/') || 
+        if (url.includes('/encounter/') || url.includes('/clinical/') || url.includes('/medication/') ||
             url.includes('/diagnostic/') || url.includes('/attach/') || url.includes('/images/')) {
           console.log('[API] 404 response treated as empty data for:', url);
           return [] as unknown as T; // Return empty array for 404s on history endpoints
         }
       }
-      
+
       const errorText = await response.text();
       console.error('[API] Error response:', errorText);
+
+      // Handle token expiration - automatically logout
+      if (response.status === 401) {
+        try {
+          const errorData = JSON.parse(errorText);
+          if (errorData.error_code === 'TOKEN_EXPIRED') {
+            console.log('[API] Token expired - logging out user');
+            useAuthStore.getState().logout();
+          }
+        } catch (parseError) {
+          // If we can't parse the error, still check if it's a 401
+          console.warn('[API] Could not parse 401 error response');
+        }
+      }
+
       throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
@@ -158,7 +177,7 @@ class ApiService {
 
   // Get next appointments for practitioner
   async getNextAppointments(email: string, days: number = 7) {
-    const { user } = useAuthStore.getState();
+    const { user, token } = useAuthStore.getState();
     return this.request(`/appointment/getnextappointments/${email}?days=${days}`, {
       headers: {
         'managingorg': user?.organization,
@@ -169,7 +188,7 @@ class ApiService {
 
   // Get appointment details by ID
   async getAppointmentById(appointmentId: string) {
-    const { user } = useAuthStore.getState();
+    const { user, token } = useAuthStore.getState();
     // console.log('[API] getAppointmentById called with ID:', appointmentId);
     return this.request(`/appointment/getappointmentbyid/${appointmentId}`, {
       headers: {
@@ -182,7 +201,7 @@ class ApiService {
   // Get patient details by CPF
   async getPatientDetails(cpf: string) {
     // console.log('[API] getPatientDetails called with CPF:', cpf);
-    const { user } = useAuthStore.getState();
+    const { user, token } = useAuthStore.getState();
     // console.log('[API] User context:', { organization: user?.organization, email: user?.email });
     
     try {
@@ -410,6 +429,27 @@ class ApiService {
   //     },
   //   });
   // }
+
+  // Update encounter status (pause/resume)
+  async updateEncounterStatus(encounterId: string, status: string) {
+    const { user } = useAuthStore.getState();
+    console.log('[API] updateEncounterStatus called with:', { encounterId, status });
+
+    try {
+      const result = await this.request(`/encounter/updateencounterstatus/${encounterId}?status=${status}`, {
+        method: 'POST',
+        headers: {
+          'managingorg': user?.organization,
+          'practid': user?.email || '',
+        }
+      });
+      console.log('[API] updateEncounterStatus success:', result);
+      return result;
+    } catch (error: any) {
+      console.error('[API] updateEncounterStatus error:', error);
+      throw error;
+    }
+  }
 
   async getEncounterClinicalRecords(encounterId: string, options: { page?: number; limit?: number; type?: string } = {}) {
     const { user } = useAuthStore.getState();
@@ -694,7 +734,7 @@ class ApiService {
     patientCpf: string,
     practitionerId: string
   ): Promise<{ message: string; attachmentId: string }> {
-    const { user } = useAuthStore.getState();
+    const { user, token } = useAuthStore.getState();
     
     const formData = new FormData();
     formData.append('file', {
@@ -761,7 +801,6 @@ class ApiService {
       xhr.open('POST', `${API_BASE_URL}/attach/upload`);
       
       // Add auth headers
-      const token = useAuthStore.getState().token;
       if (token) {
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
       }
@@ -785,7 +824,7 @@ class ApiService {
     patientCpf: string,
     practitionerId: string
   ): Promise<{ message: string; imageId: string }> {
-    const { user } = useAuthStore.getState();
+    const { user, token } = useAuthStore.getState();
     
     const formData = new FormData();
     formData.append('image', {
@@ -851,7 +890,6 @@ class ApiService {
       xhr.open('POST', `${API_BASE_URL}/images/upload`);
       
       // Add auth headers
-      const token = useAuthStore.getState().token;
       if (token) {
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
       }
@@ -867,7 +905,7 @@ class ApiService {
     });
   }
 
-  // Upload audio recording
+  // Upload audio recording (Legacy single-blob upload)
   async uploadAudioRecording(
     audioPath: string,
     encounterId: string,
@@ -875,8 +913,8 @@ class ApiService {
     practitionerId: string,
     sequence: number = 1
   ): Promise<{ message: string; audioId: string }> {
-    const { user } = useAuthStore.getState();
-    
+    const { user, token } = useAuthStore.getState();
+
     const formData = new FormData();
     formData.append('audio', {
       uri: audioPath,
@@ -905,18 +943,18 @@ class ApiService {
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      
+
       xhr.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable) {
           const percentComplete = (event.loaded / event.total) * 100;
           console.log(`[API] Upload progress: ${percentComplete.toFixed(1)}%`);
         }
       });
-      
+
       xhr.addEventListener('load', () => {
         console.log('[API] Upload response status:', xhr.status);
         console.log('[API] Upload response text:', xhr.responseText);
-        
+
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             const response = JSON.parse(xhr.responseText);
@@ -929,34 +967,218 @@ class ApiService {
           reject(new Error(`Upload failed with status: ${xhr.status}`));
         }
       });
-      
+
       xhr.addEventListener('error', () => {
         console.error('[API] Upload network error');
         reject(new Error('Network error during upload'));
       });
-      
+
       xhr.addEventListener('abort', () => {
         console.log('[API] Upload was aborted');
         reject(new Error('Upload was aborted'));
       });
-      
+
       xhr.open('POST', `${API_BASE_URL}/audio/uploadAudio`);
-      
+
       // Add auth headers
-      const token = useAuthStore.getState().token;
       if (token) {
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
       }
-      
+
       // Add additional headers
       Object.entries(headers).forEach(([key, value]) => {
         if (key !== 'Content-Type') { // Let browser set Content-Type for FormData
           xhr.setRequestHeader(key, value);
         }
       });
-      
+
       xhr.send(formData);
     });
+  }
+
+  // === CHUNKED AUDIO UPLOAD ENDPOINTS ===
+
+  /**
+   * Create a new chunked audio upload session
+   * @param options Session configuration
+   * @returns Session ID and metadata
+   */
+  async createChunkedSession(options: {
+    encounterId: string;
+    patientCpf: string;
+    practitionerId: string;
+    sequence: number;
+    chunkExpected: number;
+    maxChunkDurationSeconds: number;
+    fileName?: string;
+  }): Promise<{ sessionId: string; status: string }> {
+    const { user, token } = useAuthStore.getState();
+
+    console.log('[API] createChunkedSession called with:', options);
+
+    try {
+      const result = await this.request('/chunked-audio/sessions', {
+        method: 'POST',
+        headers: {
+          'patient': options.patientCpf,
+          'pract': options.practitionerId,
+          'encid': options.encounterId,
+          'sequence': options.sequence.toString(),
+          'subentitytype': 'none',
+          'entity': 'encounter',
+          'organization': user?.organization,
+        },
+        body: {
+          chunkExpected: options.chunkExpected,
+          maxChunkDurationSeconds: options.maxChunkDurationSeconds,
+          fileName: options.fileName || `recording_${Date.now()}.mp4`,
+        },
+      });
+      console.log('[API] createChunkedSession success:', result);
+      return result;
+    } catch (error) {
+      console.error('[API] createChunkedSession error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Upload a single chunk to an existing session
+   * @param sessionId The session ID from createChunkedSession
+   * @param chunkBlob The audio chunk data
+   * @param chunkIndex Zero-based chunk index
+   * @param onProgress Optional progress callback
+   * @returns Upload result
+   */
+  async uploadChunk(
+    sessionId: string,
+    chunkBlob: Blob | FormData,
+    chunkIndex: number,
+    onProgress?: (percent: number) => void
+  ): Promise<{ success: boolean; message?: string }> {
+    const { token } = useAuthStore.getState();
+
+    console.log('[API] uploadChunk called with:', { sessionId, chunkIndex });
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      if (onProgress) {
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = (event.loaded / event.total) * 100;
+            onProgress(percentComplete);
+          }
+        });
+      }
+
+      xhr.addEventListener('load', () => {
+        console.log('[API] Chunk upload response status:', xhr.status);
+
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            resolve(response);
+          } catch (error) {
+            console.error('[API] Error parsing chunk response:', error);
+            reject(new Error('Invalid response format'));
+          }
+        } else {
+          reject(new Error(`Chunk upload failed with status: ${xhr.status}`));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        console.error('[API] Chunk upload network error');
+        reject(new Error('Network error during chunk upload'));
+      });
+
+      xhr.addEventListener('abort', () => {
+        console.log('[API] Chunk upload was aborted');
+        reject(new Error('Chunk upload was aborted'));
+      });
+
+      xhr.open('POST', `${API_BASE_URL}/chunked-audio/sessions/${sessionId}/chunks`);
+
+      // Add auth headers
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+
+      // Set chunk index header
+      xhr.setRequestHeader('X-Chunk-Index', chunkIndex.toString());
+
+      // Send the chunk (either as FormData or Blob)
+      xhr.send(chunkBlob);
+    });
+  }
+
+  /**
+   * Complete a chunked upload session and finalize the recording
+   * @param sessionId The session ID
+   * @returns Completion result with recording info
+   */
+  async completeChunkedSession(sessionId: string): Promise<{
+    success: boolean;
+    recordingId?: string;
+    message?: string;
+  }> {
+    const { token } = useAuthStore.getState();
+
+    console.log('[API] completeChunkedSession called with:', sessionId);
+
+    try {
+      const result = await this.request(`/chunked-audio/sessions/${sessionId}/complete`, {
+        method: 'POST',
+      });
+      console.log('[API] completeChunkedSession success:', result);
+      return result;
+    } catch (error) {
+      console.error('[API] completeChunkedSession error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cancel a chunked upload session
+   * @param sessionId The session ID
+   */
+  async cancelChunkedSession(sessionId: string): Promise<{ success: boolean }> {
+    console.log('[API] cancelChunkedSession called with:', sessionId);
+
+    try {
+      const result = await this.request(`/chunked-audio/sessions/${sessionId}/cancel`, {
+        method: 'POST',
+      });
+      console.log('[API] cancelChunkedSession success:', result);
+      return result;
+    } catch (error) {
+      console.error('[API] cancelChunkedSession error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get the status of a chunked upload session
+   * @param sessionId The session ID
+   * @returns Session status information
+   */
+  async getSessionStatus(sessionId: string): Promise<{
+    status: string;
+    chunksReceived: number;
+    chunkExpected: number;
+    sessionId: string;
+  }> {
+    console.log('[API] getSessionStatus called with:', sessionId);
+
+    try {
+      const result = await this.request(`/chunked-audio/sessions/${sessionId}/status`);
+      console.log('[API] getSessionStatus success:', result);
+      return result;
+    } catch (error) {
+      console.error('[API] getSessionStatus error:', error);
+      throw error;
+    }
   }
 
   // Get offerings (services/procedures) for appointment creation
@@ -1199,6 +1421,38 @@ class ApiService {
     }
   }
 
+  // Cancel appointment
+  async cancelAppointment(appointmentId: string) {
+    const { user } = useAuthStore.getState();
+    console.log('[API] cancelAppointment called with:', appointmentId);
+
+    try {
+      const result = await this.request(`/appointment/cancel/${appointmentId}`, {
+        method: 'POST',
+        headers: {
+          'managingorg': user?.organization,
+          'practid': user?.email || '',
+        }
+      });
+      console.log('[API] cancelAppointment success:', result);
+      return result;
+    } catch (error: any) {
+      console.error('[API] cancelAppointment error:', error);
+      // Re-throw with more context for error handling
+      if (error.response) {
+        const status = error.response.status;
+        if (status === 404) {
+          throw new Error('Agendamento não encontrado.');
+        } else if (status === 403) {
+          throw new Error('Você não tem permissão para cancelar este agendamento.');
+        } else if (status === 409) {
+          throw new Error('Este agendamento já foi cancelado.');
+        }
+      }
+      throw new Error('Erro ao cancelar agendamento. Tente novamente.');
+    }
+  }
+
   // Step 6 API methods
   async getServiceCategories() {
     try {
@@ -1367,8 +1621,83 @@ class ApiService {
     if (params.to) query.set('to', params.to);
     return this.request(`/api/comm-usage/summary?${query.toString()}`);
   }
+
+  // === PRE-APPOINTMENT FORMS ===
+
+  /**
+   * Get pre-appointment form status for a specific appointment
+   * @param appointmentId - The appointment identifier
+   * @returns Form status data including progress, completion status, etc.
+   */
+  async getPreAppointmentFormStatus(appointmentId: string): Promise<PreAppointmentFormStatus | null> {
+    const { user } = useAuthStore.getState();
+
+    try {
+      console.log('[API] getPreAppointmentFormStatus called for appointment:', appointmentId);
+
+      // Query the API with appointmentId filter
+      const query = new URLSearchParams({
+        appointmentId: appointmentId,
+        page: '1',
+        pageSize: '1'
+      });
+
+      const response = await this.request<PreAppointmentApiResponse>(
+        `/api/forms/pre-appointment/manage?${query.toString()}`,
+        {
+          headers: {
+            'managingorg': user?.organization,
+            'practid': user?.email || '',
+          },
+        }
+      );
+
+      console.log('[API] getPreAppointmentFormStatus response:', response);
+
+      // Return the first result if available
+      if (response.success && response.data && response.data.length > 0) {
+        return response.data[0];
+      }
+
+      return null;
+    } catch (error) {
+      console.error('[API] getPreAppointmentFormStatus error:', error);
+      // Return null instead of throwing - form might not exist for this appointment
+      return null;
+    }
+  }
+
+  /**
+   * Get detailed pre-appointment form data with patient responses
+   * @param trackingId - The tracking ID for the form
+   * @returns Detailed form data with sections and answers
+   */
+  async getPreAppointmentFormDetails(trackingId: string): Promise<FormDetailApiResponse> {
+    const { user } = useAuthStore.getState();
+
+    try {
+      console.log('[API] getPreAppointmentFormDetails called for tracking:', trackingId);
+
+      const response = await this.request<FormDetailApiResponse>(
+        `/api/forms/pre-appointment/manage/${trackingId}`,
+        {
+          headers: {
+            'managingorg': user?.organization,
+            'practid': user?.email || '',
+          },
+        }
+      );
+
+      console.log('[API] getPreAppointmentFormDetails response:', response);
+      return response;
+    } catch (error) {
+      console.error('[API] getPreAppointmentFormDetails error:', error);
+      throw error;
+    }
+  }
 }
 
 export const api = new ApiService();
 export const apiService = api;
+export { API_BASE_URL };
 export default api;

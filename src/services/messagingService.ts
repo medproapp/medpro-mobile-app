@@ -377,6 +377,10 @@ class MessagingService {
     }
   }
 
+  resetCache(): void {
+    this.invalidateCache();
+  }
+
   /**
    * Private helper methods
    */

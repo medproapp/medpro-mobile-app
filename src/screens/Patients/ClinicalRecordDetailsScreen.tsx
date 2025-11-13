@@ -27,6 +27,8 @@ import * as FileSystem from 'expo-file-system';
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as Sharing from 'expo-sharing';
 
+const ANDROID_READ_PERMISSION_FLAG = 0x00000001; // FLAG_GRANT_READ_URI_PERMISSION
+
 const HEADER_TOP_PADDING = Platform.OS === 'android'
   ? (StatusBar.currentHeight || 44)
   : 52;
@@ -247,12 +249,11 @@ export const ClinicalRecordDetailsScreen: React.FC = () => {
 
         if (Platform.OS === 'android') {
           const contentUri = await FileSystem.getContentUriAsync(filePath);
-          const readFlag = IntentLauncher.IntentFlags?.FLAG_GRANT_READ_URI_PERMISSION ?? 1;
 
-          await IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.VIEW, {
+          await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
             data: contentUri,
             type: attachment.contentType,
-            flags: readFlag,
+            flags: ANDROID_READ_PERMISSION_FLAG,
           });
         } else {
           const sharingAvailable = await Sharing.isAvailableAsync();

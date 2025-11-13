@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,20 +10,30 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import {
-  useAudioPlayer,
   useAudioRecorder,
+  createAudioPlayer,
   getRecordingPermissionsAsync,
   requestRecordingPermissionsAsync,
   RecordingPresets,
+  setAudioModeAsync,
+  AudioPlayer,
+  AudioStatus,
 } from 'expo-audio';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
+import * as FileSystem from 'expo-file-system/legacy';
 import { theme } from '@theme/index';
+import { chunkedRecordingService, UploadProgress } from '@/services/chunkedRecordingService';
 
 interface AudioRecorderProps {
   visible: boolean;
   onClose: () => void;
   onRecordingComplete: (audioUri: string) => void;
   onUploadComplete?: (success: boolean) => void;
+  // Encounter details for chunked upload
+  encounterId?: string;
+  patientCpf?: string;
+  practitionerId?: string;
+  sequence?: number;
 }
 
 export const AudioRecorder: React.FC<AudioRecorderProps> = ({
@@ -31,6 +41,10 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
   onClose,
   onRecordingComplete,
   onUploadComplete,
+  encounterId,
+  patientCpf,
+  practitionerId,
+  sequence = 1,
 }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
@@ -38,6 +52,11 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [durationInterval, setDurationInterval] = useState<NodeJS.Timeout | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
+  const [playbackStatus, setPlaybackStatus] = useState<AudioStatus | null>(null);
+
+  const playerRef = useRef<AudioPlayer | null>(null);
+  const playerStatusSubscription = useRef<{ remove: () => void } | null>(null);
 
   // Audio recorder hook
   const recorder = useAudioRecorder(
@@ -48,28 +67,39 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
     }
   );
 
-  // Audio player hook (will be initialized when we have a recording)
-  const player = useAudioPlayer(recordingUri ? { uri: recordingUri } : undefined);
-
   useEffect(() => {
     checkPermissions();
-    
+
     return () => {
-      // Cleanup
       if (durationInterval) {
         clearInterval(durationInterval);
       }
+      if (playerRef.current) {
+        playerRef.current.pause();
+      }
     };
-  }, []);
+  }, [durationInterval]);
 
   const checkPermissions = async () => {
     try {
+      // Configure audio mode for iOS
+      if (Platform.OS === 'ios') {
+        await setAudioModeAsync({
+          playsInSilentMode: true,
+          interruptionMode: 'duckOthers',
+          interruptionModeAndroid: 'duckOthers',
+          allowsRecording: true,
+          shouldPlayInBackground: false,
+          shouldRouteThroughEarpiece: false,
+        });
+      }
+
       const { status } = await getRecordingPermissionsAsync();
-      
+
       if (status !== 'granted') {
         const { status: newStatus } = await requestRecordingPermissionsAsync();
         setHasPermission(newStatus === 'granted');
-        
+
         if (newStatus !== 'granted') {
           Alert.alert(
             'Permissão necessária',
@@ -88,19 +118,40 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
 
   const startRecording = async () => {
     if (!hasPermission) {
+      console.log('[START] No permission, checking...');
       await checkPermissions();
       return;
     }
 
     try {
-      console.log('Starting recording...');
-      
+      console.log('[START] ========== STARTING RECORDING ==========');
+      console.log('[START] Recorder object:', recorder);
+
+      console.log('[START] Configuring audio mode for recording...');
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        interruptionMode: 'duckOthers',
+        interruptionModeAndroid: 'duckOthers',
+        allowsRecording: true,
+        shouldPlayInBackground: false,
+        shouldRouteThroughEarpiece: false,
+      });
+      console.log('[START] Audio mode configured');
+
+      console.log('[START] Preparing recorder...');
+      await recorder.prepareToRecordAsync();
+      console.log('[START] Recorder prepared');
+
       // Reset state
+      console.log('[START] Resetting state...');
       setRecordingDuration(0);
       setRecordingUri(null);
-      
+
       // Start recording
+      console.log('[START] Calling recorder.record()...');
       await recorder.record();
+      console.log('[START] recorder.record() completed');
+
       setIsRecording(true);
 
       // Start duration timer
@@ -109,9 +160,10 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
       }, 1000);
       setDurationInterval(interval);
 
-      console.log('Recording started successfully');
+      console.log('[START] Recording started successfully');
     } catch (error) {
-      console.error('Error starting recording:', error);
+      console.error('[START] ERROR starting recording:', error);
+      console.error('[START] Error details:', JSON.stringify(error, null, 2));
       Alert.alert('Erro', 'Não foi possível iniciar a gravação.');
     }
   };
@@ -120,8 +172,8 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
     if (!recorder) return;
 
     try {
-      console.log('Stopping recording...');
-      
+      console.log('[STOP] Stopping recording...');
+
       // Stop duration timer
       if (durationInterval) {
         clearInterval(durationInterval);
@@ -129,40 +181,184 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
       }
 
       // Stop recording
+      console.log('[STOP] Calling recorder.stop()...');
       await recorder.stop();
-      
-      // Get URI from recorder object
-      const uri = recorder.uri;
-      
+      console.log('[STOP] recorder.stop() completed');
+
+    // Get URI from recorder object
+    const uri = recorder.uri;
+    console.log('[STOP] Got URI from recorder:', uri);
+
+    if (!uri) {
+      console.error('[STOP] ERROR: No URI received from recorder');
+      Alert.alert('Erro', 'Nenhum arquivo de gravação');
+      return;
+    }
+
+    // Verify file exists and has size
+    try {
+      const fileInfo: any = await FileSystem.getInfoAsync(uri);
+      const fileSize = typeof fileInfo?.size === 'number' ? fileInfo.size : 0;
+      console.log('[STOP] File info:', {
+        exists: fileInfo.exists,
+        size: fileSize,
+        uri,
+      });
+
+      if (!fileInfo.exists) {
+        console.error('[STOP] ERROR: File does not exist');
+        Alert.alert('Erro', 'Arquivo de gravação não foi criado');
+        return;
+      }
+
+      if (!fileSize) {
+        console.error('[STOP] ERROR: File is empty (0 bytes)');
+        Alert.alert('Erro', 'Gravação está vazia');
+        return;
+      }
+
+      console.log('[STOP] File verified OK - size(bytes):', fileSize);
+    } catch (fileError) {
+      console.error('[STOP] ERROR reading file info:', fileError);
+    }
+
       setIsRecording(false);
       setRecordingUri(uri);
 
-      console.log('Recording stopped, URI:', uri);
+      // Apply preferred playback route after recording stops
+      console.log('[STOP] Applying playback route after recording (speaker)');
+      await configurePlaybackRoute();
+
+      console.log('[STOP] Recording stopped successfully, URI:', uri);
     } catch (error) {
-      console.error('Error stopping recording:', error);
+      console.error('[STOP] ERROR stopping recording:', error);
       Alert.alert('Erro', 'Não foi possível parar a gravação.');
     }
   };
 
   const playRecording = async () => {
-    if (!player || !recordingUri) return;
+    if (!recordingUri) {
+      console.error('[PLAY] ERROR: No recording URI');
+      return;
+    }
 
     try {
-      console.log('Playing recording...');
-      player.play();
+      console.log('[PLAY] ========== STARTING PLAYBACK ==========');
+      console.log('[PLAY] Recording URI:', recordingUri);
+
+      try {
+        const fileInfo: any = await FileSystem.getInfoAsync(recordingUri);
+        const fileSize = typeof fileInfo?.size === 'number' ? fileInfo.size : 0;
+        console.log('[PLAY] File check before playback:', {
+          exists: fileInfo.exists,
+          size: fileSize,
+          uri: recordingUri,
+        });
+
+        if (!fileInfo.exists || !fileSize) {
+          console.error('[PLAY] ERROR: File missing or empty');
+          Alert.alert('Erro', 'Arquivo de gravação não encontrado');
+          return;
+        }
+      } catch (fileError) {
+        console.error('[PLAY] ERROR reading file info before playback:', fileError);
+      }
+
+      console.log('[PLAY] Configuring audio route (speaker)');
+      await configurePlaybackRoute();
+      console.log('[PLAY] Audio route configured');
+
+      const currentPlayer = playerRef.current;
+      if (!currentPlayer) {
+        console.error('[PLAY] ERROR: No player instance available');
+        return;
+      }
+
+      await currentPlayer.seekTo(0);
+      currentPlayer.play();
+      console.log('[PLAY] Player started');
     } catch (error) {
-      console.error('Error playing recording:', error);
-      Alert.alert('Erro', 'Não foi possível reproduzir a gravação.');
+      console.error('[PLAY] ERROR playing recording:', error);
+      console.error('[PLAY] Error details:', JSON.stringify(error, null, 2));
+      Alert.alert('Erro', `Não foi possível reproduzir a gravação: ${error}`);
     }
   };
 
   const stopPlaying = async () => {
-    if (!player) return;
-
     try {
-      player.pause();
+      if (playerRef.current) {
+        playerRef.current.pause();
+        await playerRef.current.seekTo(0);
+      }
     } catch (error) {
       console.error('Error stopping playback:', error);
+    }
+  };
+
+  const cleanupPlayer = () => {
+    if (playerStatusSubscription.current) {
+      playerStatusSubscription.current.remove();
+      playerStatusSubscription.current = null;
+    }
+    if (playerRef.current) {
+      try {
+        playerRef.current.pause();
+        playerRef.current.seekTo(0);
+        playerRef.current.remove();
+      } catch (error) {
+        console.warn('[PLAY] Error cleaning up player:', error);
+      }
+      playerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    if (!recordingUri) {
+      cleanupPlayer();
+      setPlaybackStatus(null);
+      return;
+    }
+
+    cleanupPlayer();
+    console.log('[PLAY] Initializing new player for URI:', recordingUri);
+    const newPlayer = createAudioPlayer({ uri: recordingUri });
+    playerRef.current = newPlayer;
+    setPlaybackStatus(null);
+
+    playerStatusSubscription.current = newPlayer.addListener('playbackStatusUpdate', (status) => {
+      setPlaybackStatus(status ?? null);
+      console.log('[PLAY][STATUS]', {
+        id: status?.id,
+        playing: status?.playing,
+        duration: status?.duration,
+        currentTime: status?.currentTime,
+        isLoaded: status?.isLoaded,
+        didJustFinish: status?.didJustFinish,
+        isBuffering: status?.isBuffering,
+      });
+    });
+
+    return () => {
+      cleanupPlayer();
+    };
+  }, [recordingUri]);
+
+  const buildAudioModeConfig = () => ({
+    playsInSilentMode: true,
+    interruptionMode: 'duckOthers' as const,
+    interruptionModeAndroid: 'duckOthers' as const,
+    allowsRecording: false,
+    shouldPlayInBackground: false,
+    shouldRouteThroughEarpiece: false,
+  });
+
+  const configurePlaybackRoute = async () => {
+    try {
+      console.log('[PLAY][ROUTE] Configuring route for speaker playback');
+      await setAudioModeAsync(buildAudioModeConfig());
+      console.log('[PLAY][ROUTE] Audio mode applied');
+    } catch (error) {
+      console.error('[PLAY][ROUTE] Failed to configure audio route:', error);
     }
   };
 
@@ -176,6 +372,10 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
           text: 'Excluir',
           style: 'destructive',
           onPress: () => {
+            if (playerRef.current) {
+              playerRef.current.pause();
+              playerRef.current.seekTo(0);
+            }
             setRecordingUri(null);
             setRecordingDuration(0);
             setIsRecording(false);
@@ -191,28 +391,68 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
       return;
     }
 
+    // Check if we have encounter details for chunked upload
+    const useChunkedUpload = !!(encounterId && patientCpf && practitionerId);
+
     try {
       setIsUploading(true);
-      
-      // Call the parent component's callback
-      onRecordingComplete(recordingUri);
-      
-      // Simulate upload delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
+      if (useChunkedUpload) {
+        // Use chunked upload service
+        console.log('[AudioRecorder] Starting chunked upload...');
+
+        const result = await chunkedRecordingService.uploadRecording({
+          audioPath: recordingUri,
+          encounterId: encounterId!,
+          patientCpf: patientCpf!,
+          practitionerId: practitionerId!,
+          sequence,
+          onProgress: (progress) => {
+            setUploadProgress(progress);
+            console.log('[AudioRecorder] Upload progress:', progress);
+          },
+          onChunkComplete: (chunkIndex, totalChunks) => {
+            console.log(`[AudioRecorder] Chunk ${chunkIndex + 1}/${totalChunks} uploaded`);
+          },
+        });
+
+        console.log('[AudioRecorder] Chunked upload completed:', result);
+
+        setIsUploading(false);
+        setUploadProgress(null);
+        onUploadComplete?.(true);
+
+        Alert.alert(
+          'Sucesso',
+          'Gravação enviada com sucesso!',
+          [{ text: 'OK', onPress: onClose }]
+        );
+      } else {
+        // Legacy: Just call the callback (parent handles upload)
+        console.log('[AudioRecorder] Using legacy upload callback...');
+        onRecordingComplete(recordingUri);
+
+        // Simulate upload delay
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        setIsUploading(false);
+        onUploadComplete?.(true);
+
+        Alert.alert(
+          'Sucesso',
+          'Gravação salva com sucesso!',
+          [{ text: 'OK', onPress: onClose }]
+        );
+      }
+    } catch (error: any) {
+      console.error('[AudioRecorder] Error saving recording:', error);
       setIsUploading(false);
-      onUploadComplete?.(true);
-      
-      Alert.alert(
-        'Sucesso',
-        'Gravação salva com sucesso!',
-        [{ text: 'OK', onPress: onClose }]
-      );
-    } catch (error) {
-      console.error('Error saving recording:', error);
-      setIsUploading(false);
+      setUploadProgress(null);
       onUploadComplete?.(false);
-      Alert.alert('Erro', 'Não foi possível salvar a gravação.');
+      Alert.alert(
+        'Erro',
+        error.message || 'Não foi possível salvar a gravação.'
+      );
     }
   };
 
@@ -220,12 +460,13 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
     if (isRecording) {
       stopRecording();
     }
-    if (player?.playing) {
+    if (isPlaying) {
       stopPlaying();
     }
     if (durationInterval) {
       clearInterval(durationInterval);
     }
+    cleanupPlayer();
     onClose();
   };
 
@@ -242,7 +483,12 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
     return 'Pronto para gravar';
   };
 
-  const isPlaying = player?.playing || false;
+  const isPlaying = playbackStatus?.playing ?? false;
+  const playbackPositionMs = Math.max(0, Math.floor((playbackStatus?.currentTime ?? 0) * 1000));
+  const playbackDurationMs =
+    playbackStatus && playbackStatus.duration > 0
+      ? Math.floor(playbackStatus.duration * 1000)
+      : recordingDuration;
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
@@ -310,10 +556,10 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
                 
                 <View style={styles.playbackInfo}>
                   <Text style={styles.playbackTime}>
-                    {formatDuration(player?.currentTime || 0)}
+                    {formatDuration(playbackPositionMs)}
                   </Text>
                   <Text style={styles.playbackDuration}>
-                    / {formatDuration(recordingDuration)}
+                    / {formatDuration(playbackDurationMs)}
                   </Text>
                 </View>
 
@@ -325,24 +571,51 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
                 </TouchableOpacity>
               </View>
             )}
+            {recordingUri && (
+              <Text style={styles.routeNote}>
+                O áudio sempre sai pelo alto-falante padrão do aparelho. Para usar um dispositivo Bluetooth ou outro
+                alto-falante externo, conecte-o primeiro nas configurações do sistema.
+              </Text>
+            )}
           </View>
+
+          {/* Upload Progress */}
+          {isUploading && uploadProgress && (
+            <View style={styles.uploadProgressContainer}>
+              <Text style={styles.uploadStatusText}>{uploadProgress.message}</Text>
+              <View style={styles.progressBarContainer}>
+                <View
+                  style={[
+                    styles.progressBar,
+                    { width: `${uploadProgress.percentComplete}%` }
+                  ]}
+                />
+              </View>
+              <Text style={styles.uploadPercentText}>
+                {uploadProgress.percentComplete}% • Chunk {uploadProgress.chunksUploaded}/{uploadProgress.totalChunks}
+              </Text>
+            </View>
+          )}
 
           {/* Action Buttons */}
           {recordingUri && (
             <View style={styles.actionButtons}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.discardButton}
                 onPress={deleteRecording}
+                disabled={isUploading}
               >
-                <Text style={styles.discardButtonText}>Descartar</Text>
+                <Text style={[styles.discardButtonText, isUploading && styles.buttonTextDisabled]}>
+                  Descartar
+                </Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={[styles.saveButton, isUploading && styles.saveButtonDisabled]}
                 onPress={saveRecording}
                 disabled={isUploading}
               >
-                {isUploading ? (
+                {isUploading && !uploadProgress ? (
                   <ActivityIndicator size="small" color={theme.colors.white} />
                 ) : (
                   <Text style={styles.saveButtonText}>Salvar</Text>
@@ -476,6 +749,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  routeNote: {
+    marginTop: 16,
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+  },
   actionButtons: {
     flexDirection: 'row',
     gap: 12,
@@ -507,5 +786,40 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  uploadProgressContainer: {
+    marginBottom: 20,
+    padding: 16,
+    backgroundColor: theme.colors.background,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  uploadStatusText: {
+    fontSize: 14,
+    color: theme.colors.text,
+    marginBottom: 12,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  progressBarContainer: {
+    height: 8,
+    backgroundColor: theme.colors.border,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: theme.colors.primary,
+    borderRadius: 4,
+  },
+  uploadPercentText: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+  },
+  buttonTextDisabled: {
+    opacity: 0.5,
   },
 });

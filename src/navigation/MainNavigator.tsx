@@ -19,12 +19,13 @@ import { AppointmentStep6Screen } from '@screens/Appointments/AppointmentStep6Sc
 import { AppointmentReviewScreen } from '@screens/Appointments/AppointmentReviewScreen';
 import { AppointmentDetailsScreen } from '@screens/Appointments/AppointmentDetailsScreen';
 import { AppointmentListScreen } from '@screens/Appointments/AppointmentListScreen';
+import { FormResponseScreen } from '@screens/Appointments/FormResponseScreen';
 import { PatientsScreen } from '@screens/Patients';
 import { PatientDashboardScreen } from '@screens/Patients/PatientDashboardScreen';
 import { PatientHistoryScreen } from '@screens/Patients/PatientHistoryScreen';
 import { EncounterDetailsScreen } from '@screens/Patients/EncounterDetailsScreen';
 import { ClinicalRecordDetailsScreen } from '@screens/Patients/ClinicalRecordDetailsScreen';
-import { MoreScreen, MyProfileScreen } from '@screens/More';
+import { MoreScreen, MyProfileScreen, AboutScreen, HelpSupportScreen } from '@screens/More';
 import { MessagesListScreen, ConversationScreen, NewMessageScreen } from '@screens/Messages';
 import { AssistantScreen } from '@screens/Assistant';
 import { MainTabParamList, DashboardStackParamList, PatientsStackParamList, MessagesStackParamList, MoreStackParamList } from '../types/navigation';
@@ -57,7 +58,7 @@ const TAB_BAR_BASE_STYLE = {
 
 const getDashboardTabBarStyle = (route: RouteProp<MainTabParamList, 'Dashboard'>): typeof TAB_BAR_BASE_STYLE & { display?: 'none' } => {
   const routeName = getFocusedRouteNameFromRoute(route) ?? 'DashboardHome';
-  if (['Notifications', 'AppointmentList', 'AppointmentDetails'].includes(routeName)) {
+  if (['Notifications', 'AppointmentList', 'AppointmentDetails', 'FormResponse'].includes(routeName)) {
     return { ...TAB_BAR_BASE_STYLE, display: 'none' };
   }
   return TAB_BAR_BASE_STYLE;
@@ -232,6 +233,7 @@ const DashboardStackNavigator: React.FC = () => {
       <DashboardStack.Screen name="AppointmentList" component={AppointmentListScreen} />
       <DashboardStack.Screen name="Notifications" component={NotificationsScreen} />
       <DashboardStack.Screen name="AppointmentDetails" component={AppointmentDetailsScreen} />
+      <DashboardStack.Screen name="FormResponse" component={FormResponseScreen} />
       <DashboardStack.Screen name="EncounterList" component={EncounterListScreen} />
       <DashboardStack.Screen name="EncounterView" component={EncounterViewScreen} />
       <DashboardStack.Screen name="AppointmentStep1" component={AppointmentStep1Screen} />
@@ -274,6 +276,8 @@ const MoreStackNavigator: React.FC = () => {
     >
       <MoreStack.Screen name="MoreHome" component={MoreScreen} />
       <MoreStack.Screen name="MyProfile" component={MyProfileScreen} />
+      <MoreStack.Screen name="About" component={AboutScreen} />
+      <MoreStack.Screen name="HelpSupport" component={HelpSupportScreen} />
     </MoreStack.Navigator>
   );
 };

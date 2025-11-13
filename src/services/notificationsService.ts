@@ -5,7 +5,7 @@ import {
   NotificationsListResponse,
   NotificationsPagination,
   NotificationsQuery,
-} from '@types/notifications';
+} from '@/types/notifications';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
