@@ -44,7 +44,7 @@ export const ForgotPasswordScreen: React.FC = () => {
     handleSubmit,
     formState: { errors, isValid },
   } = useForm<ForgotPasswordFormData>({
-    resolver: yupResolver(forgotPasswordSchema),
+    resolver: yupResolver(forgotPasswordSchema) as any,
     defaultValues: { email: '' },
     mode: 'onChange',
   });

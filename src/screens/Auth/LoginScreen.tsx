@@ -49,7 +49,7 @@ export const LoginScreen: React.FC = () => {
     reset,
     setValue,
   } = useForm<LoginCredentials>({
-    resolver: yupResolver(loginSchema),
+    resolver: yupResolver(loginSchema) as any,
     mode: 'onChange',
     defaultValues: {
       email: prefilledEmail,

@@ -124,7 +124,7 @@ export const RegisterScreen: React.FC = () => {
     getValues,
     setValue,
   } = useForm<RegisterData>({
-    resolver: yupResolver(registerSchema),
+    resolver: yupResolver(registerSchema) as any,
     mode: 'onChange',
     defaultValues: {
       name: '',

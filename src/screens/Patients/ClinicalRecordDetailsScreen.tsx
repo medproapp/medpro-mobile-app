@@ -23,7 +23,7 @@ import {
   getStatusBadgeStyle,
 } from '@/utils/clinical';
 import { api } from '@services/api';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as Sharing from 'expo-sharing';
 
