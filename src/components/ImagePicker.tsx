@@ -19,7 +19,7 @@ const { width: screenWidth } = Dimensions.get('window');
 interface ImagePickerProps {
   visible: boolean;
   onClose: () => void;
-  onImageSelected: (imageUri: string, fileName: string) => void;
+  onImageSelected: (imageUri: string, fileName: string, fileSize?: number) => void;
   onUploadComplete?: (success: boolean) => void;
 }
 
@@ -153,21 +153,16 @@ export const ImagePickerComponent: React.FC<ImagePickerProps> = ({
 
     try {
       setIsUploading(true);
-      
-      // Call the parent component's callback
-      onImageSelected(selectedImage.uri, selectedImage.fileName);
-      
-      // Simulate upload delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
+      // Call the parent component's callback with file size
+      // The parent will handle the actual upload and show success/error messages
+      onImageSelected(selectedImage.uri, selectedImage.fileName, selectedImage.fileSize);
+
       setIsUploading(false);
       onUploadComplete?.(true);
-      
-      Alert.alert(
-        'Sucesso',
-        'Imagem enviada com sucesso!',
-        [{ text: 'OK', onPress: onClose }]
-      );
+
+      // Don't show success alert here - let the parent handle it after real API upload
+      onClose();
     } catch (error) {
       console.error('Error uploading image:', error);
       setIsUploading(false);

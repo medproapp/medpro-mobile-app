@@ -94,21 +94,16 @@ export const AttachmentPicker: React.FC<AttachmentPickerProps> = ({
 
     try {
       setIsUploading(true);
-      
+
       // Call the parent component's callback
+      // The parent will handle the actual upload and show success/error messages
       onAttachmentSelected(selectedFile.uri, selectedFile.name, selectedFile.type);
-      
-      // Simulate upload delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       setIsUploading(false);
       onUploadComplete?.(true);
-      
-      Alert.alert(
-        'Sucesso',
-        'Arquivo enviado com sucesso!',
-        [{ text: 'OK', onPress: onClose }]
-      );
+
+      // Don't show success alert here - let the parent handle it after real API upload
+      onClose();
     } catch (error) {
       console.error('Error uploading file:', error);
       setIsUploading(false);

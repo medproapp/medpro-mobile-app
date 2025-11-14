@@ -451,6 +451,30 @@ class ApiService {
     }
   }
 
+  // Append mobile note (uses separate MobileNotes field to avoid conflicts with web app)
+  async appendMobileNote(encounterId: string, noteText: string) {
+    const { user } = useAuthStore.getState();
+    console.log('[API] appendMobileNote called with:', { encounterId, noteTextLength: noteText.length });
+
+    try {
+      const result = await this.request(`/encounter/append-mobile-note/${encounterId}`, {
+        method: 'POST',
+        headers: {
+          'managingorg': user?.organization,
+          'practid': user?.email || '',
+        },
+        body: {
+          noteText: noteText,
+        },
+      });
+      console.log('[API] appendMobileNote success:', result);
+      return result;
+    } catch (error: any) {
+      console.error('[API] appendMobileNote error:', error);
+      throw error;
+    }
+  }
+
   async getEncounterClinicalRecords(encounterId: string, options: { page?: number; limit?: number; type?: string } = {}) {
     const { user } = useAuthStore.getState();
     const params = new URLSearchParams({
@@ -735,21 +759,27 @@ class ApiService {
     practitionerId: string
   ): Promise<{ message: string; attachmentId: string }> {
     const { user, token } = useAuthStore.getState();
-    
+
     const formData = new FormData();
-    formData.append('file', {
+    // Field name must be 'attach_file' to match backend multer config
+    formData.append('attach_file', {
       uri: filePath,
       type: fileType,
       name: fileName,
     } as any);
 
+    // Add metadata fields to FormData body (matching web app format)
+    formData.append('patient', patientCpf);
+    formData.append('encounter', encounterId);
+    formData.append('type', 'general'); // Attachment type
+    formData.append('context', encounterId); // Link to encounter
+    formData.append('date', new Date().toISOString().split('T')[0]); // YYYY-MM-DD
+    formData.append('status', 'active');
+    formData.append('filetype', fileType);
+    formData.append('datasource', 'medpro-mobile');
+
     const headers = {
       'Content-Type': 'multipart/form-data',
-      'patient': patientCpf,
-      'pract': practitionerId,
-      'encid': encounterId,
-      'entity': 'encounter',
-      'organization': user?.organization,
     };
 
     console.log('[API] uploadAttachment called with:', {
@@ -763,18 +793,18 @@ class ApiService {
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      
+
       xhr.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable) {
           const percentComplete = (event.loaded / event.total) * 100;
           console.log(`[API] Attachment upload progress: ${percentComplete.toFixed(1)}%`);
         }
       });
-      
+
       xhr.addEventListener('load', () => {
         console.log('[API] Attachment upload response status:', xhr.status);
         console.log('[API] Attachment upload response text:', xhr.responseText);
-        
+
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             const response = JSON.parse(xhr.responseText);
@@ -787,33 +817,50 @@ class ApiService {
           reject(new Error(`Attachment upload failed with status: ${xhr.status}`));
         }
       });
-      
+
       xhr.addEventListener('error', () => {
         console.error('[API] Attachment upload network error');
         reject(new Error('Network error during attachment upload'));
       });
-      
+
       xhr.addEventListener('abort', () => {
         console.log('[API] Attachment upload was aborted');
         reject(new Error('Attachment upload was aborted'));
       });
-      
-      xhr.open('POST', `${API_BASE_URL}/attach/upload`);
-      
+
+      // Use /uploadToAzure endpoint (matches web app)
+      xhr.open('POST', `${API_BASE_URL}/attach/uploadToAzure`);
+
       // Add auth headers
       if (token) {
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
       }
-      
+
       // Add additional headers
       Object.entries(headers).forEach(([key, value]) => {
         if (key !== 'Content-Type') { // Let browser set Content-Type for FormData
           xhr.setRequestHeader(key, value);
         }
       });
-      
+
       xhr.send(formData);
     });
+  }
+
+  // Helper function to generate file hash (matching web app implementation)
+  private generateFileHash(fileName: string, fileSize: number): string {
+    const str = fileName + fileSize.toString();
+    let hash = 0;
+
+    if (str.length === 0) return hash.toString();
+
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+
+    return Math.abs(hash).toString();
   }
 
   // Upload image
@@ -822,24 +869,30 @@ class ApiService {
     fileName: string,
     encounterId: string,
     patientCpf: string,
-    practitionerId: string
+    practitionerId: string,
+    fileSize?: number
   ): Promise<{ message: string; imageId: string }> {
     const { user, token } = useAuthStore.getState();
-    
+
     const formData = new FormData();
-    formData.append('image', {
+    formData.append('img_file', {
       uri: imagePath,
       type: 'image/jpeg',
       name: fileName,
     } as any);
 
+    // Add metadata fields (matching web app format)
+    // Generate hash from filename and size (if available, otherwise use timestamp as fallback)
+    const imageHash = fileSize
+      ? this.generateFileHash(fileName, fileSize)
+      : Date.now().toString();
+    formData.append('encounter', encounterId);
+    formData.append('title', '');
+    formData.append('description', '');
+    formData.append('hash', imageHash);
+
     const headers = {
       'Content-Type': 'multipart/form-data',
-      'patient': patientCpf,
-      'pract': practitionerId,
-      'encid': encounterId,
-      'entity': 'encounter',
-      'organization': user?.organization,
     };
 
     console.log('[API] uploadImage called with:', {
@@ -887,7 +940,7 @@ class ApiService {
         reject(new Error('Image upload was aborted'));
       });
       
-      xhr.open('POST', `${API_BASE_URL}/images/upload`);
+      xhr.open('POST', `${API_BASE_URL}/images/upload/${encounterId}`);
       
       // Add auth headers
       if (token) {
@@ -915,12 +968,33 @@ class ApiService {
   ): Promise<{ message: string; audioId: string }> {
     const { user, token } = useAuthStore.getState();
 
-    const formData = new FormData();
-    formData.append('audio', {
+    console.log('[API] === UPLOAD AUDIO RECORDING DEBUG START ===');
+    console.log('[API] Input parameters:', {
+      audioPath,
+      encounterId,
+      patientCpf,
+      practitionerId,
+      sequence,
+    });
+    console.log('[API] Auth store state:', {
+      hasToken: !!token,
+      tokenLength: token?.length,
+      userEmail: user?.email,
+      userOrganization: user?.organization,
+      userName: user?.name,
+    });
+
+    const fileName = `recording_${Date.now()}.mp4`;
+    const audioFile = {
       uri: audioPath,
       type: 'audio/mp4',
-      name: `recording_${Date.now()}.mp4`,
-    } as any);
+      name: fileName,
+    };
+
+    console.log('[API] Audio file object:', audioFile);
+
+    const formData = new FormData();
+    formData.append('audio', audioFile as any);
 
     const headers = {
       'Content-Type': 'multipart/form-data',
@@ -929,17 +1003,16 @@ class ApiService {
       'encid': encounterId,
       'sequence': sequence.toString(),
       'subentitytype': 'none',
+      'subentity': 'none',
       'entity': 'encounter',
       'organization': user?.organization,
     };
 
-    console.log('[API] uploadAudioRecording called with:', {
-      audioPath,
-      encounterId,
-      patientCpf,
-      practitionerId,
-      sequence,
+    console.log('[API] Request headers (will be sent):', {
+      ...headers,
+      'Authorization': token ? `Bearer ${token.substring(0, 10)}...` : 'MISSING',
     });
+    console.log('[API] Request URL:', `${API_BASE_URL}/audio/uploadAudio`);
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -952,46 +1025,83 @@ class ApiService {
       });
 
       xhr.addEventListener('load', () => {
-        console.log('[API] Upload response status:', xhr.status);
-        console.log('[API] Upload response text:', xhr.responseText);
+        console.log('[API] === UPLOAD RESPONSE RECEIVED ===');
+        console.log('[API] Response status:', xhr.status);
+        console.log('[API] Response status text:', xhr.statusText);
+        console.log('[API] Response headers:', xhr.getAllResponseHeaders());
+        console.log('[API] Response body:', xhr.responseText);
 
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             const response = JSON.parse(xhr.responseText);
+            console.log('[API] === UPLOAD SUCCESS ===');
+            console.log('[API] Parsed response:', response);
             resolve(response);
           } catch (error) {
+            console.error('[API] === UPLOAD ERROR: Invalid Response ===');
             console.error('[API] Error parsing response:', error);
+            console.error('[API] Raw response text:', xhr.responseText);
             reject(new Error('Invalid response format'));
           }
         } else {
-          reject(new Error(`Upload failed with status: ${xhr.status}`));
+          console.error('[API] === UPLOAD ERROR: Bad Status ===');
+          console.error('[API] Status code:', xhr.status);
+          console.error('[API] Status text:', xhr.statusText);
+          console.error('[API] Error response body:', xhr.responseText);
+
+          let errorMessage = `Upload failed with status: ${xhr.status}`;
+          try {
+            const errorData = JSON.parse(xhr.responseText);
+            console.error('[API] Parsed error data:', errorData);
+            if (errorData.message) {
+              errorMessage += ` - ${errorData.message}`;
+            }
+            if (errorData.error) {
+              errorMessage += ` (${errorData.error})`;
+            }
+          } catch (e) {
+            console.error('[API] Could not parse error response as JSON');
+          }
+
+          reject(new Error(errorMessage));
         }
       });
 
-      xhr.addEventListener('error', () => {
-        console.error('[API] Upload network error');
+      xhr.addEventListener('error', (event) => {
+        console.error('[API] === UPLOAD ERROR: Network Error ===');
+        console.error('[API] Network error event:', event);
+        console.error('[API] XHR status:', xhr.status);
+        console.error('[API] XHR ready state:', xhr.readyState);
         reject(new Error('Network error during upload'));
       });
 
       xhr.addEventListener('abort', () => {
-        console.log('[API] Upload was aborted');
+        console.warn('[API] === UPLOAD ABORTED ===');
         reject(new Error('Upload was aborted'));
       });
 
       xhr.open('POST', `${API_BASE_URL}/audio/uploadAudio`);
+      console.log('[API] XHR opened, setting headers...');
 
       // Add auth headers
       if (token) {
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        console.log('[API] Authorization header set (Bearer token)');
+      } else {
+        console.warn('[API] WARNING: No auth token available!');
       }
 
       // Add additional headers
+      console.log('[API] Setting custom headers...');
       Object.entries(headers).forEach(([key, value]) => {
         if (key !== 'Content-Type') { // Let browser set Content-Type for FormData
           xhr.setRequestHeader(key, value);
+          console.log(`[API] Header set: ${key} = ${value}`);
         }
       });
 
+      console.log('[API] Sending FormData with audio file...');
+      console.log('[API] === UPLOAD REQUEST SENT ===');
       xhr.send(formData);
     });
   }

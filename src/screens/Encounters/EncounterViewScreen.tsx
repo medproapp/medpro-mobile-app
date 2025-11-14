@@ -18,6 +18,8 @@ import { DashboardStackParamList } from '@/types/navigation';
 import { AudioRecorder } from '@components/AudioRecorder';
 import { AttachmentPicker } from '@components/AttachmentPicker';
 import { ImagePickerComponent } from '@components/ImagePicker';
+import { AudioFilePicker } from '@components/AudioFilePicker';
+import { NoteAppendModal } from '@components/NoteAppendModal';
 import { useAuthStore } from '@store/authStore';
 import { apiService } from '@services/api';
 
@@ -43,9 +45,12 @@ export const EncounterViewScreen: React.FC = () => {
   const [audioRecorderVisible, setAudioRecorderVisible] = useState(false);
   const [attachmentPickerVisible, setAttachmentPickerVisible] = useState(false);
   const [imagePickerVisible, setImagePickerVisible] = useState(false);
+  const [audioFilePickerVisible, setAudioFilePickerVisible] = useState(false);
+  const [noteModalVisible, setNoteModalVisible] = useState(false);
   const [isUploadingAudio, setIsUploadingAudio] = useState(false);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isUploadingAudioFile, setIsUploadingAudioFile] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -225,7 +230,7 @@ export const EncounterViewScreen: React.FC = () => {
     }
   };
 
-  const handleImageSelected = async (imageUri: string, fileName: string) => {
+  const handleImageSelected = async (imageUri: string, fileName: string, fileSize?: number) => {
     if (!user?.email) {
       Alert.alert('Erro', 'Usuário não autenticado.');
       return;
@@ -233,23 +238,24 @@ export const EncounterViewScreen: React.FC = () => {
 
     try {
       setIsUploadingImage(true);
-      
+
       const response = await apiService.uploadImage(
         imageUri,
         fileName,
         encounterId,
         patientCpf,
-        user.email
+        user.email,
+        fileSize
       );
-      
+
       console.log('Image upload successful:', response);
-      
+
       Alert.alert(
         'Sucesso',
         'Imagem enviada com sucesso!',
         [{ text: 'OK' }]
       );
-      
+
     } catch (error) {
       console.error('Image upload error:', error);
       Alert.alert(
@@ -272,6 +278,124 @@ export const EncounterViewScreen: React.FC = () => {
 
   const handleImagePickerClose = () => {
     setImagePickerVisible(false);
+  };
+
+  const handleUploadRecording = () => {
+    setAudioFilePickerVisible(true);
+  };
+
+  const handleAudioFileSelected = async (fileUri: string, fileName: string, fileType: string) => {
+    console.log('[EncounterView] === AUDIO FILE UPLOAD DEBUG START ===');
+    console.log('[EncounterView] File details:', {
+      fileUri,
+      fileName,
+      fileType,
+    });
+    console.log('[EncounterView] Encounter context:', {
+      encounterId,
+      patientCpf,
+      patientName,
+    });
+    console.log('[EncounterView] User context:', {
+      email: user?.email,
+      organization: user?.organization,
+      name: user?.name,
+    });
+
+    if (!user?.email) {
+      console.error('[EncounterView] ERROR: User not authenticated');
+      Alert.alert('Erro', 'Usuário não autenticado.');
+      return;
+    }
+
+    try {
+      setIsUploadingAudioFile(true);
+
+      console.log('[EncounterView] Calling apiService.uploadAudioRecording with params:', {
+        audioPath: fileUri,
+        encounterId,
+        patientCpf,
+        practitionerId: user.email,
+        sequence: 1,
+      });
+
+      const response = await apiService.uploadAudioRecording(
+        fileUri,
+        encounterId,
+        patientCpf,
+        user.email,
+        1 // sequence number
+      );
+
+      console.log('[EncounterView] Audio file upload successful:', response);
+      console.log('[EncounterView] === AUDIO FILE UPLOAD DEBUG END (SUCCESS) ===');
+
+      // Close modal and show success message
+      setAudioFilePickerVisible(false);
+
+      Alert.alert(
+        'Sucesso',
+        'Arquivo de áudio enviado com sucesso!',
+        [{ text: 'OK' }]
+      );
+
+    } catch (error: any) {
+      console.error('[EncounterView] === AUDIO FILE UPLOAD DEBUG END (ERROR) ===');
+      console.error('[EncounterView] Error details:', {
+        message: error?.message,
+        name: error?.name,
+        stack: error?.stack,
+      });
+
+      // Close modal on error too
+      setAudioFilePickerVisible(false);
+
+      Alert.alert(
+        'Erro',
+        'Não foi possível enviar o arquivo de áudio. Tente novamente.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsUploadingAudioFile(false);
+    }
+  };
+
+  const handleAudioFilePickerClose = () => {
+    setAudioFilePickerVisible(false);
+  };
+
+  const handleAddNote = () => {
+    setNoteModalVisible(true);
+  };
+
+  const handleNoteSave = async (noteText: string) => {
+    if (!user?.email) {
+      Alert.alert('Erro', 'Usuário não autenticado.');
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      console.log('[EncounterView] === MOBILE NOTE APPEND START ===');
+      console.log('[EncounterView] Note text length:', noteText.length);
+
+      // Backend handles fetching current notes, appending with timestamp, and updating
+      await apiService.appendMobileNote(encounterId, noteText);
+
+      console.log('[EncounterView] === MOBILE NOTE APPEND SUCCESS ===');
+
+      Alert.alert('Sucesso', 'Nota adicionada com sucesso!');
+    } catch (error: any) {
+      console.error('[EncounterView] === MOBILE NOTE APPEND ERROR ===');
+      console.error('[EncounterView] Error details:', {
+        message: error?.message,
+        name: error?.name,
+      });
+      throw error; // Re-throw so modal can handle it
+    }
+  };
+
+  const handleNoteModalClose = () => {
+    setNoteModalVisible(false);
   };
 
   if (loading) {
@@ -413,6 +537,42 @@ export const EncounterViewScreen: React.FC = () => {
                 )}
               </View>
             </TouchableOpacity>
+
+            {/* Upload Recording Button */}
+            <TouchableOpacity
+              style={[styles.actionButton, (isUploadingAudioFile || encounter?.status === 'Finalizado' || encounter?.status === 'Cancelado') && styles.actionButtonDisabled]}
+              onPress={handleUploadRecording}
+              disabled={isUploadingAudioFile || encounter?.status === 'Finalizado' || encounter?.status === 'Cancelado'}
+            >
+              <View style={styles.actionButtonContent}>
+                <FontAwesome name="file-audio-o" size={24} color={theme.colors.primary} />
+                <View style={styles.actionButtonText}>
+                  <Text style={styles.actionButtonTitle}>Upload de Gravação</Text>
+                  <Text style={styles.actionButtonSubtitle}>Arquivos de áudio existentes</Text>
+                </View>
+                {isUploadingAudioFile ? (
+                  <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+                ) : (
+                  <FontAwesome name="chevron-right" size={16} color={theme.colors.textSecondary} />
+                )}
+              </View>
+            </TouchableOpacity>
+
+            {/* Add Note Button */}
+            <TouchableOpacity
+              style={[styles.actionButton, (encounter?.status === 'Finalizado' || encounter?.status === 'Cancelado') && styles.actionButtonDisabled]}
+              onPress={handleAddNote}
+              disabled={encounter?.status === 'Finalizado' || encounter?.status === 'Cancelado'}
+            >
+              <View style={styles.actionButtonContent}>
+                <FontAwesome name="sticky-note-o" size={24} color={theme.colors.primary} />
+                <View style={styles.actionButtonText}>
+                  <Text style={styles.actionButtonTitle}>Adicionar Nota</Text>
+                  <Text style={styles.actionButtonSubtitle}>Anotações e observações</Text>
+                </View>
+                <FontAwesome name="chevron-right" size={16} color={theme.colors.textSecondary} />
+              </View>
+            </TouchableOpacity>
           </View>
         </ScrollView>
         
@@ -454,6 +614,25 @@ export const EncounterViewScreen: React.FC = () => {
               setImagePickerVisible(false);
             }
           }}
+        />
+
+        {/* Audio File Picker Modal */}
+        <AudioFilePicker
+          visible={audioFilePickerVisible}
+          onClose={handleAudioFilePickerClose}
+          onAudioFileSelected={handleAudioFileSelected}
+          onUploadComplete={(success) => {
+            if (success) {
+              setAudioFilePickerVisible(false);
+            }
+          }}
+        />
+
+        {/* Note Append Modal */}
+        <NoteAppendModal
+          visible={noteModalVisible}
+          onClose={handleNoteModalClose}
+          onNoteSave={handleNoteSave}
         />
       </View>
     </>

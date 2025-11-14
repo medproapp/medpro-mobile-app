@@ -22,7 +22,7 @@ import {
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import * as FileSystem from 'expo-file-system/legacy';
 import { theme } from '@theme/index';
-import { chunkedRecordingService, UploadProgress } from '@/services/chunkedRecordingService';
+import { apiService } from '@services/api';
 
 interface AudioRecorderProps {
   visible: boolean;
@@ -52,7 +52,6 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [durationInterval, setDurationInterval] = useState<NodeJS.Timeout | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [playbackStatus, setPlaybackStatus] = useState<AudioStatus | null>(null);
 
   const playerRef = useRef<AudioPlayer | null>(null);
@@ -391,35 +390,34 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
       return;
     }
 
-    // Check if we have encounter details for chunked upload
-    const useChunkedUpload = !!(encounterId && patientCpf && practitionerId);
+    // Check if we have encounter details for upload
+    const hasEncounterDetails = !!(encounterId && patientCpf && practitionerId);
 
     try {
       setIsUploading(true);
 
-      if (useChunkedUpload) {
-        // Use chunked upload service
-        console.log('[AudioRecorder] Starting chunked upload...');
-
-        const result = await chunkedRecordingService.uploadRecording({
+      if (hasEncounterDetails) {
+        // Use simple direct upload (same as file upload)
+        console.log('[AudioRecorder] Starting audio upload...');
+        console.log('[AudioRecorder] Upload params:', {
           audioPath: recordingUri,
-          encounterId: encounterId!,
-          patientCpf: patientCpf!,
-          practitionerId: practitionerId!,
+          encounterId,
+          patientCpf,
+          practitionerId,
           sequence,
-          onProgress: (progress) => {
-            setUploadProgress(progress);
-            console.log('[AudioRecorder] Upload progress:', progress);
-          },
-          onChunkComplete: (chunkIndex, totalChunks) => {
-            console.log(`[AudioRecorder] Chunk ${chunkIndex + 1}/${totalChunks} uploaded`);
-          },
         });
 
-        console.log('[AudioRecorder] Chunked upload completed:', result);
+        const response = await apiService.uploadAudioRecording(
+          recordingUri,
+          encounterId!,
+          patientCpf!,
+          practitionerId!,
+          sequence || 1
+        );
+
+        console.log('[AudioRecorder] Upload completed:', response);
 
         setIsUploading(false);
-        setUploadProgress(null);
         onUploadComplete?.(true);
 
         Alert.alert(
@@ -431,9 +429,6 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
         // Legacy: Just call the callback (parent handles upload)
         console.log('[AudioRecorder] Using legacy upload callback...');
         onRecordingComplete(recordingUri);
-
-        // Simulate upload delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
 
         setIsUploading(false);
         onUploadComplete?.(true);
@@ -447,7 +442,6 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
     } catch (error: any) {
       console.error('[AudioRecorder] Error saving recording:', error);
       setIsUploading(false);
-      setUploadProgress(null);
       onUploadComplete?.(false);
       Alert.alert(
         'Erro',
@@ -579,24 +573,6 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
             )}
           </View>
 
-          {/* Upload Progress */}
-          {isUploading && uploadProgress && (
-            <View style={styles.uploadProgressContainer}>
-              <Text style={styles.uploadStatusText}>{uploadProgress.message}</Text>
-              <View style={styles.progressBarContainer}>
-                <View
-                  style={[
-                    styles.progressBar,
-                    { width: `${uploadProgress.percentComplete}%` }
-                  ]}
-                />
-              </View>
-              <Text style={styles.uploadPercentText}>
-                {uploadProgress.percentComplete}% • Chunk {uploadProgress.chunksUploaded}/{uploadProgress.totalChunks}
-              </Text>
-            </View>
-          )}
-
           {/* Action Buttons */}
           {recordingUri && (
             <View style={styles.actionButtons}>
@@ -615,7 +591,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
                 onPress={saveRecording}
                 disabled={isUploading}
               >
-                {isUploading && !uploadProgress ? (
+                {isUploading ? (
                   <ActivityIndicator size="small" color={theme.colors.white} />
                 ) : (
                   <Text style={styles.saveButtonText}>Salvar</Text>
@@ -786,38 +762,6 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontSize: 16,
     fontWeight: 'bold',
-  },
-  uploadProgressContainer: {
-    marginBottom: 20,
-    padding: 16,
-    backgroundColor: theme.colors.background,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  uploadStatusText: {
-    fontSize: 14,
-    color: theme.colors.text,
-    marginBottom: 12,
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  progressBarContainer: {
-    height: 8,
-    backgroundColor: theme.colors.border,
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 8,
-  },
-  progressBar: {
-    height: '100%',
-    backgroundColor: theme.colors.primary,
-    borderRadius: 4,
-  },
-  uploadPercentText: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
   },
   buttonTextDisabled: {
     opacity: 0.5,
