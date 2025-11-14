@@ -18,6 +18,7 @@ import {
   FormDetailApiResponse,
   PreAppointmentFormStatus,
 } from '../types/preAppointment';
+import { logger } from '../utils/logger';
 
 interface ApiConfig {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -66,25 +67,25 @@ class ApiService {
         const url = response.url || '';
         if (url.includes('/encounter/') || url.includes('/clinical/') || url.includes('/medication/') ||
             url.includes('/diagnostic/') || url.includes('/attach/') || url.includes('/images/')) {
-          console.log('[API] 404 response treated as empty data for:', url);
+          logger.debug('404 response treated as empty data for endpoint');
           return [] as unknown as T; // Return empty array for 404s on history endpoints
         }
       }
 
       const errorText = await response.text();
-      console.error('[API] Error response:', errorText);
+      logger.error('API error response:', response.status);
 
       // Handle token expiration - automatically logout
       if (response.status === 401) {
         try {
           const errorData = JSON.parse(errorText);
           if (errorData.error_code === 'TOKEN_EXPIRED') {
-            console.log('[API] Token expired - logging out user');
+            logger.info('Token expired - logging out user');
             useAuthStore.getState().logout();
           }
         } catch (parseError) {
           // If we can't parse the error, still check if it's a 401
-          console.warn('[API] Could not parse 401 error response');
+          logger.warn('Could not parse 401 error response');
         }
       }
 
@@ -119,7 +120,7 @@ class ApiService {
       const response = await fetch(url);
       return response.ok;
     } catch (error) {
-      console.warn('[API] Health check failed:', error);
+      logger.warn('Health check failed:', error);
       return false;
     }
   }
@@ -155,10 +156,10 @@ class ApiService {
     const url = query.toString() ? `${basePath}?${query.toString()}` : basePath;
 
     try {
-      // console.log('[API] Fetching practitioner schedule summary:', { email, days });
+      logger.debug('Fetching practitioner schedule summary');
       return await this.request(url);
     } catch (error) {
-      console.error('[API] getPractitionerScheduleSummary error:', error);
+      logger.error('getPractitionerScheduleSummary error:', error);
       throw error;
     }
   }

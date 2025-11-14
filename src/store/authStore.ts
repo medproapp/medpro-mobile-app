@@ -9,6 +9,8 @@ import {
   RegisterData,
   RegisterResponse,
 } from '../types/auth';
+import { secureStorage } from '../utils/secureStorage';
+import { logger } from '../utils/logger';
 
 const AUTH_API_BASE_URL = API_BASE_URL;
 
@@ -38,12 +40,12 @@ export const useAuthStore = create<AuthStore>()(
 
       // Actions
       login: async (credentials: LoginCredentials) => {
-        console.log('🔐 Login attempt:', credentials.email);
+        logger.info('Login attempt initiated');
         set({ isLoading: true, error: null });
 
         try {
           // TODO: Replace with actual API call
-          // console.log('📡 Calling API:', 'https://ae4c4558a808.ngrok-free.app/login');
+          logger.logApiRequest('POST', `${AUTH_API_BASE_URL}/login`);
           const response = await fetch(`${AUTH_API_BASE_URL}/login`, {
             method: 'POST',
             headers: {
@@ -55,16 +57,16 @@ export const useAuthStore = create<AuthStore>()(
             }),
           });
 
-          console.log('📥 Response status:', response.status);
+          logger.logApiResponse('/login', response.status);
 
           if (!response.ok) {
             const errorText = await response.text();
-            console.error('❌ Login failed:', response.status, errorText);
+            logger.error('Login failed:', response.status);
             throw new Error(`Login failed: ${response.status}`);
           }
 
           const data = await response.json();
-          console.log('✅ Login successful, token received');
+          logger.info('Login successful');
 
           // Create initial user object with basic login info
           const inferredFirstLogin =
@@ -105,14 +107,14 @@ export const useAuthStore = create<AuthStore>()(
 
           // Fetch detailed user info in the background
           try {
-            console.log('📡 Fetching detailed user info...');
+            logger.debug('Fetching detailed user info');
             const apiModule = await import('../services/api');
             const api = apiModule.default;
 
             const userInfo = await api.getUserInfo(credentials.email);
             if (userInfo) {
-              console.log('👤 Raw userInfo payload:', userInfo);
-              console.log('👤 User info received:', userInfo.fullname);
+              logger.debug('User info received');
+              logger.debug('User fullname:', userInfo.fullname);
 
               // Update user with real information
               user = {
@@ -144,7 +146,7 @@ export const useAuthStore = create<AuthStore>()(
               try {
                 const orgData = await api.getUserToOrg(credentials.email);
                 if (orgData && orgData.length > 0) {
-                  console.log('🏢 Raw organization payload:', orgData);
+                  logger.debug('Organization data received');
                   const org = orgData.find(o => o?.groupStatus === 'active') || orgData[0];
                   user.organization =
                     (typeof org.org_name === 'string' && org.org_name.trim().length > 0 && org.org_name.trim()) ||
@@ -164,31 +166,22 @@ export const useAuthStore = create<AuthStore>()(
                     user.isAdmin =
                       user.isAdmin || Number(org.admin) === 1 || org.admin === true;
                   }
-                  console.log('🏢 Organization info received:', {
-                    organization: user.organization,
-                    organizationId: user.organizationId,
-                    groupRole: user.groupRole,
-                    userRole: user.userRole,
-                    isAdmin: user.isAdmin,
-                  });
+                  logger.debug('Organization info processed successfully');
                 }
               } catch (orgError) {
-                console.warn('⚠️ Could not fetch organization info:', orgError);
+                logger.warn('Could not fetch organization info:', orgError);
               }
 
               // Update state with complete user info
               set({ user });
-              console.log('✅ User profile updated successfully');
+              logger.info('User profile updated successfully');
             }
           } catch (userInfoError) {
-            console.warn(
-              '⚠️ Could not fetch detailed user info:',
-              userInfoError
-            );
+            logger.warn('Could not fetch detailed user info:', userInfoError);
             // Continue with basic user info, don't fail the login
           }
         } catch (error) {
-          console.error('🚨 Login error:', error);
+          logger.error('Login error:', error);
           set({
             isLoading: false,
             error: error instanceof Error ? error.message : 'Login failed',
@@ -219,7 +212,7 @@ export const useAuthStore = create<AuthStore>()(
           const responseText = await response.text();
 
           if (!response.ok) {
-            console.error('❌ Registration failed:', response.status, responseText);
+            logger.error('Registration failed:', response.status);
             let message = 'Não foi possível concluir o cadastro. Tente novamente.';
 
             if (response.status === 400 || response.status === 409) {
@@ -232,7 +225,7 @@ export const useAuthStore = create<AuthStore>()(
                 message = parsed.message;
               }
             } catch (parseError) {
-              console.warn('⚠️ Could not parse registration error response:', parseError);
+              logger.warn('Could not parse registration error response');
             }
 
             throw new Error(message);
@@ -247,13 +240,13 @@ export const useAuthStore = create<AuthStore>()(
           try {
             result = responseText ? JSON.parse(responseText) : result;
           } catch (parseError) {
-            console.warn('⚠️ Could not parse registration response:', parseError);
+            logger.warn('Could not parse registration response');
           }
 
           set({ isLoading: false, error: null });
           return result;
         } catch (error) {
-          console.error('🚨 Registration error:', error);
+          logger.error('Registration error:', error);
           set({
             isLoading: false,
             error:
@@ -264,7 +257,7 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       logout: () => {
-        console.log('[AuthStore] logout() called');
+        logger.info('Logout initiated');
         set({
           user: null,
           token: null,
@@ -274,9 +267,9 @@ export const useAuthStore = create<AuthStore>()(
         });
 
         const keysToClear = ['medpro-auth', 'medpro-onboarding', 'assistant-storage'];
-        console.log('[AuthStore] Clearing persisted keys', keysToClear);
+        logger.debug('Clearing persisted storage keys');
         AsyncStorage.multiRemove(keysToClear).catch(error => {
-          console.warn('[AuthStore] Falha ao limpar armazenamento persistido', error);
+          logger.warn('Failed to clear persisted storage', error);
         });
 
         import('../services/messagingService')
@@ -284,7 +277,7 @@ export const useAuthStore = create<AuthStore>()(
             module.messagingService?.resetCache?.();
           })
           .catch(error => {
-            console.warn('[AuthStore] Não foi possível limpar o cache de mensagens', error);
+            logger.warn('Failed to clear messaging cache', error);
           });
       },
 
@@ -302,12 +295,12 @@ export const useAuthStore = create<AuthStore>()(
 
       refreshToken: async () => {
         // TODO: Implement token refresh logic
-        console.log('Refreshing token...');
+        logger.debug('Token refresh requested');
       },
     }),
     {
       name: 'medpro-auth',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => secureStorage),
       partialize: state => ({
         user: state.user,
         token: state.token,

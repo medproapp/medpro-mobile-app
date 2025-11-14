@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from './authStore';
 import { assistantApi } from '../services/assistantApi';
+import { secureStorage } from '../utils/secureStorage';
 import {
   AssistantState,
   AssistantActions,
@@ -547,7 +548,7 @@ export const useAssistantStore = create<AssistantStore>()(
     }),
     {
       name: 'assistant-storage',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => secureStorage),
       // Only persist certain parts of the state
       partialize: (state) => ({
         conversationSessions: state.conversationSessions,
