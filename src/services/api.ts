@@ -36,9 +36,12 @@ class ApiService {
   }
 
   private async request<T = any>(endpoint: string, config: ApiConfig = {}): Promise<T> {
+    // Ensure token is valid before making request (auto-refresh if needed)
+    await useAuthStore.getState().ensureValidToken();
+
     const url = `${API_BASE_URL}${endpoint}`;
     const { method = 'GET', body } = config;
-    
+
     const headers = {
       ...this.getAuthHeaders(),
       ...config.headers,

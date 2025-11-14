@@ -24,7 +24,9 @@ interface AuthStore extends AuthState {
   setUser: (user: User) => void;
   setToken: (token: string) => void;
   clearError: () => void;
-  refreshToken: () => Promise<void>;
+  refreshAccessToken: () => Promise<boolean>;
+  shouldRefreshToken: () => boolean;
+  ensureValidToken: () => Promise<boolean>;
 }
 
 export const useAuthStore = create<AuthStore>()(
@@ -33,6 +35,8 @@ export const useAuthStore = create<AuthStore>()(
       // Initial state
       user: null,
       token: null,
+      refreshToken: null,
+      tokenExpiresAt: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
@@ -68,6 +72,10 @@ export const useAuthStore = create<AuthStore>()(
           const data = await response.json();
           logger.info('Login successful');
 
+          // Calculate token expiration (default 1 hour if not provided)
+          const expiresIn = data.expiresIn || data.expires_in || 3600; // seconds
+          const tokenExpiresAt = Date.now() + expiresIn * 1000;
+
           // Create initial user object with basic login info
           const inferredFirstLogin =
             typeof data.first_login === 'number'
@@ -99,6 +107,8 @@ export const useAuthStore = create<AuthStore>()(
           set({
             user,
             token: data.token,
+            refreshToken: data.refreshToken || data.refresh_token || null,
+            tokenExpiresAt,
             isAuthenticated: true,
             isLoading: false,
             error: null,
@@ -261,6 +271,8 @@ export const useAuthStore = create<AuthStore>()(
         set({
           user: null,
           token: null,
+          refreshToken: null,
+          tokenExpiresAt: null,
           isAuthenticated: false,
           isLoading: false,
           error: null,
@@ -293,9 +305,78 @@ export const useAuthStore = create<AuthStore>()(
         set({ error: null });
       },
 
-      refreshToken: async () => {
-        // TODO: Implement token refresh logic
-        logger.debug('Token refresh requested');
+      refreshAccessToken: async () => {
+        const state = get();
+        const currentRefreshToken = state.refreshToken;
+        const { logout } = state;
+
+        if (!currentRefreshToken) {
+          logger.warn('No refresh token available');
+          return false;
+        }
+
+        try {
+          logger.debug('Refreshing access token');
+
+          const response = await fetch(`${AUTH_API_BASE_URL}/refresh`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ refreshToken: currentRefreshToken }),
+          });
+
+          if (!response.ok) {
+            logger.error('Token refresh failed:', response.status);
+            // Force logout if refresh fails
+            logout();
+            return false;
+          }
+
+          const data = await response.json();
+
+          // Calculate new token expiration
+          const expiresIn = data.expiresIn || data.expires_in || 3600;
+          const tokenExpiresAt = Date.now() + expiresIn * 1000;
+
+          set({
+            token: data.token,
+            refreshToken: data.refreshToken || data.refresh_token || currentRefreshToken,
+            tokenExpiresAt,
+          });
+
+          logger.info('Token refreshed successfully');
+          return true;
+        } catch (error) {
+          logger.error('Token refresh error:', error);
+          logout();
+          return false;
+        }
+      },
+
+      // Check if token needs refresh (5 minutes before expiration)
+      shouldRefreshToken: () => {
+        const { tokenExpiresAt } = get();
+        if (!tokenExpiresAt) return false;
+
+        const fiveMinutes = 5 * 60 * 1000;
+        return Date.now() >= tokenExpiresAt - fiveMinutes;
+      },
+
+      // Ensure token is valid before making API calls
+      ensureValidToken: async () => {
+        const { shouldRefreshToken, refreshAccessToken, isAuthenticated } = get();
+
+        if (!isAuthenticated) {
+          return false;
+        }
+
+        if (shouldRefreshToken()) {
+          logger.debug('Token expiring soon, refreshing automatically');
+          return await refreshAccessToken();
+        }
+
+        return true;
       },
     }),
     {
@@ -304,6 +385,8 @@ export const useAuthStore = create<AuthStore>()(
       partialize: state => ({
         user: state.user,
         token: state.token,
+        refreshToken: state.refreshToken,
+        tokenExpiresAt: state.tokenExpiresAt,
         isAuthenticated: state.isAuthenticated,
         lastLoginEmail: state.lastLoginEmail,
       }),
