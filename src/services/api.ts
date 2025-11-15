@@ -85,14 +85,29 @@ class ApiService {
           if (errorData.error_code === 'TOKEN_EXPIRED') {
             logger.info('Token expired - logging out user');
             useAuthStore.getState().logout();
+            throw new Error('Sua sessão expirou. Por favor, faça login novamente.');
           }
         } catch (parseError) {
           // If we can't parse the error, still check if it's a 401
           logger.warn('Could not parse 401 error response');
         }
+        throw new Error('Não autorizado. Verifique suas credenciais.');
       }
 
-      throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorText}`);
+      // Use generic error messages - don't expose internal details
+      logger.error('API Error:', response.status, response.statusText, errorText);
+
+      if (response.status === 403) {
+        throw new Error('Acesso negado. Você não tem permissão para esta operação.');
+      } else if (response.status === 404) {
+        throw new Error('Recurso não encontrado.');
+      } else if (response.status >= 500) {
+        throw new Error('Erro no servidor. Tente novamente em alguns instantes.');
+      } else if (response.status === 429) {
+        throw new Error('Muitas requisições. Aguarde alguns instantes e tente novamente.');
+      } else {
+        throw new Error('Erro ao processar sua solicitação. Tente novamente.');
+      }
     }
 
     const result = await response.json();

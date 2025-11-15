@@ -37,7 +37,11 @@ const registerSchema = yup.object({
     .required('Email é obrigatório'),
   password: yup
     .string()
-    .min(6, 'A senha deve ter pelo menos 6 caracteres')
+    .min(8, 'A senha deve ter pelo menos 8 caracteres')
+    .matches(/[a-z]/, 'A senha deve conter pelo menos uma letra minúscula')
+    .matches(/[A-Z]/, 'A senha deve conter pelo menos uma letra maiúscula')
+    .matches(/[0-9]/, 'A senha deve conter pelo menos um número')
+    .matches(/[^a-zA-Z0-9]/, 'A senha deve conter pelo menos um caractere especial (!@#$%^&*)')
     .required('Senha é obrigatória'),
   confirmPassword: yup
     .string()

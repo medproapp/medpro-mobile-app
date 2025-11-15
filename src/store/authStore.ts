@@ -66,7 +66,14 @@ export const useAuthStore = create<AuthStore>()(
           if (!response.ok) {
             const errorText = await response.text();
             logger.error('Login failed:', response.status);
-            throw new Error(`Login failed: ${response.status}`);
+            // Use generic error message - don't expose HTTP status codes
+            if (response.status === 401 || response.status === 403) {
+              throw new Error('Email ou senha incorretos. Verifique suas credenciais e tente novamente.');
+            } else if (response.status >= 500) {
+              throw new Error('Serviço temporariamente indisponível. Tente novamente em alguns instantes.');
+            } else {
+              throw new Error('Não foi possível realizar o login. Verifique suas credenciais e tente novamente.');
+            }
           }
 
           const data = await response.json();
