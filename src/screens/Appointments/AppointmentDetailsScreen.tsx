@@ -159,7 +159,7 @@ export const AppointmentDetailsScreen: React.FC = () => {
   const navigation = useNavigation<AppointmentDetailsNavigationProp>();
   const route = useRoute<AppointmentDetailsScreenProps>();
   const { appointmentId } = route.params;
-  const { user } = useAuthStore();
+  const { user, token } = useAuthStore();
 
   const [appointment, setAppointment] = useState<AppointmentDetails | null>(null);
   const [formStatus, setFormStatus] = useState<PreAppointmentFormStatus | null>(null);
@@ -504,6 +504,7 @@ export const AppointmentDetailsScreen: React.FC = () => {
           <View style={styles.patientHeader}>
             <CachedImage
               uri={appointment.patientCpf ? `${API_BASE_URL}/patient/getpatientphoto?patientCpf=${appointment.patientCpf}` : undefined}
+              headers={token ? { Authorization: `Bearer ${token}` } : undefined}
               style={[styles.patientImageContainer, styles.patientImage]}
               fallbackIcon="user"
               fallbackIconSize={30}

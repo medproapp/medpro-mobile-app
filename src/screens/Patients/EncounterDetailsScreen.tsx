@@ -19,6 +19,7 @@ import { theme } from '@theme/index';
 import { api, API_BASE_URL } from '@services/api';
 import { PatientsStackParamList } from '@/types/navigation';
 import { CachedImage } from '@components/common';
+import { useAuthStore } from '@store/authStore';
 import {
   translateClinicalType,
   translateClinicalStatus,
@@ -327,6 +328,7 @@ export const EncounterDetailsScreen: React.FC = () => {
   const route = useRoute<EncounterDetailsRouteProp>();
   const navigation = useNavigation<NavigationProp<PatientsStackParamList>>();
   const { encounterId, patientName, patientCpf } = route.params;
+  const { token } = useAuthStore();
 
   const [encounterDetails, setEncounterDetails] = useState<EncounterDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -687,6 +689,7 @@ export const EncounterDetailsScreen: React.FC = () => {
                 <View style={styles.patientCardHeader}>
                   <CachedImage
                     uri={patientCpf ? `${API_BASE_URL}/patient/getpatientphoto?patientCpf=${patientCpf}` : undefined}
+                    headers={token ? { Authorization: `Bearer ${token}` } : undefined}
                     style={styles.patientAvatar}
                     fallbackIcon="user"
                     fallbackIconSize={30}

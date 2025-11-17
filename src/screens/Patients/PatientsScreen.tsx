@@ -39,7 +39,7 @@ interface PatientsData {
 }
 
 export const PatientsScreen: React.FC = () => {
-  const { user } = useAuthStore();
+  const { user, token } = useAuthStore();
   const navigation = useNavigation<PatientsNavigationProp>();
   const [data, setData] = useState<PatientsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -146,6 +146,7 @@ export const PatientsScreen: React.FC = () => {
           <View style={styles.avatarSection}>
             <CachedImage
               uri={`${API_BASE_URL}/patient/getpatientphoto?patientCpf=${item.cpf}`}
+              headers={token ? { Authorization: `Bearer ${token}` } : undefined}
               style={[styles.patientAvatar, styles.patientPhotoImage]}
               fallbackIcon={item.gender === 'female' ? 'female' : 'male'}
               fallbackIconSize={26}

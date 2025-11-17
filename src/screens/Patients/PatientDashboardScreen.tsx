@@ -19,6 +19,7 @@ import { theme } from '@theme/index';
 import { api, API_BASE_URL } from '@services/api';
 import { PatientsStackParamList } from '@/types/navigation';
 import { CachedImage } from '@components/common';
+import { useAuthStore } from '@store/authStore';
 
 type PatientDashboardRouteProp = RouteProp<PatientsStackParamList, 'PatientDashboard'>;
 
@@ -79,6 +80,7 @@ export const PatientDashboardScreen: React.FC = () => {
   const route = useRoute<PatientDashboardRouteProp>();
   const navigation = useNavigation<NavigationProp<PatientsStackParamList>>();
   const { patientCpf, patientName } = route.params;
+  const { token } = useAuthStore();
 
   const [patient, setPatient] = useState<PatientData | null>(null);
   const [appointments, setAppointments] = useState<PatientAppointment[]>([]);
@@ -254,6 +256,7 @@ export const PatientDashboardScreen: React.FC = () => {
             <View style={styles.headerLeft}>
               <CachedImage
                 uri={`${API_BASE_URL}/patient/getpatientphoto?patientCpf=${patientCpf}`}
+                headers={token ? { Authorization: `Bearer ${token}` } : undefined}
                 style={[styles.avatarContainer, styles.headerAvatar]}
                 fallbackIcon={patient.gender === 'female' ? 'female' : 'male'}
                 fallbackIconSize={24}

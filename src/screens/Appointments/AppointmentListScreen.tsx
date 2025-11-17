@@ -82,7 +82,7 @@ const formatLocalDateIso = (date: Date) => {
 
 export const AppointmentListScreen: React.FC = () => {
   const navigation = useNavigation<AppointmentListNavigationProp>();
-  const { user } = useAuthStore();
+  const { user, token } = useAuthStore();
 
   const [appointments, setAppointments] = useState<AppointmentListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -400,6 +400,7 @@ export const AppointmentListScreen: React.FC = () => {
                     >
                       <CachedImage
                         uri={appointment.patientCpf ? `${API_BASE_URL}/patient/getpatientphoto?patientCpf=${appointment.patientCpf}` : undefined}
+                        headers={token ? { Authorization: `Bearer ${token}` } : undefined}
                         style={styles.patientAvatar}
                         fallbackIcon="user"
                         fallbackIconSize={20}

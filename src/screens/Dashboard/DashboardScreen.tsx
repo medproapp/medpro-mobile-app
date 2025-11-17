@@ -812,6 +812,7 @@ export const DashboardScreen: React.FC = () => {
                           <View style={styles.appointmentRowContent}>
                             <CachedImage
                               uri={appointment.patientCpf ? `${API_BASE_URL}/patient/getpatientphoto?patientCpf=${appointment.patientCpf}` : undefined}
+                              headers={token ? { Authorization: `Bearer ${token}` } : undefined}
                               style={styles.patientAvatar}
                               fallbackIcon="user"
                               fallbackIconSize={18}
