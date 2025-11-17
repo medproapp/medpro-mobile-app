@@ -54,6 +54,7 @@ interface AppointmentDetails {
     name: string;
     crm: string;
   };
+  isLead?: boolean;
 }
 
 const formatAppointmentType = (type: string): string => {
@@ -172,98 +173,138 @@ export const AppointmentDetailsScreen: React.FC = () => {
     try {
       setLoading(true);
       console.log('Fetching appointment details for ID:', appointmentId);
-      
+
       const appointmentData = await apiService.getAppointmentById(appointmentId);
       console.log('Raw appointment data response:', appointmentData);
-      
+
       if (appointmentData) {
         // The data might be directly in the response or nested under 'data'
         const apt = appointmentData.data || appointmentData;
         console.log('Processed appointment data:', apt);
-        
-        // Get patient details (photo will be loaded by CachedImage with caching)
-        let patientName = 'Paciente';
-        let patientCpf = '';
-        try {
-          const patientData = await apiService.getPatientDetails(apt.subject);
-          patientName = patientData.data?.name || 'Paciente';
-          patientCpf = patientData.data?.cpf || '';
-        } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          console.error('Error fetching patient details:', errorMessage);
-        }
 
+        const isLead = apt.subject_type === 'lead';
         const localStartDate = toLocalDateTime(apt.startdate, apt.starttime);
 
-        let serviceCategoryDisplay = apt.servicecategory || 'Não especificado';
-        let serviceTypeDisplay = apt.servicetype || 'Não especificado';
-
-        try {
-          if (apt.servicecategory || apt.servicetype) {
-            const serviceInfo = await apiService.getServiceDescriptions(
-              apt.servicecategory || null,
-              apt.servicetype || null
-            );
-
-            if (serviceInfo?.category) {
-              serviceCategoryDisplay =
-                serviceInfo.category.categoryDesc ||
-                serviceInfo.category.description ||
-                serviceCategoryDisplay;
+        // Fetch all independent data in parallel for better performance
+        const [patientResult, serviceInfo, locationResult, formData] = await Promise.all([
+          // 1. Fetch patient or lead details
+          (async () => {
+            if (isLead && apt.lead_id) {
+              console.log('[AppointmentDetails] Processing lead appointment:', apt.lead_id);
+              try {
+                const leadData = await apiService.getLeadDetails(apt.lead_id);
+                return {
+                  name: leadData.lead?.patient_name || 'Lead',
+                  cpf: '', // Leads don't have CPF/photos
+                };
+              } catch (error: unknown) {
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                console.warn('[AppointmentDetails] Error fetching lead details:', errorMessage);
+                return { name: 'Lead', cpf: '' };
+              }
+            } else if (apt.subject) {
+              try {
+                const patientData = await apiService.getPatientDetails(apt.subject);
+                return {
+                  name: patientData.data?.name || 'Paciente',
+                  cpf: patientData.data?.cpf || '',
+                };
+              } catch (error: unknown) {
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                console.error('[AppointmentDetails] Error fetching patient details:', errorMessage);
+                return { name: 'Paciente', cpf: '' };
+              }
             }
+            return { name: 'Paciente', cpf: '' };
+          })(),
 
-            if (serviceInfo?.type) {
-              serviceTypeDisplay =
-                serviceInfo.type.servicetypeDesc ||
-                serviceInfo.type.description ||
-                serviceTypeDisplay;
+          // 2. Fetch service descriptions
+          (async () => {
+            if (apt.servicecategory || apt.servicetype) {
+              try {
+                return await apiService.getServiceDescriptions(
+                  apt.servicecategory || null,
+                  apt.servicetype || null
+                );
+              } catch (error) {
+                console.error('[AppointmentDetails] Error fetching service descriptions:', error);
+                return null;
+              }
             }
-          }
-        } catch (error) {
-          console.error('[AppointmentDetails] Error fetching service descriptions:', error);
-        }
+            return null;
+          })(),
 
-        let locationDetails: AppointmentDetails['location'] | undefined;
-        if (apt.locationid) {
-          try {
-            const location = await apiService.getLocationById(
-              String(apt.locationid),
-              user?.email || undefined
-            );
+          // 3. Fetch location details
+          (async () => {
+            if (apt.locationid) {
+              try {
+                const location = await apiService.getLocationById(
+                  String(apt.locationid),
+                  user?.email || undefined
+                );
 
-            if (location) {
-              locationDetails = {
-                id: String(apt.locationid),
-                name:
-                  location.locName ??
-                  location.locationname ??
-                  location.name ??
-                  '',
-                address:
-                  location.locAddress ??
-                  location.locationaddress ??
-                  location.address ??
-                  location.addressline1 ??
-                  '',
-                phone:
-                  location.locContact ??
-                  location.phone ??
-                  location.contactphone ??
-                  location.phoneNumber ??
-                  '',
-                email: location.email ?? location.contactemail ?? '',
-              };
+                if (location) {
+                  return {
+                    id: String(apt.locationid),
+                    name:
+                      location.locName ??
+                      location.locationname ??
+                      location.name ??
+                      '',
+                    address:
+                      location.locAddress ??
+                      location.locationaddress ??
+                      location.address ??
+                      location.addressline1 ??
+                      '',
+                    phone:
+                      location.locContact ??
+                      location.phone ??
+                      location.contactphone ??
+                      location.phoneNumber ??
+                      '',
+                    email: location.email ?? location.contactemail ?? '',
+                  };
+                }
+              } catch (error) {
+                console.error('[AppointmentDetails] Error fetching location info:', error);
+              }
             }
-          } catch (error) {
-            console.error('[AppointmentDetails] Error fetching location info:', error);
-          }
-        }
+            return undefined;
+          })(),
 
+          // 4. Fetch pre-appointment form status
+          (async () => {
+            try {
+              const formData = await apiService.getPreAppointmentFormStatus(appointmentId);
+              if (formData) {
+                console.log('[AppointmentDetails] Pre-appointment form status:', formData);
+              } else {
+                console.log('[AppointmentDetails] No pre-appointment form found for this appointment');
+              }
+              return formData;
+            } catch (formError) {
+              console.log('[AppointmentDetails] Error fetching pre-appointment form:', formError);
+              return null;
+            }
+          })(),
+        ]);
+
+        // Process service descriptions
+        const serviceCategoryDisplay = serviceInfo?.category
+          ? (serviceInfo.category.categoryDesc || serviceInfo.category.description || apt.servicecategory || 'Não especificado')
+          : (apt.servicecategory || 'Não especificado');
+
+        const serviceTypeDisplay = serviceInfo?.type
+          ? (serviceInfo.type.servicetypeDesc || serviceInfo.type.description || apt.servicetype || 'Não especificado')
+          : (apt.servicetype || 'Não especificado');
+
+        // Build appointment details object
         const appointmentDetails: AppointmentDetails = {
           id: apt.identifier?.toString() || appointmentId,
           identifier: apt.identifier?.toString() || appointmentId,
-          patientName,
-          patientCpf,
+          patientName: patientResult.name,
+          patientCpf: patientResult.cpf,
           date: localStartDate.toLocaleDateString('pt-BR'),
           time: localStartDate.toLocaleTimeString('pt-BR', {
             hour: '2-digit',
@@ -281,32 +322,19 @@ export const AppointmentDetailsScreen: React.FC = () => {
           serviceCategoryCode: apt.servicecategory || undefined,
           serviceType: serviceTypeDisplay,
           serviceTypeCode: apt.servicetype || undefined,
-          location: locationDetails,
+          location: locationResult,
           practitioner: apt.practitionerid ? {
             name: apt.practitionerid,
             crm: ''
-          } : undefined
+          } : undefined,
+          isLead
         };
 
         console.log('Final appointment details:', appointmentDetails);
 
+        // Update state in a single batch
         setAppointment(appointmentDetails);
-
-        // Fetch pre-appointment form status
-        try {
-          const formData = await apiService.getPreAppointmentFormStatus(appointmentId);
-          if (formData) {
-            console.log('[AppointmentDetails] Pre-appointment form status:', formData);
-            setFormStatus(formData);
-          } else {
-            console.log('[AppointmentDetails] No pre-appointment form found for this appointment');
-            setFormStatus(null);
-          }
-        } catch (formError) {
-          console.log('[AppointmentDetails] Error fetching pre-appointment form:', formError);
-          // Don't throw - form is optional
-          setFormStatus(null);
-        }
+        setFormStatus(formData);
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -512,17 +540,26 @@ export const AppointmentDetailsScreen: React.FC = () => {
             />
             <View style={styles.patientInfo}>
               <Text style={styles.patientLabel}>Agendamento com:</Text>
-              <Text style={styles.patientName}>{appointment.patientName}</Text>
+              <View style={styles.patientNameRow}>
+                <Text style={styles.patientName}>{appointment.patientName}</Text>
+                {appointment.isLead && (
+                  <View style={styles.leadBadge}>
+                    <Text style={styles.leadBadgeText}>LEAD</Text>
+                  </View>
+                )}
+              </View>
               {appointment.patientCpf && (
                 <Text style={styles.patientCpf}>CPF: {appointment.patientCpf}</Text>
               )}
             </View>
           </View>
-          
-          <TouchableOpacity style={styles.viewPatientButton} onPress={handleViewPatient}>
-            <FontAwesome name="id-card" size={16} color={theme.colors.primary} />
-            <Text style={styles.viewPatientText}>Ver Prontuário</Text>
-          </TouchableOpacity>
+
+          {!appointment.isLead && (
+            <TouchableOpacity style={styles.viewPatientButton} onPress={handleViewPatient}>
+              <FontAwesome name="id-card" size={16} color={theme.colors.primary} />
+              <Text style={styles.viewPatientText}>Ver Prontuário</Text>
+            </TouchableOpacity>
+          )}
         </Card>
 
         {/* Appointment Time */}
@@ -867,12 +904,32 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textTransform: 'uppercase',
   },
+  patientNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: theme.spacing.xs,
+    flexWrap: 'wrap',
+  },
   patientName: {
     ...theme.typography.h3,
     color: theme.colors.text,
     fontSize: 16,
     fontWeight: '600',
-    marginTop: theme.spacing.xs,
+    flexShrink: 1,
+  },
+  leadBadge: {
+    backgroundColor: theme.colors.warning + '20',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
+  leadBadgeText: {
+    ...theme.typography.caption,
+    color: theme.colors.warning,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   patientCpf: {
     ...theme.typography.caption,

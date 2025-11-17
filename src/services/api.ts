@@ -1982,9 +1982,13 @@ class ApiService {
         console.log('[API] getPreAppointmentFormStatus response:', response);
       }
 
-      // Return the first result if available
+      // Return the first result if available and appointmentId matches
       if (response.success && response.data && response.data.length > 0) {
-        return response.data[0];
+        const form = response.data[0];
+        // Only return if appointmentId matches the request
+        if (form.appointmentId === appointmentId) {
+          return form;
+        }
       }
 
       return null;
