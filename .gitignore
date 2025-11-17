@@ -18,6 +18,10 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
+# Native build directories (top-level only, not in modules)
+/android
+/ios
+
 # Metro
 .metro-health-check*
 
