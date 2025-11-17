@@ -264,7 +264,7 @@ class ApiService {
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
-      search,
+      filter: search,
       orderBy: 'name',
       order: 'ASC'
     });

@@ -402,10 +402,6 @@ export const AppointmentDetailsScreen: React.FC = () => {
     });
   };
 
-  const handleEditAppointment = () => {
-    Alert.alert('Info', 'Funcionalidade de edição será implementada em breve.');
-  };
-
   const handleCancelAppointment = () => {
     if (!appointment) return;
 
@@ -718,11 +714,6 @@ export const AppointmentDetailsScreen: React.FC = () => {
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
           <View style={styles.secondaryActions}>
-            <TouchableOpacity style={styles.secondaryButton} onPress={handleEditAppointment}>
-              <FontAwesome name="edit" size={16} color={theme.colors.primary} />
-              <Text style={styles.secondaryButtonText}>Editar</Text>
-            </TouchableOpacity>
-
             <TouchableOpacity
               style={[
                 styles.secondaryButton,
