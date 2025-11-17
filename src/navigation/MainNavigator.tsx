@@ -19,6 +19,7 @@ import { AppointmentStep6Screen } from '@screens/Appointments/AppointmentStep6Sc
 import { AppointmentReviewScreen } from '@screens/Appointments/AppointmentReviewScreen';
 import { AppointmentDetailsScreen } from '@screens/Appointments/AppointmentDetailsScreen';
 import { AppointmentListScreen } from '@screens/Appointments/AppointmentListScreen';
+import { AppointmentCalendarScreen } from '@screens/Appointments/AppointmentCalendarScreen';
 import { FormResponseScreen } from '@screens/Appointments/FormResponseScreen';
 import { PatientsScreen } from '@screens/Patients';
 import { PatientDashboardScreen } from '@screens/Patients/PatientDashboardScreen';
@@ -58,7 +59,7 @@ const TAB_BAR_BASE_STYLE = {
 
 const getDashboardTabBarStyle = (route: RouteProp<MainTabParamList, 'Dashboard'>): typeof TAB_BAR_BASE_STYLE & { display?: 'none' } => {
   const routeName = getFocusedRouteNameFromRoute(route) ?? 'DashboardHome';
-  if (['Notifications', 'AppointmentList', 'AppointmentDetails', 'FormResponse'].includes(routeName)) {
+  if (['Notifications', 'AppointmentList', 'AppointmentCalendar', 'AppointmentDetails', 'FormResponse'].includes(routeName)) {
     return { ...TAB_BAR_BASE_STYLE, display: 'none' };
   }
   return TAB_BAR_BASE_STYLE;
@@ -231,6 +232,7 @@ const DashboardStackNavigator: React.FC = () => {
     >
       <DashboardStack.Screen name="DashboardHome" component={DashboardScreen} />
       <DashboardStack.Screen name="AppointmentList" component={AppointmentListScreen} />
+      <DashboardStack.Screen name="AppointmentCalendar" component={AppointmentCalendarScreen} />
       <DashboardStack.Screen name="Notifications" component={NotificationsScreen} />
       <DashboardStack.Screen name="AppointmentDetails" component={AppointmentDetailsScreen} />
       <DashboardStack.Screen name="FormResponse" component={FormResponseScreen} />

@@ -16,8 +16,9 @@ import { RouteProp, useRoute, useNavigation, NavigationProp } from '@react-navig
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import Markdown from 'react-native-markdown-display';
 import { theme } from '@theme/index';
-import { api } from '@services/api';
+import { api, API_BASE_URL } from '@services/api';
 import { PatientsStackParamList } from '@/types/navigation';
+import { CachedImage } from '@components/common';
 
 type PatientDashboardRouteProp = RouteProp<PatientsStackParamList, 'PatientDashboard'>;
 
@@ -101,18 +102,11 @@ export const PatientDashboardScreen: React.FC = () => {
   const loadPatientData = async () => {
     try {
       console.log('[PatientDashboard] Loading patient data for CPF:', patientCpf);
-      
-      // Load patient details and photo in parallel
-      const [response, photoResponse] = await Promise.all([
-        api.getPatientDetails(patientCpf),
-        api.getPatientPhoto(patientCpf).catch(error => {
-          console.log('[PatientDashboard] Photo not available:', error.message);
-          return null; // Don't fail if photo is not available
-        })
-      ]);
-      
+
+      // Load patient details (photo will be loaded by CachedImage with caching)
+      const response = await api.getPatientDetails(patientCpf);
+
       console.log('[PatientDashboard] Patient data received:', JSON.stringify(response, null, 2));
-      console.log('[PatientDashboard] Patient photo response:', photoResponse ? 'Photo data received' : 'No photo');
       
       // Extract patient data from API response structure
       const rawData = response.data || response;
@@ -133,7 +127,7 @@ export const PatientDashboardScreen: React.FC = () => {
         summary: patientPayload.summary,
         lastPrescriptions: patientPayload.lastprescriptions || patientPayload.lastPrescriptions,
         conditionDiagnostics: patientPayload.condanddiag || patientPayload.conditionDiagnostics,
-        photo: photoResponse, // Photo is now a data URI string or null
+        // Photos will be loaded automatically by CachedImage with caching
         // Just use the address as it comes from API
         address: patientPayload.address ? {
           fullAddress: patientPayload.address,
@@ -221,35 +215,6 @@ export const PatientDashboardScreen: React.FC = () => {
     return new Date(dateString).toLocaleString('pt-BR');
   };
 
-  const getPatientPhotoUri = (photo: any): string | null => {
-    try {
-      if (!photo) {
-        console.log('[PatientDashboard] No photo data provided');
-        return null;
-      }
-      
-      console.log('[PatientDashboard] Processing photo data:', typeof photo);
-      
-      // If photo is already a data URI string (from the updated API)
-      if (typeof photo === 'string' && photo.startsWith('data:')) {
-        console.log('[PatientDashboard] Photo is data URI, length:', photo.length);
-        return photo;
-      }
-      
-      // If photo is a base64 string without data URI prefix
-      if (typeof photo === 'string' && photo.length > 100) {
-        console.log('[PatientDashboard] Photo appears to be base64 string, adding data URI prefix');
-        return `data:image/png;base64,${photo}`;
-      }
-      
-      console.log('[PatientDashboard] Photo data format not recognized:', typeof photo, photo);
-      return null;
-    } catch (error) {
-      console.error('[PatientDashboard] Error processing patient photo:', error);
-      return null;
-    }
-  };
-
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -287,28 +252,13 @@ export const PatientDashboardScreen: React.FC = () => {
           />
           <View style={styles.header}>
             <View style={styles.headerLeft}>
-              <View style={styles.avatarContainer}>
-                {(() => {
-                  const photoUri = getPatientPhotoUri(patient.photo);
-                  return photoUri ? (
-                    <Image 
-                      source={{ uri: photoUri }} 
-                      style={styles.headerAvatar}
-                      onError={(error) => {
-                        console.error('[PatientDashboard] Failed to load patient photo:', error);
-                      }}
-                    />
-                  ) : (
-                    <View style={[styles.headerAvatar, styles.avatarPlaceholder]}>
-                      <FontAwesome 
-                        name={patient.gender === 'female' ? 'female' : 'male'} 
-                        size={24} 
-                        color={theme.colors.white} 
-                      />
-                    </View>
-                  );
-                })()}
-              </View>
+              <CachedImage
+                uri={`${API_BASE_URL}/patient/getpatientphoto?patientCpf=${patientCpf}`}
+                style={[styles.avatarContainer, styles.headerAvatar]}
+                fallbackIcon={patient.gender === 'female' ? 'female' : 'male'}
+                fallbackIconSize={24}
+                fallbackIconColor={theme.colors.white}
+              />
               <View style={styles.headerContent}>
                 <Text style={styles.greeting}>Paciente</Text>
                 <Text style={styles.userName}>{patient?.name || 'Carregando...'}</Text>

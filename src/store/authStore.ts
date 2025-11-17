@@ -9,6 +9,7 @@ import {
   RegisterData,
   RegisterResponse,
 } from '../types/auth';
+import { Organization } from '../types/api';
 import { secureStorage } from '../utils/secureStorage';
 import { logger } from '../utils/logger';
 
@@ -164,7 +165,7 @@ export const useAuthStore = create<AuthStore>()(
                 const orgData = await api.getUserToOrg(credentials.email);
                 if (orgData && orgData.length > 0) {
                   logger.debug('Organization data received');
-                  const org = orgData.find(o => o?.groupStatus === 'active') || orgData[0];
+                  const org = orgData.find((o: Organization) => o?.groupStatus === 'active') || orgData[0];
                   user.organization =
                     (typeof org.org_name === 'string' && org.org_name.trim().length > 0 && org.org_name.trim()) ||
                     (typeof org.group_name === 'string' && org.group_name.trim().length > 0 && org.group_name.trim()) ||

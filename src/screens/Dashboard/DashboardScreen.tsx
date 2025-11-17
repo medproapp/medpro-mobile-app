@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import { Card, Loading, InProgressEncountersAlert } from '@components/common';
+import { Card, Loading, InProgressEncountersAlert, CachedImage } from '@components/common';
 import { theme } from '@theme/index';
 import { useAuthStore } from '@store/authStore';
 import { apiService, API_BASE_URL } from '@services/api';
@@ -24,11 +24,12 @@ import { useNotificationStore } from '@store/notificationStore';
 interface Appointment {
   id: string;
   patientName: string;
+  patientCpf?: string; // Patient CPF for loading photos
   time: string;
   date: string;
   type: string;
   status: 'scheduled' | 'confirmed' | 'in_progress' | 'completed';
-  patientPhoto?: string | null;
+  isLead?: boolean; // Flag to indicate if this is a lead appointment
 }
 
 interface DashboardData {
@@ -356,7 +357,6 @@ export const DashboardScreen: React.FC = () => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [photoAvailable, setPhotoAvailable] = useState(true);
   const [scheduleSummary, setScheduleSummary] = useState<ScheduleSummaryDay[]>([]);
   const pendingCount = useNotificationStore(state => state.pendingCount);
   const isLoadingPendingCount = useNotificationStore(state => state.isLoadingCount);
@@ -368,10 +368,6 @@ export const DashboardScreen: React.FC = () => {
     }
     return `${API_BASE_URL}/pract/getmyphoto?email=${encodeURIComponent(user.email)}`;
   }, [user?.email]);
-
-  useEffect(() => {
-    setPhotoAvailable(true);
-  }, [photoUri]);
 
   const fetchDashboardData = async () => {
     try {
@@ -395,51 +391,64 @@ export const DashboardScreen: React.FC = () => {
       const appointments = await Promise.all(
         appointmentsData.slice(0, 5).map(async (apt: any) => {
           try {
-            // Get patient details for each appointment
-            const patientData = await apiService.getPatientDetails(apt.subject);
+            let patientName = 'Paciente';
             let patientPhoto: string | null = null;
+            const isLead = apt.subject_type === 'lead';
 
-            try {
-              const photoBase64 = await apiService.getPatientPhoto(apt.subject);
-              if (typeof photoBase64 === 'string' && photoBase64.length > 0) {
-                patientPhoto = photoBase64;
+            // Check if this is a lead appointment or regular patient appointment
+            if (isLead && apt.lead_id) {
+              // Handle lead appointment
+              console.log('[Dashboard] Processing lead appointment:', apt.lead_id);
+              try {
+                const leadData = await apiService.getLeadDetails(apt.lead_id);
+                // API returns nested structure: { lead: { patient_name: ... }, success: true }
+                patientName = leadData.lead?.patient_name || 'Lead';
+                // Leads don't have photos
+              } catch (leadError) {
+                const message = leadError instanceof Error ? leadError.message : 'Unknown error';
+                console.warn('[Dashboard] Error fetching lead details:', message);
+                patientName = 'Lead';
               }
-            } catch (photoError) {
-              const message = photoError instanceof Error ? photoError.message : 'Unknown error';
-              console.warn('[Dashboard] No patient photo available:', message);
+            } else if (apt.subject && apt.subject_type === 'patient') {
+              // Handle regular patient appointment
+              const patientData = await apiService.getPatientDetails(apt.subject);
+              patientName = patientData.data?.name || 'Paciente';
+              // Photos will be loaded automatically by CachedImage with caching
             }
-            
+
             // Convert UTC datetime to local for proper date grouping
             const localDateTime = convertUTCToLocalDate(
-              apt.startdate || new Date().toISOString().split('T')[0], 
+              apt.startdate || new Date().toISOString().split('T')[0],
               apt.starttime || '00:00:00'
             );
-            
+
             return {
               id: apt.identifier.toString(),
-              patientName: patientData.data?.name || 'Paciente',
+              patientName,
+              patientCpf: isLead ? undefined : apt.subject, // Store CPF for photo loading (leads don't have photos)
               time: localDateTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }), // Local time
               date: localDateTime.toISOString().split('T')[0], // Local date for grouping
               type: formatAppointmentType(apt.appointmenttype),
               status: apt.status === 'booked' ? 'confirmed' : apt.status,
-              patientPhoto,
+              isLead, // Add flag to indicate this is a lead appointment
             };
           } catch (error) {
             console.error('Error fetching patient details:', error);
             // Convert UTC datetime to local for error fallback
             const localDateTime = convertUTCToLocalDate(
-              apt.startdate || new Date().toISOString().split('T')[0], 
+              apt.startdate || new Date().toISOString().split('T')[0],
               apt.starttime || '00:00:00'
             );
-            
+
             return {
               id: apt.identifier.toString(),
               patientName: 'Paciente',
+              patientCpf: apt.subject_type === 'patient' ? apt.subject : undefined,
               time: localDateTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
               date: localDateTime.toISOString().split('T')[0],
               type: formatAppointmentType('ROUTINE'),
               status: 'scheduled',
-              patientPhoto: null,
+              isLead: false,
             };
           }
         })
@@ -639,24 +648,14 @@ export const DashboardScreen: React.FC = () => {
           />
           <View style={styles.header}>
             <View style={styles.userSection}>
-              <View style={styles.avatarContainer}>
-                {photoUri && photoAvailable ? (
-                  <Image
-                    source={{
-                      uri: photoUri,
-                      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-                    }}
-                    style={styles.userAvatar}
-                    onError={() => setPhotoAvailable(false)}
-                  />
-                ) : (
-                  <View style={styles.avatarFallback}>
-                    <Text style={styles.avatarInitial}>
-                      {(user?.name || user?.email || 'D').charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                )}
-              </View>
+              <CachedImage
+                uri={photoUri}
+                headers={token ? { Authorization: `Bearer ${token}` } : undefined}
+                style={styles.avatarContainer}
+                fallbackIcon="user"
+                fallbackIconSize={24}
+                fallbackIconColor={theme.colors.white}
+              />
               <View style={styles.headerContent}>
                 <Text style={styles.greeting}>{getTimeBasedGreeting()},</Text>
                 <Text style={styles.userName}>{user?.name || 'Doutor'}</Text>
@@ -811,22 +810,26 @@ export const DashboardScreen: React.FC = () => {
                           onPress={() => navigation.navigate('AppointmentDetails', { appointmentId: appointment.id })}
                         >
                           <View style={styles.appointmentRowContent}>
-                            <View style={styles.patientAvatar}>
-                              {appointment.patientPhoto ? (
-                                <Image
-                                  source={{ uri: appointment.patientPhoto }}
-                                  style={styles.patientAvatarImage}
-                                />
-                              ) : (
-                                <FontAwesome name="user" size={18} color={theme.colors.primary} />
-                              )}
-                            </View>
+                            <CachedImage
+                              uri={appointment.patientCpf ? `${API_BASE_URL}/patient/getpatientphoto?patientCpf=${appointment.patientCpf}` : undefined}
+                              style={styles.patientAvatar}
+                              fallbackIcon="user"
+                              fallbackIconSize={18}
+                              fallbackIconColor={theme.colors.primary}
+                            />
                             <View style={styles.appointmentContent}>
                               <View style={styles.timeRow}>
                                 <Text style={styles.timeText}>{appointment.time}</Text>
                                 <View style={[styles.timeIndicator, { backgroundColor: getStatusColor(appointment.status) }]} />
                               </View>
-                              <Text style={styles.patientName}>{appointment.patientName}</Text>
+                              <View style={styles.patientNameRow}>
+                                <Text style={styles.patientName}>{appointment.patientName}</Text>
+                                {appointment.isLead && (
+                                  <View style={styles.leadBadge}>
+                                    <Text style={styles.leadBadgeText}>LEAD</Text>
+                                  </View>
+                                )}
+                              </View>
                               <View style={styles.appointmentFooter}>
                                 <Text style={styles.appointmentType} numberOfLines={1}>
                                   {appointment.type}
@@ -855,7 +858,7 @@ export const DashboardScreen: React.FC = () => {
                   <TouchableOpacity
                     style={styles.appointmentMoreButton}
                     activeOpacity={0.7}
-                    onPress={() => navigation.navigate('AppointmentList')}
+                    onPress={() => navigation.navigate('AppointmentCalendar')}
                   >
                     <Text style={styles.appointmentMoreText}>Ver mais</Text>
                     <FontAwesome name="angle-right" size={14} color={theme.colors.primary} />
@@ -948,7 +951,7 @@ export const DashboardScreen: React.FC = () => {
                           color={theme.colors.textSecondary}
                           style={styles.scheduleChipIcon}
                         />
-                        <Text style={styles.scheduleEmptyInline}>Sem atendimentos neste dia</Text>
+                        <Text style={styles.scheduleEmptyInline}>Sem agenda neste dia</Text>
                       </View>
                     )}
                   </View>
@@ -962,9 +965,9 @@ export const DashboardScreen: React.FC = () => {
                   color={theme.colors.textSecondary}
                   style={styles.scheduleEmptyIcon}
                 />
-                <Text style={styles.scheduleEmptyTitle}>Agenda não disponível</Text>
+                <Text style={styles.scheduleEmptyTitle}>Nenhum local programado</Text>
                 <Text style={styles.scheduleEmptySubtitle}>
-                  Atualize sua agenda para visualizar os próximos locais de atendimento.
+                  Configure sua agenda para definir os locais de atendimento
                 </Text>
               </View>
             )}
@@ -1379,12 +1382,30 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     marginLeft: theme.spacing.xs,
   },
+  patientNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.xs,
+  },
   patientName: {
     ...theme.typography.body,
     color: theme.colors.text,
     fontWeight: '600',
     fontSize: 14,
-    marginBottom: theme.spacing.xs,
+  },
+  leadBadge: {
+    backgroundColor: theme.colors.warning + '20',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
+  leadBadgeText: {
+    ...theme.typography.caption,
+    color: theme.colors.warning,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   appointmentType: {
     ...theme.typography.caption,

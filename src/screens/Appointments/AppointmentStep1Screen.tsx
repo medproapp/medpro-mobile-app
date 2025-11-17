@@ -18,6 +18,7 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { theme } from '@theme/index';
 import { useAppointmentStore } from '@store/appointmentStore';
+import { RecentPatient } from '../../types/api';
 import { useAuthStore } from '@store/authStore';
 import { api } from '@services/api';
 import { DashboardStackParamList } from '@/types/navigation';
@@ -175,7 +176,10 @@ export const AppointmentStep1Screen: React.FC = () => {
     const phone = patient.phone ?? '';
 
     setPatient(cpf, name, phone);
-    addRecentPatient(patient.raw ?? patient);
+    const recentPatient = (patient.raw && typeof patient.raw === 'object' && 'cpf' in patient.raw && 'name' in patient.raw)
+      ? patient.raw
+      : { cpf, name, phone };
+    addRecentPatient(recentPatient as RecentPatient);
   };
 
   // Handle continue to next step

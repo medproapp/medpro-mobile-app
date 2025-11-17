@@ -237,11 +237,7 @@ export const RegisterScreen: React.FC = () => {
 
     setValue('name', name, { shouldValidate: true, shouldDirty: true });
     setValue('email', email, { shouldValidate: true, shouldDirty: true });
-    setValue('password', 'senha2', { shouldValidate: true, shouldDirty: true });
-    setValue('confirmPassword', 'senha2', {
-      shouldValidate: true,
-      shouldDirty: true,
-    });
+    // Password fields removed - use environment variables for test credentials if needed
   };
 
   return (

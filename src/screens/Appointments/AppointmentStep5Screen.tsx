@@ -327,7 +327,7 @@ export const AppointmentStep5Screen: React.FC = () => {
             // Filter out slots that are in the past
             return slot.localDateTime > now;
           })
-          .map(({ localDateTime, ...slot }) => slot); // Remove localDateTime from final result
+          .map(({ localDateTime, ...slot }: { localDateTime: Date; [key: string]: any }) => slot); // Remove localDateTime from final result
         
         setNextFiveSlots(slots);
         console.log('[AppointmentStep5] Loaded next five slots (future only):', slots.length);

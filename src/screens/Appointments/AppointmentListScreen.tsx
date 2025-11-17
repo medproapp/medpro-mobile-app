@@ -13,10 +13,10 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { Card, Loading } from '@components/common';
+import { Card, Loading, CachedImage } from '@components/common';
 import { theme } from '@theme/index';
 import { useAuthStore } from '@store/authStore';
-import { apiService } from '@services/api';
+import { apiService, API_BASE_URL } from '@services/api';
 import { DashboardStackParamList } from '@/types/navigation';
 
 type AppointmentListNavigationProp = StackNavigationProp<DashboardStackParamList, 'AppointmentList'>;
@@ -191,9 +191,6 @@ export const AppointmentListScreen: React.FC = () => {
     }
   }, []);
 
-  // Limit the number of photo fetches per load to keep network usage manageable
-  const PHOTO_FETCH_LIMIT = 20;
-
   const loadAppointments = useCallback(async (silent: boolean = false) => {
     if (!user?.email) {
       console.warn('[AppointmentList] User email not available, skipping fetch');
@@ -242,9 +239,6 @@ export const AppointmentListScreen: React.FC = () => {
         }
       } while (true);
 
-      let photoRequests = 0;
-      const photoCache = new Map<string, string | null>();
-
       const items: AppointmentListItem[] = [];
 
       for (const appointment of aggregated) {
@@ -261,27 +255,7 @@ export const AppointmentListScreen: React.FC = () => {
           startTimeValue
         );
 
-        let patientPhoto: string | null = null;
-        if (appointment.patientCpf) {
-          const cpfKey = String(appointment.patientCpf);
-          if (photoCache.has(cpfKey)) {
-            patientPhoto = photoCache.get(cpfKey) || null;
-          } else if (photoRequests < PHOTO_FETCH_LIMIT) {
-            try {
-              const photoBase64 = await apiService.getPatientPhoto(appointment.patientCpf);
-              if (typeof photoBase64 === 'string' && photoBase64.length > 0) {
-                patientPhoto = photoBase64;
-              }
-            } catch (photoError) {
-              const message = photoError instanceof Error ? photoError.message : 'Unknown error';
-              console.log('[AppointmentList] No patient photo available:', message);
-            } finally {
-              photoRequests += 1;
-              photoCache.set(cpfKey, patientPhoto);
-            }
-          }
-        }
-
+        // Photos will be loaded automatically by CachedImage with caching
         const status = appointment.status || 'unknown';
 
         items.push({
@@ -292,7 +266,6 @@ export const AppointmentListScreen: React.FC = () => {
           date: formatLocalDateIso(localDateTime),
           type: formatAppointmentType(appointment.appointmenttype || appointment.servicetype || ''),
           status,
-          patientPhoto,
           startDateTime: localDateTime,
         });
       }
@@ -425,16 +398,13 @@ export const AppointmentListScreen: React.FC = () => {
                         })
                       }
                     >
-                      <View style={styles.patientAvatar}>
-                        {appointment.patientPhoto ? (
-                          <Image
-                            source={{ uri: appointment.patientPhoto }}
-                            style={styles.patientAvatarImage}
-                          />
-                        ) : (
-                          <FontAwesome name="user" size={20} color={theme.colors.primary} />
-                        )}
-                      </View>
+                      <CachedImage
+                        uri={appointment.patientCpf ? `${API_BASE_URL}/patient/getpatientphoto?patientCpf=${appointment.patientCpf}` : undefined}
+                        style={styles.patientAvatar}
+                        fallbackIcon="user"
+                        fallbackIconSize={20}
+                        fallbackIconColor={theme.colors.primary}
+                      />
 
                       <View style={styles.appointmentInfo}>
                         <View style={styles.timeRow}>

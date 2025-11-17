@@ -1,4 +1,5 @@
 import { useAuthStore } from '../store/authStore';
+import { AppointmentData } from '../store/appointmentStore';
 import { Buffer } from 'buffer';
 import { PractitionerProfile } from '@/types/practitioner';
 import { API_BASE_URL } from '@config/environment';
@@ -23,7 +24,7 @@ import { logger } from '../utils/logger';
 interface ApiConfig {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
   headers?: Record<string, string>;
-  body?: any;
+  body?: Record<string, unknown> | FormData | string | object;
 }
 
 class ApiService {
@@ -32,6 +33,14 @@ class ApiService {
     return {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),
+    };
+  }
+
+  private getOrgHeaders(practId?: string): Record<string, string> {
+    const { user } = useAuthStore.getState();
+    return {
+      'managingorg': user?.organization || '',
+      'practid': practId || user?.email || '',
     };
   }
 
@@ -196,51 +205,62 @@ class ApiService {
 
   // Get next appointments for practitioner
   async getNextAppointments(email: string, days: number = 7) {
-    const { user, token } = useAuthStore.getState();
     return this.request(`/appointment/getnextappointments/${email}?days=${days}`, {
-      headers: {
-        'managingorg': user?.organization,
-        'practid': email,
-      },
+      headers: this.getOrgHeaders(email),
     });
   }
 
   // Get appointment details by ID
   async getAppointmentById(appointmentId: string) {
-    const { user, token } = useAuthStore.getState();
     // console.log('[API] getAppointmentById called with ID:', appointmentId);
     return this.request(`/appointment/getappointmentbyid/${appointmentId}`, {
-      headers: {
-        'managingorg': user?.organization,
-        'practid': user?.email || '',
-      },
+      headers: this.getOrgHeaders(),
     });
   }
 
   // Get patient details by CPF
   async getPatientDetails(cpf: string) {
     // console.log('[API] getPatientDetails called with CPF:', cpf);
-    const { user, token } = useAuthStore.getState();
     // console.log('[API] User context:', { organization: user?.organization, email: user?.email });
-    
+
     try {
       const result = await this.request(`/patient/getpatientdetails/${cpf}`, {
-        headers: {
-          'managingorg': user?.organization,
-          'practid': user?.email || '',
-        },
+        headers: this.getOrgHeaders(),
       });
       // console.log('[API] getPatientDetails success:', result);
       return result;
     } catch (error) {
-      console.error('[API] getPatientDetails error:', error);
+      if (__DEV__) {
+        console.error('[API] getPatientDetails error:', error);
+      }
+      throw error;
+    }
+  }
+
+  // Get lead details by ID
+  async getLeadDetails(leadId: string) {
+    if (__DEV__) {
+      console.log('[API] getLeadDetails called with ID:', leadId);
+    }
+
+    try {
+      const result = await this.request(`/patient/lead/${leadId}`, {
+        headers: this.getOrgHeaders(),
+      });
+      if (__DEV__) {
+        console.log('[API] getLeadDetails success:', result);
+      }
+      return result;
+    } catch (error) {
+      if (__DEV__) {
+        console.error('[API] getLeadDetails error:', error);
+      }
       throw error;
     }
   }
 
   // List patients for practitioner
   async getPatients(practId: string, page: number = 1, limit: number = 20, search: string = '') {
-    const { user } = useAuthStore.getState();
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
@@ -250,18 +270,16 @@ class ApiService {
     });
 
     return this.request(`/patient/listpatients/${practId}?${params}`, {
-      headers: {
-        'managingorg': user?.organization,
-        'practid': practId,
-      },
+      headers: this.getOrgHeaders(practId),
     });
   }
 
   // Search patients for appointment booking - using the same endpoint as web frontend
   async searchPatients(searchTerm: string, searchType: 'name' | 'cpf' | 'phone', page: number = 1, limit: number = 10) {
     const { user } = useAuthStore.getState();
+    const userEmail = user?.email || '';
     // console.log('[API] searchPatients called with term:', searchTerm, 'type:', searchType);
-    
+
     try {
       // Use the same endpoint as web frontend: /patient/getpatientbyname/${practId}
       const params = new URLSearchParams({
@@ -270,56 +288,55 @@ class ApiService {
         limit: limit.toString(),
       });
 
-      const result = await this.request(`/patient/getpatientbyname/${user?.email}?${params}`, {
-        headers: {
-          'managingorg': user?.organization,
-          'practid': user?.email || '',
-        },
+      const result = await this.request(`/patient/getpatientbyname/${userEmail}?${params}`, {
+        headers: this.getOrgHeaders(),
       });
       // console.log('[API] searchPatients success:', result);
       return result;
     } catch (error) {
-      console.error('[API] searchPatients error:', error);
+      if (__DEV__) {
+        console.error('[API] searchPatients error:', error);
+      }
       throw error;
     }
   }
 
   // Get patient appointments
   async getPatientAppointments(patientCpf: string) {
-    const { user } = useAuthStore.getState();
     // console.log('[API] getPatientAppointments called with CPF:', patientCpf);
-    
+
     try {
       const result = await this.request(`/appointment/getnextpatientappointments/${patientCpf}`, {
-        headers: {
-          'managingorg': user?.organization,
-          'practid': user?.email || '',
-        },
+        headers: this.getOrgHeaders(),
       });
       // console.log('[API] getPatientAppointments success:', result);
       return result;
     } catch (error) {
-      console.error('[API] getPatientAppointments error:', error);
+      if (__DEV__) {
+        console.error('[API] getPatientAppointments error:', error);
+      }
       throw error;
     }
   }
 
   // Get patient photo (returns blob data, not JSON)
   async getPatientPhoto(patientCpf: string) {
-    const { user } = useAuthStore.getState();
     const { token } = useAuthStore.getState();
 
-    console.log('[API] getPatientPhoto called for CPF:', patientCpf);
+    if (__DEV__) {
+      console.log('[API] getPatientPhoto called for CPF:', patientCpf);
+    }
 
     const url = `${API_BASE_URL}/patient/getpatientphoto?patientCpf=${patientCpf}`;
     const headers = {
       'Content-Type': 'application/json',
-      'managingorg': user?.organization,
-      'practid': user?.email || '',
+      ...this.getOrgHeaders(),
       ...(token && { Authorization: `Bearer ${token}` }),
     };
 
-    console.log('[API] Fetching patient photo from:', url);
+    if (__DEV__) {
+      console.log('[API] Fetching patient photo from:', url);
+    }
 
     try {
       const response = await fetch(url, {
@@ -327,11 +344,15 @@ class ApiService {
         headers,
       });
 
-      console.log('[API] Patient photo response status:', response.status);
-      console.log('[API] Patient photo response headers:', Object.fromEntries(response.headers.entries()));
+      if (__DEV__) {
+        console.log('[API] Patient photo response status:', response.status);
+        console.log('[API] Patient photo response headers:', Object.fromEntries(response.headers.entries()));
+      }
 
       if (response.status === 404) {
-        console.log('[API] Patient photo not found (404)');
+        if (__DEV__) {
+          console.log('[API] Patient photo not found (404)');
+        }
         return null;
       }
 
@@ -341,65 +362,76 @@ class ApiService {
 
       // Check if response has content
       const contentLength = response.headers.get('content-length');
-      console.log('[API] Photo content length:', contentLength);
-      
+      if (__DEV__) {
+        console.log('[API] Photo content length:', contentLength);
+      }
+
       if (contentLength === '0' || contentLength === null) {
-        console.log('[API] No photo data available (empty response)');
+        if (__DEV__) {
+          console.log('[API] No photo data available (empty response)');
+        }
         return null;
       }
 
       const arrayBuffer = await response.arrayBuffer();
       if (!arrayBuffer || arrayBuffer.byteLength === 0) {
-        console.log('[API] No photo data available (empty buffer)');
+        if (__DEV__) {
+          console.log('[API] No photo data available (empty buffer)');
+        }
         return null;
       }
 
       const base64 = Buffer.from(arrayBuffer).toString('base64');
       const contentType = response.headers.get('content-type') || 'image/jpeg';
       const dataUri = `data:${contentType};base64,${base64}`;
-      console.log('[API] Photo converted to base64, length:', dataUri.length);
+      if (__DEV__) {
+        console.log('[API] Photo converted to base64, length:', dataUri.length);
+      }
       return dataUri;
     } catch (error) {
-      console.error('[API] Error fetching patient photo:', error);
+      if (__DEV__) {
+        console.error('[API] Error fetching patient photo:', error);
+      }
       throw error;
     }
   }
 
   // Get encounters with in-progress or on-hold status for practitioner
   async getInProgressEncounters(practId: string) {
-    const { user } = useAuthStore.getState();
     const statusFilter = {
       filter1: 'in-progress',
       filter2: 'on-hold',
       filter3: ''
     };
-    
+
     const params = new URLSearchParams({
       page: '1',
       limit: '10',
       status: JSON.stringify(statusFilter)
     });
 
-    console.log('[API] getInProgressEncounters called for practitioner:', practId);
-    
+    if (__DEV__) {
+      console.log('[API] getInProgressEncounters called for practitioner:', practId);
+    }
+
     try {
       const result = await this.request(`/encounter/getencounters/practitioner/${practId}?${params}`, {
-        headers: {
-          'managingorg': user?.organization,
-          'practid': practId,
-        },
+        headers: this.getOrgHeaders(practId),
       });
-      console.log('[API] getInProgressEncounters success:', result);
+      if (__DEV__) {
+        console.log('[API] getInProgressEncounters success:', result);
+      }
       return result;
     } catch (error) {
-      console.error('[API] getInProgressEncounters error:', error);
+      if (__DEV__) {
+        console.error('[API] getInProgressEncounters error:', error);
+      }
       throw error;
     }
   }
 
   // Patient History/Encounters APIs
   async getPatientEncounters(patientCpf: string, options: { page?: number; limit?: number; fromDate?: string; toDate?: string } = {}) {
-    const { user } = useAuthStore.getState();
     const params = new URLSearchParams({
       page: (options.page || 1).toString(),
       limit: (options.limit || 10).toString(),
@@ -408,33 +440,21 @@ class ApiService {
     });
 
     return this.request(`/encounter/getencounters/patient/${patientCpf}?${params}`, {
-      headers: {
-        'managingorg': user?.organization,
-        'practid': user?.email || '',
-      },
+      headers: this.getOrgHeaders(),
     });
   }
 
   async getPatientLastEncounterSummary(patientCpf: string, currentEncounterId?: string) {
-    const { user } = useAuthStore.getState();
     const query = currentEncounterId ? `?curEnc=${encodeURIComponent(currentEncounterId)}` : '';
 
     return this.request(`/encounter/patient/lastencounter/${patientCpf}${query}`, {
-      headers: {
-        'managingorg': user?.organization,
-        'practid': user?.email || '',
-      },
+      headers: this.getOrgHeaders(),
     });
   }
 
   async getEncounterInfoById(encounterId: string) {
-    const { user } = useAuthStore.getState();
-
     return this.request(`/encounter/getencounterinfobyid/${encounterId}`, {
-      headers: {
-        'managingorg': user?.organization,
-        'practid': user?.email || '',
-      },
+      headers: this.getOrgHeaders(),
     });
   }
 
@@ -451,51 +471,54 @@ class ApiService {
 
   // Update encounter status (pause/resume)
   async updateEncounterStatus(encounterId: string, status: string) {
-    const { user } = useAuthStore.getState();
-    console.log('[API] updateEncounterStatus called with:', { encounterId, status });
+    if (__DEV__) {
+      console.log('[API] updateEncounterStatus called with:', { encounterId, status });
+    }
 
     try {
       const result = await this.request(`/encounter/updateencounterstatus/${encounterId}?status=${status}`, {
         method: 'POST',
-        headers: {
-          'managingorg': user?.organization,
-          'practid': user?.email || '',
-        }
+        headers: this.getOrgHeaders()
       });
-      console.log('[API] updateEncounterStatus success:', result);
+      if (__DEV__) {
+        console.log('[API] updateEncounterStatus success:', result);
+      }
       return result;
-    } catch (error: any) {
-      console.error('[API] updateEncounterStatus error:', error);
+    } catch (error: unknown) {
+      if (__DEV__) {
+        console.error('[API] updateEncounterStatus error:', error);
+      }
       throw error;
     }
   }
 
   // Append mobile note (uses separate MobileNotes field to avoid conflicts with web app)
   async appendMobileNote(encounterId: string, noteText: string) {
-    const { user } = useAuthStore.getState();
-    console.log('[API] appendMobileNote called with:', { encounterId, noteTextLength: noteText.length });
+    if (__DEV__) {
+      console.log('[API] appendMobileNote called with:', { encounterId, noteTextLength: noteText.length });
+    }
 
     try {
       const result = await this.request(`/encounter/append-mobile-note/${encounterId}`, {
         method: 'POST',
-        headers: {
-          'managingorg': user?.organization,
-          'practid': user?.email || '',
-        },
+        headers: this.getOrgHeaders(),
         body: {
           noteText: noteText,
         },
       });
-      console.log('[API] appendMobileNote success:', result);
+      if (__DEV__) {
+        console.log('[API] appendMobileNote success:', result);
+      }
       return result;
-    } catch (error: any) {
-      console.error('[API] appendMobileNote error:', error);
+    } catch (error: unknown) {
+      if (__DEV__) {
+        console.error('[API] appendMobileNote error:', error);
+      }
       throw error;
     }
   }
 
   async getEncounterClinicalRecords(encounterId: string, options: { page?: number; limit?: number; type?: string } = {}) {
-    const { user } = useAuthStore.getState();
     const params = new URLSearchParams({
       page: (options.page || 1).toString(),
       limit: (options.limit || 10).toString(),
@@ -503,10 +526,7 @@ class ApiService {
     });
 
     const response = await this.request(`/clinical/records/encounter/${encounterId}?${params}`, {
-      headers: {
-        'managingorg': user?.organization,
-        'practid': user?.email || '',
-      },
+      headers: this.getOrgHeaders(),
     });
 
     // console.log('[API] getEncounterClinicalRecords response:', JSON.stringify(response, null, 2));
@@ -525,75 +545,49 @@ class ApiService {
     });
 
     return this.request(`/medication/records/${patientCpf}?${params}`, {
-      headers: {
-        'managingorg': user?.organization,
-        'practid': user?.email || '',
-      },
+      headers: this.getOrgHeaders(),
     });
   }
 
   async getEncounterDiagnostics(encounterId: string) {
-    const { user } = useAuthStore.getState();
     return this.request(`/diagnostic/encounter/${encounterId}`, {
-      headers: {
-        'managingorg': user?.organization,
-        'practid': user?.email || '',
-      },
+      headers: this.getOrgHeaders(),
     });
   }
 
   async getEncounterImages(encounterId: string) {
-    const { user } = useAuthStore.getState();
     return this.request(`/images/encounter/${encounterId}`, {
-      headers: {
-        'managingorg': user?.organization,
-        'practid': user?.email || '',
-      },
+      headers: this.getOrgHeaders(),
     });
   }
 
   async getEncounterAttachments(encounterId: string) {
-    const { user } = useAuthStore.getState();
     return this.request(`/attach/getbyencounter/${encounterId}`, {
-      headers: {
-        'managingorg': user?.organization,
-        'practid': user?.email || '',
-      },
+      headers: this.getOrgHeaders(),
     });
   }
 
   async getClinicalRecordAttachments(clinicalId: string) {
-    const { user } = useAuthStore.getState();
-
     const response = await this.request(`/clinical/record/${clinicalId}/attachments`, {
-      headers: {
-        'managingorg': user?.organization,
-        'practid': user?.email || '',
-      },
+      headers: this.getOrgHeaders(),
     });
 
-    console.log('[API] getClinicalRecordAttachments response:', JSON.stringify(response, null, 2));
+    if (__DEV__) {
+      console.log('[API] getClinicalRecordAttachments response:', JSON.stringify(response, null, 2));
+    }
 
     return response;
   }
 
   async getEncounterServices(encounterId: string) {
-    const { user } = useAuthStore.getState();
     return this.request(`/encounter/getencounterservices/${encounterId}`, {
-      headers: {
-        'managingorg': user?.organization,
-        'practid': user?.email || '',
-      },
+      headers: this.getOrgHeaders(),
     });
   }
 
   async getEncounterFinancials(encounterId: string) {
-    const { user } = useAuthStore.getState();
     return this.request(`/encounter/getencounterfinancials/${encounterId}`, {
-      headers: {
-        'managingorg': user?.organization,
-        'practid': user?.email || '',
-      },
+      headers: this.getOrgHeaders(),
     });
   }
 
@@ -617,23 +611,31 @@ class ApiService {
       offset: (params.offset || 0).toString(),
     });
 
-    console.log('[API] getThreadMessages -> request', {
+    if (__DEV__) {
+      console.log('[API] getThreadMessages -> request', {
       threadId,
       params,
       query: queryParams.toString(),
-    });
+      });
+    }
 
     const response = await this.request(`/api/internal-comm/messages/thread/${threadId}?${queryParams}`);
 
-    console.log('[API] getThreadMessages <- response', response);
+    if (__DEV__) {
+      console.log('[API] getThreadMessages <- response', response);
+    }
 
     return response;
   }
 
   async getThreadParticipants(threadId: string): Promise<any> {
-    console.log('[API] getThreadParticipants -> request', { threadId });
+    if (__DEV__) {
+      console.log('[API] getThreadParticipants -> request', { threadId });
+    }
     const response = await this.request(`/api/internal-comm/messages/thread/${threadId}/participants`);
-    console.log('[API] getThreadParticipants <- response', response);
+    if (__DEV__) {
+      console.log('[API] getThreadParticipants <- response', response);
+    }
     return response;
   }
 
@@ -785,7 +787,7 @@ class ApiService {
       uri: filePath,
       type: fileType,
       name: fileName,
-    } as any);
+    } as unknown as Blob);
 
     // Add metadata fields to FormData body (matching web app format)
     formData.append('patient', patientCpf);
@@ -801,14 +803,16 @@ class ApiService {
       'Content-Type': 'multipart/form-data',
     };
 
-    console.log('[API] uploadAttachment called with:', {
+    if (__DEV__) {
+      console.log('[API] uploadAttachment called with:', {
       filePath,
       fileName,
       fileType,
       encounterId,
       patientCpf,
       practitionerId,
-    });
+      });
+    }
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -816,20 +820,28 @@ class ApiService {
       xhr.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable) {
           const percentComplete = (event.loaded / event.total) * 100;
-          console.log(`[API] Attachment upload progress: ${percentComplete.toFixed(1)}%`);
+          if (__DEV__) {
+            console.log(`[API] Attachment upload progress: ${percentComplete.toFixed(1)}%`);
+          }
         }
       });
 
       xhr.addEventListener('load', () => {
-        console.log('[API] Attachment upload response status:', xhr.status);
-        console.log('[API] Attachment upload response text:', xhr.responseText);
+        if (__DEV__) {
+          console.log('[API] Attachment upload response status:', xhr.status);
+        }
+        if (__DEV__) {
+          console.log('[API] Attachment upload response text:', xhr.responseText);
+        }
 
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             const response = JSON.parse(xhr.responseText);
             resolve(response);
           } catch (error) {
-            console.error('[API] Error parsing attachment response:', error);
+            if (__DEV__) {
+              console.error('[API] Error parsing attachment response:', error);
+            }
             reject(new Error('Invalid response format'));
           }
         } else {
@@ -838,12 +850,16 @@ class ApiService {
       });
 
       xhr.addEventListener('error', () => {
-        console.error('[API] Attachment upload network error');
+        if (__DEV__) {
+          console.error('[API] Attachment upload network error');
+        }
         reject(new Error('Network error during attachment upload'));
       });
 
       xhr.addEventListener('abort', () => {
-        console.log('[API] Attachment upload was aborted');
+        if (__DEV__) {
+          console.log('[API] Attachment upload was aborted');
+        }
         reject(new Error('Attachment upload was aborted'));
       });
 
@@ -898,7 +914,7 @@ class ApiService {
       uri: imagePath,
       type: 'image/jpeg',
       name: fileName,
-    } as any);
+    } as unknown as Blob);
 
     // Add metadata fields (matching web app format)
     // Generate hash from filename and size (if available, otherwise use timestamp as fallback)
@@ -914,13 +930,15 @@ class ApiService {
       'Content-Type': 'multipart/form-data',
     };
 
-    console.log('[API] uploadImage called with:', {
+    if (__DEV__) {
+      console.log('[API] uploadImage called with:', {
       imagePath,
       fileName,
       encounterId,
       patientCpf,
       practitionerId,
-    });
+      });
+    }
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -928,20 +946,28 @@ class ApiService {
       xhr.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable) {
           const percentComplete = (event.loaded / event.total) * 100;
-          console.log(`[API] Image upload progress: ${percentComplete.toFixed(1)}%`);
+          if (__DEV__) {
+            console.log(`[API] Image upload progress: ${percentComplete.toFixed(1)}%`);
+          }
         }
       });
       
       xhr.addEventListener('load', () => {
-        console.log('[API] Image upload response status:', xhr.status);
-        console.log('[API] Image upload response text:', xhr.responseText);
+        if (__DEV__) {
+          console.log('[API] Image upload response status:', xhr.status);
+        }
+        if (__DEV__) {
+          console.log('[API] Image upload response text:', xhr.responseText);
+        }
         
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             const response = JSON.parse(xhr.responseText);
             resolve(response);
           } catch (error) {
-            console.error('[API] Error parsing image response:', error);
+            if (__DEV__) {
+              console.error('[API] Error parsing image response:', error);
+            }
             reject(new Error('Invalid response format'));
           }
         } else {
@@ -950,12 +976,16 @@ class ApiService {
       });
       
       xhr.addEventListener('error', () => {
-        console.error('[API] Image upload network error');
+        if (__DEV__) {
+          console.error('[API] Image upload network error');
+        }
         reject(new Error('Network error during image upload'));
       });
       
       xhr.addEventListener('abort', () => {
-        console.log('[API] Image upload was aborted');
+        if (__DEV__) {
+          console.log('[API] Image upload was aborted');
+        }
         reject(new Error('Image upload was aborted'));
       });
       
@@ -987,21 +1017,27 @@ class ApiService {
   ): Promise<{ message: string; audioId: string }> {
     const { user, token } = useAuthStore.getState();
 
-    console.log('[API] === UPLOAD AUDIO RECORDING DEBUG START ===');
-    console.log('[API] Input parameters:', {
+    if (__DEV__) {
+      console.log('[API] === UPLOAD AUDIO RECORDING DEBUG START ===');
+    }
+    if (__DEV__) {
+      console.log('[API] Input parameters:', {
       audioPath,
       encounterId,
       patientCpf,
       practitionerId,
       sequence,
-    });
-    console.log('[API] Auth store state:', {
+      });
+    }
+    if (__DEV__) {
+      console.log('[API] Auth store state:', {
       hasToken: !!token,
       tokenLength: token?.length,
       userEmail: user?.email,
       userOrganization: user?.organization,
       userName: user?.name,
-    });
+      });
+    }
 
     const fileName = `recording_${Date.now()}.mp4`;
     const audioFile = {
@@ -1010,10 +1046,12 @@ class ApiService {
       name: fileName,
     };
 
-    console.log('[API] Audio file object:', audioFile);
+    if (__DEV__) {
+      console.log('[API] Audio file object:', audioFile);
+    }
 
     const formData = new FormData();
-    formData.append('audio', audioFile as any);
+    formData.append('audio', audioFile as unknown as Blob);
 
     const headers = {
       'Content-Type': 'multipart/form-data',
@@ -1027,11 +1065,15 @@ class ApiService {
       'organization': user?.organization,
     };
 
-    console.log('[API] Request headers (will be sent):', {
+    if (__DEV__) {
+      console.log('[API] Request headers (will be sent):', {
       ...headers,
       'Authorization': token ? `Bearer ${token.substring(0, 10)}...` : 'MISSING',
-    });
-    console.log('[API] Request URL:', `${API_BASE_URL}/audio/uploadAudio`);
+      });
+    }
+    if (__DEV__) {
+      console.log('[API] Request URL:', `${API_BASE_URL}/audio/uploadAudio`);
+    }
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -1039,39 +1081,71 @@ class ApiService {
       xhr.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable) {
           const percentComplete = (event.loaded / event.total) * 100;
-          console.log(`[API] Upload progress: ${percentComplete.toFixed(1)}%`);
+          if (__DEV__) {
+            console.log(`[API] Upload progress: ${percentComplete.toFixed(1)}%`);
+          }
         }
       });
 
       xhr.addEventListener('load', () => {
-        console.log('[API] === UPLOAD RESPONSE RECEIVED ===');
-        console.log('[API] Response status:', xhr.status);
-        console.log('[API] Response status text:', xhr.statusText);
-        console.log('[API] Response headers:', xhr.getAllResponseHeaders());
-        console.log('[API] Response body:', xhr.responseText);
+        if (__DEV__) {
+          console.log('[API] === UPLOAD RESPONSE RECEIVED ===');
+        }
+        if (__DEV__) {
+          console.log('[API] Response status:', xhr.status);
+        }
+        if (__DEV__) {
+          console.log('[API] Response status text:', xhr.statusText);
+        }
+        if (__DEV__) {
+          console.log('[API] Response headers:', xhr.getAllResponseHeaders());
+        }
+        if (__DEV__) {
+          console.log('[API] Response body:', xhr.responseText);
+        }
 
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             const response = JSON.parse(xhr.responseText);
-            console.log('[API] === UPLOAD SUCCESS ===');
-            console.log('[API] Parsed response:', response);
+            if (__DEV__) {
+              console.log('[API] === UPLOAD SUCCESS ===');
+            }
+            if (__DEV__) {
+              console.log('[API] Parsed response:', response);
+            }
             resolve(response);
           } catch (error) {
-            console.error('[API] === UPLOAD ERROR: Invalid Response ===');
-            console.error('[API] Error parsing response:', error);
-            console.error('[API] Raw response text:', xhr.responseText);
+            if (__DEV__) {
+              console.error('[API] === UPLOAD ERROR: Invalid Response ===');
+            }
+            if (__DEV__) {
+              console.error('[API] Error parsing response:', error);
+            }
+            if (__DEV__) {
+              console.error('[API] Raw response text:', xhr.responseText);
+            }
             reject(new Error('Invalid response format'));
           }
         } else {
-          console.error('[API] === UPLOAD ERROR: Bad Status ===');
-          console.error('[API] Status code:', xhr.status);
-          console.error('[API] Status text:', xhr.statusText);
-          console.error('[API] Error response body:', xhr.responseText);
+          if (__DEV__) {
+            console.error('[API] === UPLOAD ERROR: Bad Status ===');
+          }
+          if (__DEV__) {
+            console.error('[API] Status code:', xhr.status);
+          }
+          if (__DEV__) {
+            console.error('[API] Status text:', xhr.statusText);
+          }
+          if (__DEV__) {
+            console.error('[API] Error response body:', xhr.responseText);
+          }
 
           let errorMessage = `Upload failed with status: ${xhr.status}`;
           try {
             const errorData = JSON.parse(xhr.responseText);
-            console.error('[API] Parsed error data:', errorData);
+            if (__DEV__) {
+              console.error('[API] Parsed error data:', errorData);
+            }
             if (errorData.message) {
               errorMessage += ` - ${errorData.message}`;
             }
@@ -1079,7 +1153,9 @@ class ApiService {
               errorMessage += ` (${errorData.error})`;
             }
           } catch (e) {
-            console.error('[API] Could not parse error response as JSON');
+            if (__DEV__) {
+              console.error('[API] Could not parse error response as JSON');
+            }
           }
 
           reject(new Error(errorMessage));
@@ -1087,40 +1163,64 @@ class ApiService {
       });
 
       xhr.addEventListener('error', (event) => {
-        console.error('[API] === UPLOAD ERROR: Network Error ===');
-        console.error('[API] Network error event:', event);
-        console.error('[API] XHR status:', xhr.status);
-        console.error('[API] XHR ready state:', xhr.readyState);
+        if (__DEV__) {
+          console.error('[API] === UPLOAD ERROR: Network Error ===');
+        }
+        if (__DEV__) {
+          console.error('[API] Network error event:', event);
+        }
+        if (__DEV__) {
+          console.error('[API] XHR status:', xhr.status);
+        }
+        if (__DEV__) {
+          console.error('[API] XHR ready state:', xhr.readyState);
+        }
         reject(new Error('Network error during upload'));
       });
 
       xhr.addEventListener('abort', () => {
-        console.warn('[API] === UPLOAD ABORTED ===');
+        if (__DEV__) {
+          console.warn('[API] === UPLOAD ABORTED ===');
+        }
         reject(new Error('Upload was aborted'));
       });
 
       xhr.open('POST', `${API_BASE_URL}/audio/uploadAudio`);
-      console.log('[API] XHR opened, setting headers...');
+      if (__DEV__) {
+        console.log('[API] XHR opened, setting headers...');
+      }
 
       // Add auth headers
       if (token) {
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        console.log('[API] Authorization header set (Bearer token)');
+        if (__DEV__) {
+          console.log('[API] Authorization header set (Bearer token)');
+        }
       } else {
-        console.warn('[API] WARNING: No auth token available!');
+        if (__DEV__) {
+          console.warn('[API] WARNING: No auth token available!');
+        }
       }
 
       // Add additional headers
-      console.log('[API] Setting custom headers...');
+      if (__DEV__) {
+        console.log('[API] Setting custom headers...');
+      }
       Object.entries(headers).forEach(([key, value]) => {
-        if (key !== 'Content-Type') { // Let browser set Content-Type for FormData
+        if (key !== 'Content-Type' && typeof value === 'string') { // Let browser set Content-Type for FormData
           xhr.setRequestHeader(key, value);
-          console.log(`[API] Header set: ${key} = ${value}`);
+          if (__DEV__) {
+            console.log(`[API] Header set: ${key} = ${value}`);
+          }
         }
       });
 
-      console.log('[API] Sending FormData with audio file...');
-      console.log('[API] === UPLOAD REQUEST SENT ===');
+      if (__DEV__) {
+        console.log('[API] Sending FormData with audio file...');
+      }
+      if (__DEV__) {
+        console.log('[API] === UPLOAD REQUEST SENT ===');
+      }
       xhr.send(formData);
     });
   }
@@ -1143,7 +1243,9 @@ class ApiService {
   }): Promise<{ sessionId: string; status: string }> {
     const { user, token } = useAuthStore.getState();
 
-    console.log('[API] createChunkedSession called with:', options);
+    if (__DEV__) {
+      console.log('[API] createChunkedSession called with:', options);
+    }
 
     try {
       const result = await this.request('/chunked-audio/sessions', {
@@ -1155,7 +1257,7 @@ class ApiService {
           'sequence': options.sequence.toString(),
           'subentitytype': 'none',
           'entity': 'encounter',
-          'organization': user?.organization,
+          'organization': user?.organization || '',
         },
         body: {
           chunkExpected: options.chunkExpected,
@@ -1163,10 +1265,14 @@ class ApiService {
           fileName: options.fileName || `recording_${Date.now()}.mp4`,
         },
       });
-      console.log('[API] createChunkedSession success:', result);
+      if (__DEV__) {
+        console.log('[API] createChunkedSession success:', result);
+      }
       return result;
     } catch (error) {
-      console.error('[API] createChunkedSession error:', error);
+      if (__DEV__) {
+        console.error('[API] createChunkedSession error:', error);
+      }
       throw error;
     }
   }
@@ -1187,7 +1293,9 @@ class ApiService {
   ): Promise<{ success: boolean; message?: string }> {
     const { token } = useAuthStore.getState();
 
-    console.log('[API] uploadChunk called with:', { sessionId, chunkIndex });
+    if (__DEV__) {
+      console.log('[API] uploadChunk called with:', { sessionId, chunkIndex });
+    }
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -1202,14 +1310,18 @@ class ApiService {
       }
 
       xhr.addEventListener('load', () => {
-        console.log('[API] Chunk upload response status:', xhr.status);
+        if (__DEV__) {
+          console.log('[API] Chunk upload response status:', xhr.status);
+        }
 
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             const response = JSON.parse(xhr.responseText);
             resolve(response);
           } catch (error) {
-            console.error('[API] Error parsing chunk response:', error);
+            if (__DEV__) {
+              console.error('[API] Error parsing chunk response:', error);
+            }
             reject(new Error('Invalid response format'));
           }
         } else {
@@ -1218,12 +1330,16 @@ class ApiService {
       });
 
       xhr.addEventListener('error', () => {
-        console.error('[API] Chunk upload network error');
+        if (__DEV__) {
+          console.error('[API] Chunk upload network error');
+        }
         reject(new Error('Network error during chunk upload'));
       });
 
       xhr.addEventListener('abort', () => {
-        console.log('[API] Chunk upload was aborted');
+        if (__DEV__) {
+          console.log('[API] Chunk upload was aborted');
+        }
         reject(new Error('Chunk upload was aborted'));
       });
 
@@ -1254,16 +1370,22 @@ class ApiService {
   }> {
     const { token } = useAuthStore.getState();
 
-    console.log('[API] completeChunkedSession called with:', sessionId);
+    if (__DEV__) {
+      console.log('[API] completeChunkedSession called with:', sessionId);
+    }
 
     try {
       const result = await this.request(`/chunked-audio/sessions/${sessionId}/complete`, {
         method: 'POST',
       });
-      console.log('[API] completeChunkedSession success:', result);
+      if (__DEV__) {
+        console.log('[API] completeChunkedSession success:', result);
+      }
       return result;
     } catch (error) {
-      console.error('[API] completeChunkedSession error:', error);
+      if (__DEV__) {
+        console.error('[API] completeChunkedSession error:', error);
+      }
       throw error;
     }
   }
@@ -1273,16 +1395,22 @@ class ApiService {
    * @param sessionId The session ID
    */
   async cancelChunkedSession(sessionId: string): Promise<{ success: boolean }> {
-    console.log('[API] cancelChunkedSession called with:', sessionId);
+    if (__DEV__) {
+      console.log('[API] cancelChunkedSession called with:', sessionId);
+    }
 
     try {
       const result = await this.request(`/chunked-audio/sessions/${sessionId}/cancel`, {
         method: 'POST',
       });
-      console.log('[API] cancelChunkedSession success:', result);
+      if (__DEV__) {
+        console.log('[API] cancelChunkedSession success:', result);
+      }
       return result;
     } catch (error) {
-      console.error('[API] cancelChunkedSession error:', error);
+      if (__DEV__) {
+        console.error('[API] cancelChunkedSession error:', error);
+      }
       throw error;
     }
   }
@@ -1298,89 +1426,97 @@ class ApiService {
     chunkExpected: number;
     sessionId: string;
   }> {
-    console.log('[API] getSessionStatus called with:', sessionId);
+    if (__DEV__) {
+      console.log('[API] getSessionStatus called with:', sessionId);
+    }
 
     try {
       const result = await this.request(`/chunked-audio/sessions/${sessionId}/status`);
-      console.log('[API] getSessionStatus success:', result);
+      if (__DEV__) {
+        console.log('[API] getSessionStatus success:', result);
+      }
       return result;
     } catch (error) {
-      console.error('[API] getSessionStatus error:', error);
+      if (__DEV__) {
+        console.error('[API] getSessionStatus error:', error);
+      }
       throw error;
     }
   }
 
   // Get offerings (services/procedures) for appointment creation
   async getOfferings(offeringType: string = 'SERVICE', isActive: boolean = true) {
-    const { user } = useAuthStore.getState();
     const params = new URLSearchParams({
       offering_type: offeringType,
       is_active: isActive.toString(),
     });
 
-    console.log('[API] getOfferings called with:', { offeringType, isActive });
-    
+    if (__DEV__) {
+      console.log('[API] getOfferings called with:', { offeringType, isActive });
+    }
+
     try {
       const result = await this.request(`/offerings?${params}`, {
-        headers: {
-          'managingorg': user?.organization,
-          'practid': user?.email || '',
-        }
+        headers: this.getOrgHeaders()
       });
-      console.log('[API] getOfferings success:', result);
+      if (__DEV__) {
+        console.log('[API] getOfferings success:', result);
+      }
       // The offerings endpoint returns the array directly, unlike other endpoints
       return Array.isArray(result) ? result : [];
     } catch (error) {
-      console.error('[API] getOfferings error:', error);
+      if (__DEV__) {
+        console.error('[API] getOfferings error:', error);
+      }
       throw error;
     }
   }
 
   // Get patient care plans for appointment creation
   async getPatientCarePlans(patientCpf: string, practitionerId: string) {
-    const { user } = useAuthStore.getState();
+    if (__DEV__) {
+      console.log('[API] getPatientCarePlans called with:', { patientCpf, practitionerId });
+    }
 
-    console.log('[API] getPatientCarePlans called with:', { patientCpf, practitionerId });
-    
     try {
       const result = await this.request(`/careplan/patient/${encodeURIComponent(patientCpf)}/careplans?practitionerId=${encodeURIComponent(practitionerId)}`, {
-        headers: {
-          'managingorg': user?.organization,
-          'practid': user?.email || '',
-        }
+        headers: this.getOrgHeaders()
       });
-      console.log('[API] getPatientCarePlans success:', result);
+      if (__DEV__) {
+        console.log('[API] getPatientCarePlans success:', result);
+      }
       return result;
     } catch (error) {
-      console.error('[API] getPatientCarePlans error:', error);
+      if (__DEV__) {
+        console.error('[API] getPatientCarePlans error:', error);
+      }
       throw error;
     }
   }
 
   // Get practitioner locations for appointment creation
   async getPractitionerLocations(practitionerEmail: string) {
-    const { user } = useAuthStore.getState();
+    if (__DEV__) {
+      console.log('[API] getPractitionerLocations called with:', { practitionerEmail });
+    }
 
-    console.log('[API] getPractitionerLocations called with:', { practitionerEmail });
-    
     try {
       const result = await this.request(`/location/getpractlocationsbyemail/${encodeURIComponent(practitionerEmail)}/?status=active`, {
-        headers: {
-          'managingorg': user?.organization,
-          'practid': user?.email || '',
-        }
+        headers: this.getOrgHeaders()
       });
-      console.log('[API] getPractitionerLocations success:', result);
+      if (__DEV__) {
+        console.log('[API] getPractitionerLocations success:', result);
+      }
       return result;
     } catch (error) {
-      console.error('[API] getPractitionerLocations error:', error);
+      if (__DEV__) {
+        console.error('[API] getPractitionerLocations error:', error);
+      }
       throw error;
     }
   }
 
   async getLocationById(locationId: string, practitionerEmail?: string) {
-    const { user } = useAuthStore.getState();
-
     if (!locationId) {
       throw new Error('Location ID is required');
     }
@@ -1394,26 +1530,28 @@ class ApiService {
       params.toString() ? `?${params.toString()}` : ''
     }`;
 
-    console.log('[API] getLocationById called with:', { locationId, practitionerEmail });
+    if (__DEV__) {
+      console.log('[API] getLocationById called with:', { locationId, practitionerEmail });
+    }
 
     try {
       const result = await this.request(url, {
-        headers: {
-          'managingorg': user?.organization,
-          'practid': user?.email || '',
-        },
+        headers: this.getOrgHeaders(),
       });
-      console.log('[API] getLocationById success:', result);
+      if (__DEV__) {
+        console.log('[API] getLocationById success:', result);
+      }
       return result;
     } catch (error) {
-      console.error('[API] getLocationById error:', error);
+      if (__DEV__) {
+        console.error('[API] getLocationById error:', error);
+      }
       throw error;
     }
   }
 
   // Get available dates for appointment scheduling
   async getAvailableDates(practitionerId: string, locationId: string, year: number, month: number, duration: number = 60) {
-    const { user } = useAuthStore.getState();
     const params = new URLSearchParams({
       practitionerId,
       locationId,
@@ -1422,26 +1560,28 @@ class ApiService {
       duration: duration.toString(),
     });
 
-    console.log('[API] getAvailableDates called with:', { practitionerId, locationId, year, month, duration });
-    
+    if (__DEV__) {
+      console.log('[API] getAvailableDates called with:', { practitionerId, locationId, year, month, duration });
+    }
+
     try {
       const result = await this.request(`/appointment/available-dates?${params}`, {
-        headers: {
-          'managingorg': user?.organization,
-          'practid': user?.email || '',
-        }
+        headers: this.getOrgHeaders()
       });
-      console.log('[API] getAvailableDates success:', result);
+      if (__DEV__) {
+        console.log('[API] getAvailableDates success:', result);
+      }
       return result;
     } catch (error) {
-      console.error('[API] getAvailableDates error:', error);
+      if (__DEV__) {
+        console.error('[API] getAvailableDates error:', error);
+      }
       throw error;
     }
   }
 
   // Get available times for a specific date
   async getAvailableTimes(practitionerId: string, locationId: string, date: string, duration: number = 60) {
-    const { user } = useAuthStore.getState();
     const params = new URLSearchParams({
       practitionerId,
       locationId,
@@ -1449,127 +1589,140 @@ class ApiService {
       duration: duration.toString(),
     });
 
-    console.log('[API] getAvailableTimes called with:', { practitionerId, locationId, date, duration });
-    
+    if (__DEV__) {
+      console.log('[API] getAvailableTimes called with:', { practitionerId, locationId, date, duration });
+    }
+
     try {
       const result = await this.request(`/appointment/available-times?${params}`, {
-        headers: {
-          'managingorg': user?.organization,
-          'practid': user?.email || '',
-        }
+        headers: this.getOrgHeaders()
       });
-      console.log('[API] getAvailableTimes success:', result);
+      if (__DEV__) {
+        console.log('[API] getAvailableTimes success:', result);
+      }
       return result;
     } catch (error) {
-      console.error('[API] getAvailableTimes error:', error);
+      if (__DEV__) {
+        console.error('[API] getAvailableTimes error:', error);
+      }
       throw error;
     }
   }
 
   // Get next five available slots
   async getNextFiveSlots(practitionerId: string, locationId: string, duration: number = 60) {
-    const { user } = useAuthStore.getState();
     const params = new URLSearchParams({
       practitionerId,
       locationId,
       duration: duration.toString(),
     });
 
-    console.log('[API] getNextFiveSlots called with:', { practitionerId, locationId, duration });
-    
+    if (__DEV__) {
+      console.log('[API] getNextFiveSlots called with:', { practitionerId, locationId, duration });
+    }
+
     try {
       const result = await this.request(`/appointment/next-five-slots?${params}`, {
-        headers: {
-          'managingorg': user?.organization,
-          'practid': user?.email || '',
-        }
+        headers: this.getOrgHeaders()
       });
-      console.log('[API] getNextFiveSlots success:', result);
+      if (__DEV__) {
+        console.log('[API] getNextFiveSlots success:', result);
+      }
       return result;
     } catch (error) {
-      console.error('[API] getNextFiveSlots error:', error);
+      if (__DEV__) {
+        console.error('[API] getNextFiveSlots error:', error);
+      }
       throw error;
     }
   }
 
   // Get practitioner appointments to check for conflicts
   async getPractitionerAppointments(practId: string, options: { page?: number; limit?: number; future?: string } = {}) {
-    const { user } = useAuthStore.getState();
     const params = new URLSearchParams({
       page: (options.page || 1).toString(),
       limit: (options.limit || 100).toString(), // Get more appointments to check conflicts
       ...(options.future && { future: options.future })
     });
 
-    console.log('[API] getPractitionerAppointments called with:', { practId, options });
-    
+    if (__DEV__) {
+      console.log('[API] getPractitionerAppointments called with:', { practId, options });
+    }
+
     try {
       const result = await this.request(`/appointment/getappointments/${practId}?${params}`, {
-        headers: {
-          'managingorg': user?.organization,
-          'practid': user?.email || '',
-        }
+        headers: this.getOrgHeaders()
       });
-      console.log('[API] getPractitionerAppointments success:', result);
+      if (__DEV__) {
+        console.log('[API] getPractitionerAppointments success:', result);
+      }
       return result;
     } catch (error) {
-      console.error('[API] getPractitionerAppointments error:', error);
+      if (__DEV__) {
+        console.error('[API] getPractitionerAppointments error:', error);
+      }
       throw error;
     }
   }
 
   // Create appointment
-  async createAppointment(appointmentData: any) {
-    const { user } = useAuthStore.getState();
-    console.log('[API] createAppointment called with:', appointmentData);
-    console.log('[API] User context:', { email: user?.email, org: user?.organization });
-    console.log('[API] Request headers will be:', {
-      'managingorg': user?.organization,
-      'practid': user?.email || '',
-    });
-    
+  async createAppointment(appointmentData: Partial<AppointmentData> | Record<string, unknown>) {
+    if (__DEV__) {
+      console.log('[API] createAppointment called with:', appointmentData);
+    }
+
     try {
-      console.log('[API] About to make POST request to /appointment/create-appointment');
+      if (__DEV__) {
+        console.log('[API] About to make POST request to /appointment/create-appointment');
+      }
       const result = await this.request('/appointment/create-appointment', {
         method: 'POST',
-        headers: {
-          'managingorg': user?.organization,
-          'practid': user?.email || '',
-        },
+        headers: this.getOrgHeaders(),
         body: appointmentData
       });
-      console.log('[API] createAppointment success:', result);
+      if (__DEV__) {
+        console.log('[API] createAppointment success:', result);
+      }
       return result;
-    } catch (error) {
-      console.error('[API] createAppointment error:', error);
-      console.error('[API] Error details:', {
-        message: error.message,
-        stack: error.stack
-      });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      if (__DEV__) {
+        console.error('[API] createAppointment error:', errorMessage);
+      }
+      if (__DEV__) {
+        console.error('[API] Error details:', {
+        message: errorMessage,
+        stack: errorStack
+        });
+      }
       throw error;
     }
   }
 
   // Cancel appointment
   async cancelAppointment(appointmentId: string) {
-    const { user } = useAuthStore.getState();
-    console.log('[API] cancelAppointment called with:', appointmentId);
+    if (__DEV__) {
+      console.log('[API] cancelAppointment called with:', appointmentId);
+    }
 
     try {
       const result = await this.request(`/appointment/cancel/${appointmentId}`, {
         method: 'POST',
-        headers: {
-          'managingorg': user?.organization,
-          'practid': user?.email || '',
-        }
+        headers: this.getOrgHeaders()
       });
-      console.log('[API] cancelAppointment success:', result);
+      if (__DEV__) {
+        console.log('[API] cancelAppointment success:', result);
+      }
       return result;
-    } catch (error: any) {
-      console.error('[API] cancelAppointment error:', error);
+    } catch (error: unknown) {
+      if (__DEV__) {
+        console.error('[API] cancelAppointment error:', error);
+      }
       // Re-throw with more context for error handling
-      if (error.response) {
-        const status = error.response.status;
+      if (error && typeof error === 'object' && 'response' in error) {
+        const errorResponse = error as { response?: { status?: number } };
+        const status = errorResponse.response?.status;
         if (status === 404) {
           throw new Error('Agendamento não encontrado.');
         } else if (status === 403) {
@@ -1585,45 +1738,63 @@ class ApiService {
   // Step 6 API methods
   async getServiceCategories() {
     try {
-      console.log('[API] getServiceCategories called');
+      if (__DEV__) {
+        console.log('[API] getServiceCategories called');
+      }
       const result = await this.request('/pract/getservicecategory');
-      console.log('[API] getServiceCategories success:', result);
+      if (__DEV__) {
+        console.log('[API] getServiceCategories success:', result);
+      }
       return result;
     } catch (error) {
-      console.error('[API] getServiceCategories error:', error);
+      if (__DEV__) {
+        console.error('[API] getServiceCategories error:', error);
+      }
       throw error;
     }
   }
 
   async getPractServiceCategories(practId: string) {
     try {
-      console.log('[API] getPractServiceCategories called with practId:', practId);
+      if (__DEV__) {
+        console.log('[API] getPractServiceCategories called with practId:', practId);
+      }
       const result = await this.request(`/pract/getpractservicecategories/${practId}`);
-      console.log('[API] getPractServiceCategories success:', result);
+      if (__DEV__) {
+        console.log('[API] getPractServiceCategories success:', result);
+      }
       return result;
     } catch (error) {
-      console.error('[API] getPractServiceCategories error:', error);
+      if (__DEV__) {
+        console.error('[API] getPractServiceCategories error:', error);
+      }
       throw error;
     }
   }
 
   async getServiceTypes() {
     try {
-      console.log('[API] getServiceTypes called');
+      if (__DEV__) {
+        console.log('[API] getServiceTypes called');
+      }
       const result = await this.request('/pract/getservicetypes');
-      console.log('[API] getServiceTypes success:', result);
+      if (__DEV__) {
+        console.log('[API] getServiceTypes success:', result);
+      }
       return result;
     } catch (error) {
-      console.error('[API] getServiceTypes error:', error);
+      if (__DEV__) {
+        console.error('[API] getServiceTypes error:', error);
+      }
       throw error;
     }
   }
 
   async getServiceDescriptions(categoryId?: string | null, typeId?: string | null) {
-    const { user } = useAuthStore.getState();
-
     if (!categoryId && !typeId) {
-      console.log('[API] getServiceDescriptions skipped (no ids provided)');
+      if (__DEV__) {
+        console.log('[API] getServiceDescriptions skipped (no ids provided)');
+      }
       return { category: null, type: null };
     }
 
@@ -1637,43 +1808,58 @@ class ApiService {
 
     const url = `/pract/getservicedescriptions?${params.toString()}`;
 
-    console.log('[API] getServiceDescriptions called with:', { categoryId, typeId });
+    if (__DEV__) {
+      console.log('[API] getServiceDescriptions called with:', { categoryId, typeId });
+    }
 
     try {
       const result = await this.request(url, {
-        headers: {
-          'managingorg': user?.organization,
-          'practid': user?.email || '',
-        },
+        headers: this.getOrgHeaders(),
       });
-      console.log('[API] getServiceDescriptions success:', result);
+      if (__DEV__) {
+        console.log('[API] getServiceDescriptions success:', result);
+      }
       return result;
     } catch (error) {
-      console.error('[API] getServiceDescriptions error:', error);
+      if (__DEV__) {
+        console.error('[API] getServiceDescriptions error:', error);
+      }
       throw error;
     }
   }
 
   async getPractServiceTypes(practId: string) {
     try {
-      console.log('[API] getPractServiceTypes called with practId:', practId);
+      if (__DEV__) {
+        console.log('[API] getPractServiceTypes called with practId:', practId);
+      }
       const result = await this.request(`/pract/getpractservicetypes/${practId}`);
-      console.log('[API] getPractServiceTypes success:', result);
+      if (__DEV__) {
+        console.log('[API] getPractServiceTypes success:', result);
+      }
       return result;
     } catch (error) {
-      console.error('[API] getPractServiceTypes error:', error);
+      if (__DEV__) {
+        console.error('[API] getPractServiceTypes error:', error);
+      }
       throw error;
     }
   }
 
   async getAppointmentTypes(practId: string) {
     try {
-      console.log('[API] getAppointmentTypes called with practId:', practId);
+      if (__DEV__) {
+        console.log('[API] getAppointmentTypes called with practId:', practId);
+      }
       const result = await this.request(`/pract/config/${practId}`);
-      console.log('[API] getAppointmentTypes success:', result);
+      if (__DEV__) {
+        console.log('[API] getAppointmentTypes success:', result);
+      }
       return result;
     } catch (error) {
-      console.error('[API] getAppointmentTypes error:', error);
+      if (__DEV__) {
+        console.error('[API] getAppointmentTypes error:', error);
+      }
       throw error;
     }
   }
@@ -1685,14 +1871,20 @@ class ApiService {
     }
 
     try {
-      console.log('[API] getMyPractitionerProfile request email:', email);
+      if (__DEV__) {
+        console.log('[API] getMyPractitionerProfile request email:', email);
+      }
       const result = await this.request<PractitionerProfile>(
         `/pract/getmydata?email=${encodeURIComponent(email)}`
       );
-      console.log('[API] getMyPractitionerProfile response:', result);
+      if (__DEV__) {
+        console.log('[API] getMyPractitionerProfile response:', result);
+      }
       return result;
     } catch (error) {
-      console.error('[API] getMyPractitionerProfile error:', error);
+      if (__DEV__) {
+        console.error('[API] getMyPractitionerProfile error:', error);
+      }
       throw error;
     }
   }
@@ -1703,13 +1895,17 @@ class ApiService {
     }
 
     try {
-      console.log('[API] saveMyPractitionerProfile payload:', updatedFields);
+      if (__DEV__) {
+        console.log('[API] saveMyPractitionerProfile payload:', updatedFields);
+      }
       return await this.request('/pract/savemydata', {
         method: 'POST',
         body: { updatedFields },
       });
     } catch (error) {
-      console.error('[API] saveMyPractitionerProfile error:', error);
+      if (__DEV__) {
+        console.error('[API] saveMyPractitionerProfile error:', error);
+      }
       throw error;
     }
   }
@@ -1720,13 +1916,17 @@ class ApiService {
     }
 
     try {
-      console.log('[API] saveMyPractitionerPhoto email:', email, 'payloadLength:', dataURL.length);
+      if (__DEV__) {
+        console.log('[API] saveMyPractitionerPhoto email:', email, 'payloadLength:', dataURL.length);
+      }
       return await this.request('/pract/savemyphoto', {
         method: 'POST',
         body: { email, dataURL },
       });
     } catch (error) {
-      console.error('[API] saveMyPractitionerPhoto error:', error);
+      if (__DEV__) {
+        console.error('[API] saveMyPractitionerPhoto error:', error);
+      }
       throw error;
     }
   }
@@ -1759,10 +1959,10 @@ class ApiService {
    * @returns Form status data including progress, completion status, etc.
    */
   async getPreAppointmentFormStatus(appointmentId: string): Promise<PreAppointmentFormStatus | null> {
-    const { user } = useAuthStore.getState();
-
     try {
-      console.log('[API] getPreAppointmentFormStatus called for appointment:', appointmentId);
+      if (__DEV__) {
+        console.log('[API] getPreAppointmentFormStatus called for appointment:', appointmentId);
+      }
 
       // Query the API with appointmentId filter
       const query = new URLSearchParams({
@@ -1774,14 +1974,13 @@ class ApiService {
       const response = await this.request<PreAppointmentApiResponse>(
         `/api/forms/pre-appointment/manage?${query.toString()}`,
         {
-          headers: {
-            'managingorg': user?.organization,
-            'practid': user?.email || '',
-          },
+          headers: this.getOrgHeaders(),
         }
       );
 
-      console.log('[API] getPreAppointmentFormStatus response:', response);
+      if (__DEV__) {
+        console.log('[API] getPreAppointmentFormStatus response:', response);
+      }
 
       // Return the first result if available
       if (response.success && response.data && response.data.length > 0) {
@@ -1790,7 +1989,9 @@ class ApiService {
 
       return null;
     } catch (error) {
-      console.error('[API] getPreAppointmentFormStatus error:', error);
+      if (__DEV__) {
+        console.error('[API] getPreAppointmentFormStatus error:', error);
+      }
       // Return null instead of throwing - form might not exist for this appointment
       return null;
     }
@@ -1802,25 +2003,26 @@ class ApiService {
    * @returns Detailed form data with sections and answers
    */
   async getPreAppointmentFormDetails(trackingId: string): Promise<FormDetailApiResponse> {
-    const { user } = useAuthStore.getState();
-
     try {
-      console.log('[API] getPreAppointmentFormDetails called for tracking:', trackingId);
+      if (__DEV__) {
+        console.log('[API] getPreAppointmentFormDetails called for tracking:', trackingId);
+      }
 
       const response = await this.request<FormDetailApiResponse>(
         `/api/forms/pre-appointment/manage/${trackingId}`,
         {
-          headers: {
-            'managingorg': user?.organization,
-            'practid': user?.email || '',
-          },
+          headers: this.getOrgHeaders(),
         }
       );
 
-      console.log('[API] getPreAppointmentFormDetails response:', response);
+      if (__DEV__) {
+        console.log('[API] getPreAppointmentFormDetails response:', response);
+      }
       return response;
     } catch (error) {
-      console.error('[API] getPreAppointmentFormDetails error:', error);
+      if (__DEV__) {
+        console.error('[API] getPreAppointmentFormDetails error:', error);
+      }
       throw error;
     }
   }

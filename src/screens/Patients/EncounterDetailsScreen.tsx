@@ -16,8 +16,9 @@ import {
 import { RouteProp, useRoute, useNavigation, NavigationProp } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
-import { api } from '@services/api';
+import { api, API_BASE_URL } from '@services/api';
 import { PatientsStackParamList } from '@/types/navigation';
+import { CachedImage } from '@components/common';
 import {
   translateClinicalType,
   translateClinicalStatus,
@@ -113,22 +114,6 @@ const formatGenderLabel = (value?: string | null): string | null => {
   if (normalized.startsWith('f')) return 'Feminino';
   if (normalized.startsWith('m')) return 'Masculino';
   return value;
-};
-
-const normalizePhotoUri = (photo?: string | null): string | null => {
-  if (!photo || typeof photo !== 'string') {
-    return null;
-  }
-
-  if (photo.startsWith('data:') || photo.startsWith('http')) {
-    return photo;
-  }
-
-  if (photo.length > 100) {
-    return `data:image/jpeg;base64,${photo}`;
-  }
-
-  return photo;
 };
 
 const formatDateLabel = (dateString?: string | null): string | null => {
@@ -351,7 +336,6 @@ export const EncounterDetailsScreen: React.FC = () => {
   >('general');
   const [patientOverview, setPatientOverview] = useState<PatientOverview | null>(null);
   const [patientDetails, setPatientDetails] = useState<PatientDetails>(null);
-  const [patientPhotoUri, setPatientPhotoUri] = useState<string | null>(null);
   const [encounterInfo, setEncounterInfo] = useState<EncounterInfo>(null);
   const [encounterServices, setEncounterServices] = useState<EncounterServicesData | null>(null);
   const [encounterServicesError, setEncounterServicesError] = useState<string | null>(null);
@@ -479,28 +463,6 @@ export const EncounterDetailsScreen: React.FC = () => {
     } catch (error) {
       console.error('[EncounterDetails] Error loading patient details:', error);
       setPatientDetails(null);
-    }
-  };
-
-  const loadPatientPhoto = async () => {
-    if (!patientCpf) {
-      setPatientPhotoUri(null);
-      return;
-    }
-
-    try {
-      console.log('[EncounterDetails] Loading patient photo for CPF:', patientCpf);
-      const photo = await api.getPatientPhoto(patientCpf);
-      if (typeof photo === 'string') {
-        console.log('[EncounterDetails] Patient photo data URI length:', photo.length);
-        setPatientPhotoUri(photo);
-      } else {
-        console.log('[EncounterDetails] Patient photo unavailable');
-        setPatientPhotoUri(null);
-      }
-    } catch (error) {
-      console.error('[EncounterDetails] Error loading patient photo:', error);
-      setPatientPhotoUri(null);
     }
   };
 
@@ -645,7 +607,6 @@ export const EncounterDetailsScreen: React.FC = () => {
       loadEncounterDetails(),
       loadPatientOverview(),
       loadPatientDetails(),
-      loadPatientPhoto(),
       loadEncounterInfo(),
       loadEncounterServices(),
       loadEncounterFinancials(),
@@ -659,7 +620,6 @@ export const EncounterDetailsScreen: React.FC = () => {
       loadEncounterDetails(),
       loadPatientOverview(),
       loadPatientDetails(),
-      loadPatientPhoto(),
       loadEncounterInfo(),
       loadEncounterServices(),
       loadEncounterFinancials(),
@@ -717,7 +677,6 @@ export const EncounterDetailsScreen: React.FC = () => {
         if (genderLabel) metaParts.push(genderLabel);
         if (typeof age === 'number') metaParts.push(`${age} ${age === 1 ? 'ano' : 'anos'}`);
         const metaLine = metaParts.join(' • ');
-        const photoUri = patientPhotoUri || normalizePhotoUri(details.photo || details.patientPhoto);
         const appointmentStatusLabel = formatStatusLabel(encounterServices?.appointmentStatus);
 
         return (
@@ -726,10 +685,14 @@ export const EncounterDetailsScreen: React.FC = () => {
             <View style={styles.generalGrid}>
               <View style={[styles.generalCard, styles.patientCard]}>
                 <View style={styles.patientCardHeader}>
-                  {photoUri ? (
-                    <Image source={{ uri: photoUri }} style={styles.patientAvatar} resizeMode="cover" />
-                  ) : null}
-                  <View style={[styles.patientInfo, !photoUri && styles.patientInfoStandalone]}>
+                  <CachedImage
+                    uri={patientCpf ? `${API_BASE_URL}/patient/getpatientphoto?patientCpf=${patientCpf}` : undefined}
+                    style={styles.patientAvatar}
+                    fallbackIcon="user"
+                    fallbackIconSize={30}
+                    fallbackIconColor={theme.colors.white}
+                  />
+                  <View style={styles.patientInfo}>
                     {name ? <Text style={styles.patientNameText}>{name}</Text> : null}
                     {metaLine ? <Text style={styles.patientMeta}>{metaLine}</Text> : null}
                   </View>

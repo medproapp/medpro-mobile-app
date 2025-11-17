@@ -1,4 +1,5 @@
 import { useAuthStore } from '../store/authStore';
+import { API_BASE_URL } from '@config/environment';
 import {
   AssistantMessage,
   AssistantResponse,
@@ -14,8 +15,6 @@ import {
   ACTION_TYPES,
   ACTION_STYLES,
 } from '../types/assistant';
-
-const API_BASE_URL = 'http://192.168.2.30:3333';
 
 type RequestOptions = Omit<RequestInit, 'body'> & { body?: unknown };
 
@@ -260,11 +259,12 @@ class AssistantApiService {
         confidence: result.confidence || 0,
         duration: result.duration || 0,
       };
-    } catch (error) {
-      console.error('[AssistantAPI] Transcription error:', error);
-      
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[AssistantAPI] Transcription error:', errorMessage);
+
       // Re-throw the error instead of using fallback
-      throw new Error(`Audio transcription failed: ${error.message}`);
+      throw new Error(`Audio transcription failed: ${errorMessage}`);
     }
   }
 
