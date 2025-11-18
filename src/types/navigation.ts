@@ -66,6 +66,9 @@ export type PatientsStackParamList = {
   PatientProfile: { patientId: string };
   PatientDashboard: { patientCpf: string; patientName: string };
   PatientHistory: { patientCpf: string; patientName: string };
+  ClinicalRecords: { patientCpf: string; patientName: string };
+  Prescriptions: { patientCpf: string; patientName: string };
+  Diagnostics: { patientCpf: string; patientName: string };
   EncounterDetails: { encounterId: string; patientName: string; patientCpf: string };
   ClinicalRecordDetails: {
     encounterId: string;

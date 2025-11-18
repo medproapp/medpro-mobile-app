@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -87,6 +87,13 @@ export const PatientDashboardScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeSection, setActiveSection] = useState<'overview' | 'history' | 'medical' | 'contact'>('overview');
+  const [clinicalRecordsCount, setClinicalRecordsCount] = useState<number | null>(null);
+  const [prescriptionsCount, setPrescriptionsCount] = useState<number | null>(null);
+  const [diagnosticsCount, setDiagnosticsCount] = useState<number | null>(null);
+
+  // Request deduplication - prevent concurrent loadData calls
+  const loadingRef = useRef(false);
+  const mountedRef = useRef(true);
 
   const renderMarkdownContent = (value: string | undefined | null, fallback: string) => {
     const trimmedValue = value?.trim();
@@ -129,6 +136,7 @@ export const PatientDashboardScreen: React.FC = () => {
         summary: patientPayload.summary,
         lastPrescriptions: patientPayload.lastprescriptions || patientPayload.lastPrescriptions,
         conditionDiagnostics: patientPayload.condanddiag || patientPayload.conditionDiagnostics,
+        lastAppointment: patientPayload.lastAppointment || patientPayload.lastAppointmentDate || patientPayload.lastencounterdate || patientPayload.lastEncounterDate,
         // Photos will be loaded automatically by CachedImage with caching
         // Just use the address as it comes from API
         address: patientPayload.address ? {
@@ -151,10 +159,10 @@ export const PatientDashboardScreen: React.FC = () => {
       console.log('[PatientDashboard] Loading appointments for CPF:', patientCpf);
       const appointmentsData = await api.getPatientAppointments(patientCpf);
       console.log('[PatientDashboard] Appointments data received:', JSON.stringify(appointmentsData, null, 2));
-      
+
       // The API returns appointments directly as an array, not wrapped in .appointments
       const rawAppointments = Array.isArray(appointmentsData) ? appointmentsData : appointmentsData.appointments || [];
-      
+
       // Map API appointment fields to component expected fields
       const appointments = rawAppointments.map((apt: any) => ({
         id: apt.identifier?.toString() || apt.id,
@@ -165,7 +173,7 @@ export const PatientDashboardScreen: React.FC = () => {
         location: apt.location,
         notes: apt.note || apt.notes,
       }));
-      
+
       console.log('[PatientDashboard] Processed appointments:', appointments);
       setAppointments(appointments);
     } catch (error) {
@@ -173,26 +181,108 @@ export const PatientDashboardScreen: React.FC = () => {
     }
   };
 
+  const loadClinicalRecordsCount = async () => {
+    try {
+      const response = await api.getPatientClinicalRecords(patientCpf, { page: 1, limit: 1 });
+      const count = response?.total || 0;
+      if (mountedRef.current) {
+        setClinicalRecordsCount(count);
+      }
+    } catch (error) {
+      console.error('[PatientDashboard] Error loading clinical records count:', error);
+      if (mountedRef.current) {
+        setClinicalRecordsCount(null); // null indicates error/unavailable
+      }
+    }
+  };
+
+  const loadPrescriptionsCount = async () => {
+    try {
+      const response = await api.getPatientMedicationRecords(patientCpf, { page: 1, limit: 1 });
+      const count = response?.total || 0;
+      if (mountedRef.current) {
+        setPrescriptionsCount(count);
+      }
+    } catch (error) {
+      console.error('[PatientDashboard] Error loading prescriptions count:', error);
+      if (mountedRef.current) {
+        setPrescriptionsCount(null);
+      }
+    }
+  };
+
+  const loadDiagnosticsCount = async () => {
+    try {
+      const response = await api.getPatientDiagnosticRecords(patientCpf, { page: 1, limit: 1 });
+      const count = response?.total || 0;
+      if (mountedRef.current) {
+        setDiagnosticsCount(count);
+      }
+    } catch (error) {
+      console.error('[PatientDashboard] Error loading diagnostics count:', error);
+      if (mountedRef.current) {
+        setDiagnosticsCount(null);
+      }
+    }
+  };
+
   const loadData = async () => {
-    console.log('[PatientDashboard] Starting to load data...');
-    setLoading(true);
-    await Promise.all([
-      loadPatientData(),
-      loadPatientAppointments(),
-    ]);
-    console.log('[PatientDashboard] Data loading completed');
-    setLoading(false);
+    // Prevent concurrent load requests
+    if (loadingRef.current) {
+      console.log('[PatientDashboard] Already loading, skipping duplicate request');
+      return;
+    }
+
+    try {
+      loadingRef.current = true;
+      setLoading(true);
+
+      // Use Promise.allSettled to handle errors independently
+      // This prevents one failed API from blocking others
+      const results = await Promise.allSettled([
+        loadPatientData(),
+        loadPatientAppointments(),
+        loadClinicalRecordsCount(),
+        loadPrescriptionsCount(),
+        loadDiagnosticsCount(),
+      ]);
+
+      // Log any failures (for debugging)
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const names = ['PatientData', 'Appointments', 'ClinicalRecords', 'Prescriptions', 'Diagnostics'];
+          console.warn(`[PatientDashboard] ${names[index]} failed:`, result.reason);
+        }
+      });
+    } catch (error) {
+      console.error('[PatientDashboard] Unexpected error in loadData:', error);
+    } finally {
+      if (mountedRef.current) {
+        setLoading(false);
+      }
+      loadingRef.current = false;
+    }
   };
 
   const onRefresh = async () => {
+    // Don't allow refresh while already loading
+    if (loadingRef.current) {
+      return;
+    }
+
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
   };
 
   useEffect(() => {
-    console.log('[PatientDashboard] Component mounted with patientCpf:', patientCpf, 'patientName:', patientName);
+    mountedRef.current = true;
     loadData();
+
+    // Cleanup on unmount
+    return () => {
+      mountedRef.current = false;
+    };
   }, [patientCpf]);
 
   const calculateAge = (birthDate?: string): number => {
@@ -300,38 +390,88 @@ export const PatientDashboardScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Row with three medical info cards */}
-        <View style={styles.medicalInfoRow}>
-          <View style={styles.smallCard}>
+        {/* Horizontal scrollable row with all cards */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.medicalInfoScrollContainer}
+          style={styles.medicalInfoScrollWrapper}
+        >
+          {/* Clinical Records Card */}
+          <TouchableOpacity
+            style={styles.smallCard}
+            onPress={() => navigation.navigate('ClinicalRecords', { patientCpf, patientName })}
+          >
             <View style={styles.smallCardIconContainer}>
-              <FontAwesome name="heartbeat" size={10} color={theme.colors.error} />
+              <FontAwesome name="file-text-o" size={10} color={theme.colors.primary} />
             </View>
-            <Text style={styles.smallCardTitle}>Condições</Text>
+            <Text style={styles.smallCardTitle}>Clínico</Text>
             <Text style={styles.smallCardValue}>
-              {patient.conditions?.length || 0}
+              {clinicalRecordsCount === null ? '-' : clinicalRecordsCount}
             </Text>
-          </View>
+          </TouchableOpacity>
 
-          <View style={styles.smallCard}>
+          {/* Prescriptions Card */}
+          <TouchableOpacity
+            style={styles.smallCard}
+            onPress={() => navigation.navigate('Prescriptions', { patientCpf, patientName })}
+          >
             <View style={styles.smallCardIconContainer}>
-              <FontAwesome name="exclamation-triangle" size={10} color={theme.colors.warning} />
+              <FontAwesome name="file-text" size={10} color={theme.colors.success} />
             </View>
-            <Text style={styles.smallCardTitle}>Alergias</Text>
+            <Text style={styles.smallCardTitle}>Prescrições</Text>
             <Text style={styles.smallCardValue}>
-              {patient.allergies?.length || 0}
+              {prescriptionsCount === null ? '-' : prescriptionsCount}
             </Text>
-          </View>
+          </TouchableOpacity>
 
-          <View style={styles.smallCard}>
+          {/* Diagnostics Card */}
+          <TouchableOpacity
+            style={styles.smallCard}
+            onPress={() => navigation.navigate('Diagnostics', { patientCpf, patientName })}
+          >
             <View style={styles.smallCardIconContainer}>
-              <FontAwesome name="tint" size={10} color={theme.colors.primary} />
+              <FontAwesome name="stethoscope" size={10} color={theme.colors.error} />
             </View>
-            <Text style={styles.smallCardTitle}>Tipo Sanguíneo</Text>
+            <Text style={styles.smallCardTitle}>Diagnósticos</Text>
             <Text style={styles.smallCardValue}>
-              {patient.bloodType || '-'}
+              {diagnosticsCount === null ? '-' : diagnosticsCount}
             </Text>
-          </View>
-        </View>
+          </TouchableOpacity>
+
+          {/* Images Card */}
+          <TouchableOpacity style={styles.smallCard}>
+            <View style={styles.smallCardIconContainer}>
+              <FontAwesome name="image" size={10} color={theme.colors.info} />
+            </View>
+            <Text style={styles.smallCardTitle}>Imagens</Text>
+            <Text style={styles.smallCardValue}>
+              0
+            </Text>
+          </TouchableOpacity>
+
+          {/* Attachments Card */}
+          <TouchableOpacity style={styles.smallCard}>
+            <View style={styles.smallCardIconContainer}>
+              <FontAwesome name="paperclip" size={10} color={theme.colors.warning} />
+            </View>
+            <Text style={styles.smallCardTitle}>Anexos</Text>
+            <Text style={styles.smallCardValue}>
+              0
+            </Text>
+          </TouchableOpacity>
+
+          {/* Recordings Card */}
+          <TouchableOpacity style={styles.smallCard}>
+            <View style={styles.smallCardIconContainer}>
+              <FontAwesome name="microphone" size={10} color={theme.colors.error} />
+            </View>
+            <Text style={styles.smallCardTitle}>Gravações</Text>
+            <Text style={styles.smallCardValue}>
+              0
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
 
       {/* Section Tabs */}
@@ -717,18 +857,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.colors.text,
   },
-  medicalInfoRow: {
-    flexDirection: 'row',
+  medicalInfoScrollWrapper: {
+    marginBottom: 0,
+  },
+  medicalInfoScrollContainer: {
+    paddingHorizontal: 16,
     gap: 6,
   },
   smallCard: {
-    flex: 1,
+    width: 90,
     backgroundColor: theme.colors.surface,
-    padding: 6,
-    borderRadius: 6,
+    padding: 8,
+    borderRadius: 8,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: theme.colors.border,
+    marginRight: 6,
   },
   smallCardIconContainer: {
     width: 18,

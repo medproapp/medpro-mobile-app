@@ -534,6 +534,100 @@ class ApiService {
     return response;
   }
 
+  async getPatientClinicalRecords(patientCpf: string, options: { page?: number; limit?: number; type?: string; category?: string; pract?: string; encounter?: string } = {}) {
+    const params = new URLSearchParams({
+      page: (options.page || 1).toString(),
+      limit: (options.limit || 10).toString(),
+      ...(options.type && { type: options.type }),
+      ...(options.category && { category: options.category }),
+      ...(options.pract && { pract: options.pract }),
+      ...(options.encounter && { encounter: options.encounter })
+    });
+
+    if (__DEV__) {
+      console.log('[API] getPatientClinicalRecords called with CPF:', patientCpf, 'options:', options);
+    }
+
+    try {
+      const response = await this.request(`/clinical/records/${patientCpf}?${params}`, {
+        headers: this.getOrgHeaders(),
+      });
+
+      if (__DEV__) {
+        console.log('[API] getPatientClinicalRecords response:', JSON.stringify(response, null, 2));
+      }
+
+      return response;
+    } catch (error) {
+      if (__DEV__) {
+        console.error('[API] getPatientClinicalRecords error:', error);
+      }
+      throw error;
+    }
+  }
+
+  async getPatientMedicationRecords(patientCpf: string, options: { page?: number; limit?: number; type?: string; pract?: string; encounter?: string } = {}) {
+    const params = new URLSearchParams({
+      page: (options.page || 1).toString(),
+      limit: (options.limit || 10).toString(),
+      ...(options.type && { type: options.type }),
+      ...(options.pract && { pract: options.pract }),
+      ...(options.encounter && { encounter: options.encounter })
+    });
+
+    if (__DEV__) {
+      console.log('[API] getPatientMedicationRecords called with CPF:', patientCpf, 'options:', options);
+    }
+
+    try {
+      const response = await this.request(`/medication/records/${patientCpf}?${params}`, {
+        headers: this.getOrgHeaders(),
+      });
+
+      if (__DEV__) {
+        console.log('[API] getPatientMedicationRecords response:', JSON.stringify(response, null, 2));
+      }
+
+      return response;
+    } catch (error) {
+      if (__DEV__) {
+        console.error('[API] getPatientMedicationRecords error:', error);
+      }
+      throw error;
+    }
+  }
+
+  async getPatientDiagnosticRecords(patientCpf: string, options: { page?: number; limit?: number; type?: string; category?: string; code?: string } = {}) {
+    const params = new URLSearchParams({
+      page: (options.page || 1).toString(),
+      limit: (options.limit || 10).toString(),
+      ...(options.type && { type: options.type }),
+      ...(options.category && { category: options.category }),
+      ...(options.code && { code: options.code })
+    });
+
+    if (__DEV__) {
+      console.log('[API] getPatientDiagnosticRecords called with CPF:', patientCpf, 'options:', options);
+    }
+
+    try {
+      const response = await this.request(`/diagnostic/records/${patientCpf}?${params}`, {
+        headers: this.getOrgHeaders(),
+      });
+
+      if (__DEV__) {
+        console.log('[API] getPatientDiagnosticRecords response:', JSON.stringify(response, null, 2));
+      }
+
+      return response;
+    } catch (error) {
+      if (__DEV__) {
+        console.error('[API] getPatientDiagnosticRecords error:', error);
+      }
+      throw error;
+    }
+  }
+
   async getEncounterMedications(patientCpf: string, encounterId: string, options: { page?: number; limit?: number; type?: string } = {}) {
     const { user } = useAuthStore.getState();
     const params = new URLSearchParams({
