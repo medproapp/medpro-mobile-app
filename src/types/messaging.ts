@@ -80,6 +80,7 @@ export interface NewMessageData {
 
 export interface MessageStats {
   unread_count: number;
+  unread_messages?: number; // Backwards compatibility - backend may return this
   total_threads: number;
   shared_records_count: number;
   last_activity: string;
@@ -140,7 +141,7 @@ export interface MessagingState {
   clearSelectedContacts: () => void;
   refresh: () => Promise<void>;
   clearError: () => void;
-  handleRealtimeUpdate: (type: string, data: any) => void;
+  handleRealtimeUpdate: (type: string, data: Record<string, unknown>) => void;
   updateBadgeCount: (count: number) => void;
 }
 

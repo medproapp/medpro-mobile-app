@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { secureStorage } from '../utils/secureStorage';
 import { onboardingService } from '@services/onboardingService';
 import { useAuthStore } from '@store/authStore';
 import {
@@ -596,14 +597,14 @@ export const useOnboardingStore = create<OnboardingStore>()(
           if (!canManagePricing) {
             const linkedLocations = await onboardingService
               .getPractitionerLocations(targetPractId)
-              .catch(() => [] as any[]);
+              .catch(() => [] as Record<string, unknown>[]);
             if (Array.isArray(linkedLocations) && linkedLocations.length > 0) {
               const firstLocation = linkedLocations[0] as Record<string, any>;
               locationId = firstLocation.id || firstLocation.location_id || firstLocation.locationId;
             }
 
             if (!locationId) {
-              const orgLocations = await onboardingService.getOrganizationLocations().catch(() => [] as any[]);
+              const orgLocations = await onboardingService.getOrganizationLocations().catch(() => [] as Record<string, unknown>[]);
               if (Array.isArray(orgLocations) && orgLocations.length > 0) {
                 const orgLocation = orgLocations[0] as Record<string, any>;
                 locationId = orgLocation.id || orgLocation.location_id || orgLocation.locationId;
@@ -687,7 +688,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
           }
 
           let scheduleId: string | undefined;
-          const existingSchedules = await onboardingService.getSchedules(targetPractId).catch(() => [] as any[]);
+          const existingSchedules = await onboardingService.getSchedules(targetPractId).catch(() => [] as Record<string, unknown>[]);
           if (Array.isArray(existingSchedules) && existingSchedules.length > 0) {
             const schedule = existingSchedules[0] as Record<string, any>;
             scheduleId = schedule.id || schedule.schedule_id || schedule.scheduleId;

@@ -9,6 +9,9 @@ import {
   RegisterData,
   RegisterResponse,
 } from '../types/auth';
+import { Organization } from '../types/api';
+import { secureStorage } from '../utils/secureStorage';
+import { logger } from '../utils/logger';
 
 const AUTH_API_BASE_URL = API_BASE_URL;
 
@@ -22,7 +25,9 @@ interface AuthStore extends AuthState {
   setUser: (user: User) => void;
   setToken: (token: string) => void;
   clearError: () => void;
-  refreshToken: () => Promise<void>;
+  refreshAccessToken: () => Promise<boolean>;
+  shouldRefreshToken: () => boolean;
+  ensureValidToken: () => Promise<boolean>;
 }
 
 export const useAuthStore = create<AuthStore>()(
@@ -31,6 +36,8 @@ export const useAuthStore = create<AuthStore>()(
       // Initial state
       user: null,
       token: null,
+      refreshToken: null,
+      tokenExpiresAt: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
@@ -38,12 +45,12 @@ export const useAuthStore = create<AuthStore>()(
 
       // Actions
       login: async (credentials: LoginCredentials) => {
-        console.log('🔐 Login attempt:', credentials.email);
+        logger.info('Login attempt initiated');
         set({ isLoading: true, error: null });
 
         try {
           // TODO: Replace with actual API call
-          // console.log('📡 Calling API:', 'https://ae4c4558a808.ngrok-free.app/login');
+          logger.logApiRequest('POST', `${AUTH_API_BASE_URL}/login`);
           const response = await fetch(`${AUTH_API_BASE_URL}/login`, {
             method: 'POST',
             headers: {
@@ -55,16 +62,27 @@ export const useAuthStore = create<AuthStore>()(
             }),
           });
 
-          console.log('📥 Response status:', response.status);
+          logger.logApiResponse('/login', response.status);
 
           if (!response.ok) {
             const errorText = await response.text();
-            console.error('❌ Login failed:', response.status, errorText);
-            throw new Error(`Login failed: ${response.status}`);
+            logger.error('Login failed:', response.status);
+            // Use generic error message - don't expose HTTP status codes
+            if (response.status === 401 || response.status === 403) {
+              throw new Error('Email ou senha incorretos. Verifique suas credenciais e tente novamente.');
+            } else if (response.status >= 500) {
+              throw new Error('Serviço temporariamente indisponível. Tente novamente em alguns instantes.');
+            } else {
+              throw new Error('Não foi possível realizar o login. Verifique suas credenciais e tente novamente.');
+            }
           }
 
           const data = await response.json();
-          console.log('✅ Login successful, token received');
+          logger.info('Login successful');
+
+          // Calculate token expiration (default 1 hour if not provided)
+          const expiresIn = data.expiresIn || data.expires_in || 3600; // seconds
+          const tokenExpiresAt = Date.now() + expiresIn * 1000;
 
           // Create initial user object with basic login info
           const inferredFirstLogin =
@@ -97,6 +115,8 @@ export const useAuthStore = create<AuthStore>()(
           set({
             user,
             token: data.token,
+            refreshToken: data.refreshToken || data.refresh_token || null,
+            tokenExpiresAt,
             isAuthenticated: true,
             isLoading: false,
             error: null,
@@ -105,14 +125,14 @@ export const useAuthStore = create<AuthStore>()(
 
           // Fetch detailed user info in the background
           try {
-            console.log('📡 Fetching detailed user info...');
+            logger.debug('Fetching detailed user info');
             const apiModule = await import('../services/api');
             const api = apiModule.default;
 
             const userInfo = await api.getUserInfo(credentials.email);
             if (userInfo) {
-              console.log('👤 Raw userInfo payload:', userInfo);
-              console.log('👤 User info received:', userInfo.fullname);
+              logger.debug('User info received');
+              logger.debug('User fullname:', userInfo.fullname);
 
               // Update user with real information
               user = {
@@ -144,8 +164,8 @@ export const useAuthStore = create<AuthStore>()(
               try {
                 const orgData = await api.getUserToOrg(credentials.email);
                 if (orgData && orgData.length > 0) {
-                  console.log('🏢 Raw organization payload:', orgData);
-                  const org = orgData.find(o => o?.groupStatus === 'active') || orgData[0];
+                  logger.debug('Organization data received');
+                  const org = orgData.find((o: Organization) => o?.groupStatus === 'active') || orgData[0];
                   user.organization =
                     (typeof org.org_name === 'string' && org.org_name.trim().length > 0 && org.org_name.trim()) ||
                     (typeof org.group_name === 'string' && org.group_name.trim().length > 0 && org.group_name.trim()) ||
@@ -164,31 +184,22 @@ export const useAuthStore = create<AuthStore>()(
                     user.isAdmin =
                       user.isAdmin || Number(org.admin) === 1 || org.admin === true;
                   }
-                  console.log('🏢 Organization info received:', {
-                    organization: user.organization,
-                    organizationId: user.organizationId,
-                    groupRole: user.groupRole,
-                    userRole: user.userRole,
-                    isAdmin: user.isAdmin,
-                  });
+                  logger.debug('Organization info processed successfully');
                 }
               } catch (orgError) {
-                console.warn('⚠️ Could not fetch organization info:', orgError);
+                logger.warn('Could not fetch organization info:', orgError);
               }
 
               // Update state with complete user info
               set({ user });
-              console.log('✅ User profile updated successfully');
+              logger.info('User profile updated successfully');
             }
           } catch (userInfoError) {
-            console.warn(
-              '⚠️ Could not fetch detailed user info:',
-              userInfoError
-            );
+            logger.warn('Could not fetch detailed user info:', userInfoError);
             // Continue with basic user info, don't fail the login
           }
         } catch (error) {
-          console.error('🚨 Login error:', error);
+          logger.error('Login error:', error);
           set({
             isLoading: false,
             error: error instanceof Error ? error.message : 'Login failed',
@@ -219,7 +230,7 @@ export const useAuthStore = create<AuthStore>()(
           const responseText = await response.text();
 
           if (!response.ok) {
-            console.error('❌ Registration failed:', response.status, responseText);
+            logger.error('Registration failed:', response.status);
             let message = 'Não foi possível concluir o cadastro. Tente novamente.';
 
             if (response.status === 400 || response.status === 409) {
@@ -232,7 +243,7 @@ export const useAuthStore = create<AuthStore>()(
                 message = parsed.message;
               }
             } catch (parseError) {
-              console.warn('⚠️ Could not parse registration error response:', parseError);
+              logger.warn('Could not parse registration error response');
             }
 
             throw new Error(message);
@@ -247,13 +258,13 @@ export const useAuthStore = create<AuthStore>()(
           try {
             result = responseText ? JSON.parse(responseText) : result;
           } catch (parseError) {
-            console.warn('⚠️ Could not parse registration response:', parseError);
+            logger.warn('Could not parse registration response');
           }
 
           set({ isLoading: false, error: null });
           return result;
         } catch (error) {
-          console.error('🚨 Registration error:', error);
+          logger.error('Registration error:', error);
           set({
             isLoading: false,
             error:
@@ -264,19 +275,21 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       logout: () => {
-        console.log('[AuthStore] logout() called');
+        logger.info('Logout initiated');
         set({
           user: null,
           token: null,
+          refreshToken: null,
+          tokenExpiresAt: null,
           isAuthenticated: false,
           isLoading: false,
           error: null,
         });
 
         const keysToClear = ['medpro-auth', 'medpro-onboarding', 'assistant-storage'];
-        console.log('[AuthStore] Clearing persisted keys', keysToClear);
+        logger.debug('Clearing persisted storage keys');
         AsyncStorage.multiRemove(keysToClear).catch(error => {
-          console.warn('[AuthStore] Falha ao limpar armazenamento persistido', error);
+          logger.warn('Failed to clear persisted storage', error);
         });
 
         import('../services/messagingService')
@@ -284,7 +297,7 @@ export const useAuthStore = create<AuthStore>()(
             module.messagingService?.resetCache?.();
           })
           .catch(error => {
-            console.warn('[AuthStore] Não foi possível limpar o cache de mensagens', error);
+            logger.warn('Failed to clear messaging cache', error);
           });
       },
 
@@ -300,17 +313,88 @@ export const useAuthStore = create<AuthStore>()(
         set({ error: null });
       },
 
-      refreshToken: async () => {
-        // TODO: Implement token refresh logic
-        console.log('Refreshing token...');
+      refreshAccessToken: async () => {
+        const state = get();
+        const currentRefreshToken = state.refreshToken;
+        const { logout } = state;
+
+        if (!currentRefreshToken) {
+          logger.warn('No refresh token available');
+          return false;
+        }
+
+        try {
+          logger.debug('Refreshing access token');
+
+          const response = await fetch(`${AUTH_API_BASE_URL}/refresh`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ refreshToken: currentRefreshToken }),
+          });
+
+          if (!response.ok) {
+            logger.error('Token refresh failed:', response.status);
+            // Force logout if refresh fails
+            logout();
+            return false;
+          }
+
+          const data = await response.json();
+
+          // Calculate new token expiration
+          const expiresIn = data.expiresIn || data.expires_in || 3600;
+          const tokenExpiresAt = Date.now() + expiresIn * 1000;
+
+          set({
+            token: data.token,
+            refreshToken: data.refreshToken || data.refresh_token || currentRefreshToken,
+            tokenExpiresAt,
+          });
+
+          logger.info('Token refreshed successfully');
+          return true;
+        } catch (error) {
+          logger.error('Token refresh error:', error);
+          logout();
+          return false;
+        }
+      },
+
+      // Check if token needs refresh (5 minutes before expiration)
+      shouldRefreshToken: () => {
+        const { tokenExpiresAt } = get();
+        if (!tokenExpiresAt) return false;
+
+        const fiveMinutes = 5 * 60 * 1000;
+        return Date.now() >= tokenExpiresAt - fiveMinutes;
+      },
+
+      // Ensure token is valid before making API calls
+      ensureValidToken: async () => {
+        const { shouldRefreshToken, refreshAccessToken, isAuthenticated } = get();
+
+        if (!isAuthenticated) {
+          return false;
+        }
+
+        if (shouldRefreshToken()) {
+          logger.debug('Token expiring soon, refreshing automatically');
+          return await refreshAccessToken();
+        }
+
+        return true;
       },
     }),
     {
       name: 'medpro-auth',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => secureStorage),
       partialize: state => ({
         user: state.user,
         token: state.token,
+        refreshToken: state.refreshToken,
+        tokenExpiresAt: state.tokenExpiresAt,
         isAuthenticated: state.isAuthenticated,
         lastLoginEmail: state.lastLoginEmail,
       }),

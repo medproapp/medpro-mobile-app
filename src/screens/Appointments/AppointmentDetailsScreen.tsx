@@ -11,9 +11,9 @@ import {
   StatusBar,
 } from 'react-native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
-import { Card, Loading } from '@components/common';
+import { Card, Loading, CachedImage } from '@components/common';
 import { theme } from '@theme/index';
-import { apiService } from '@services/api';
+import { apiService, API_BASE_URL } from '@services/api';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { DashboardStackParamList } from '@/types/navigation';
@@ -181,28 +181,16 @@ export const AppointmentDetailsScreen: React.FC = () => {
         const apt = appointmentData.data || appointmentData;
         console.log('Processed appointment data:', apt);
         
-        // Get patient details
+        // Get patient details (photo will be loaded by CachedImage with caching)
         let patientName = 'Paciente';
         let patientCpf = '';
-        let patientPhoto: string | undefined;
         try {
           const patientData = await apiService.getPatientDetails(apt.subject);
           patientName = patientData.data?.name || 'Paciente';
           patientCpf = patientData.data?.cpf || '';
-          
-          // Try to get patient photo using the API service method
-          try {
-            const photoBase64 = await apiService.getPatientPhoto(apt.subject);
-            if (typeof photoBase64 === 'string' && photoBase64.length > 0) {
-              patientPhoto = photoBase64;
-              console.log('Patient photo loaded successfully, length:', photoBase64.length);
-            }
-          } catch (photoError) {
-            const message = photoError instanceof Error ? photoError.message : 'Unknown error';
-            console.log('No patient photo available:', message);
-          }
-        } catch (error) {
-          console.error('Error fetching patient details:', error);
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.error('Error fetching patient details:', errorMessage);
         }
 
         const localStartDate = toLocalDateTime(apt.startdate, apt.starttime);
@@ -276,7 +264,6 @@ export const AppointmentDetailsScreen: React.FC = () => {
           identifier: apt.identifier?.toString() || appointmentId,
           patientName,
           patientCpf,
-          patientPhoto,
           date: localStartDate.toLocaleDateString('pt-BR'),
           time: localStartDate.toLocaleTimeString('pt-BR', {
             hour: '2-digit',
@@ -321,12 +308,13 @@ export const AppointmentDetailsScreen: React.FC = () => {
           setFormStatus(null);
         }
       }
-    } catch (error) {
-      console.error('Error fetching appointment details:', error);
-      console.error('Error details:', error.message || error);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Error fetching appointment details:', errorMessage);
+      console.error('Error details:', errorMessage);
       Alert.alert(
         'Erro',
-        `Não foi possível carregar os detalhes do agendamento: ${error.message || error}`,
+        `Não foi possível carregar os detalhes do agendamento: ${errorMessage}`,
         [{ text: 'OK' }]
       );
     } finally {
@@ -514,19 +502,13 @@ export const AppointmentDetailsScreen: React.FC = () => {
         {/* Patient Info */}
         <Card style={styles.patientCard}>
           <View style={styles.patientHeader}>
-            <View style={styles.patientImageContainer}>
-              {appointment.patientPhoto ? (
-                <Image
-                  source={{ uri: appointment.patientPhoto }}
-                  style={styles.patientImage}
-                  resizeMode="cover"
-                />
-              ) : (
-                <View style={styles.patientImagePlaceholder}>
-                  <FontAwesome name="user" size={30} color={theme.colors.primary} />
-                </View>
-              )}
-            </View>
+            <CachedImage
+              uri={appointment.patientCpf ? `${API_BASE_URL}/patient/getpatientphoto?patientCpf=${appointment.patientCpf}` : undefined}
+              style={[styles.patientImageContainer, styles.patientImage]}
+              fallbackIcon="user"
+              fallbackIconSize={30}
+              fallbackIconColor={theme.colors.primary}
+            />
             <View style={styles.patientInfo}>
               <Text style={styles.patientLabel}>Agendamento com:</Text>
               <Text style={styles.patientName}>{appointment.patientName}</Text>

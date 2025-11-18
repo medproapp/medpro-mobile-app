@@ -35,6 +35,7 @@ export type MoreStackParamList = {
 export type DashboardStackParamList = {
   DashboardHome: undefined;
   AppointmentList: undefined;
+  AppointmentCalendar: undefined;
   AppointmentDetails: { appointmentId: string };
   FormResponse: {
     trackingId: string;

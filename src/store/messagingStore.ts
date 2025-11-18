@@ -1,16 +1,17 @@
 import { create } from 'zustand';
 import { messagingService } from '../services/messagingService';
-import { 
-  MessageThread, 
-  Message, 
-  Contact, 
-  MessageStats, 
+import {
+  MessageThread,
+  Message,
+  Contact,
+  MessageStats,
   NewMessageData,
   PaginationParams,
   ThreadsFilter,
   ContactsFilter,
-  MessagingState 
+  MessagingState
 } from '../types/messaging';
+import { RealtimeUpdate } from '../types/api';
 
 /**
  * Zustand store for messaging state management
@@ -387,34 +388,35 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
   /**
    * Handle real-time notification updates
    */
-  handleRealtimeUpdate: (type: string, data: any) => {
+  handleRealtimeUpdate: (type: string, data: Record<string, unknown>) => {
     console.log('[MessagingStore] Handling real-time update:', type, data);
     
     switch (type) {
       case 'new_message':
         // Add the new message to the appropriate thread
         set(state => {
-          const threadId = data.thread_id;
+          const threadId = typeof data.thread_id === 'string' ? data.thread_id : String(data.thread_id || '');
           if (!threadId) return state;
 
           const updatedMessages = { ...state.messages };
           const currentMessages = updatedMessages[threadId] || [];
-          
+
           // Check if message already exists to avoid duplicates
-          const messageExists = currentMessages.some(m => m.message_id === data.message_id);
+          const messageId = typeof data.message_id === 'string' ? data.message_id : String(data.message_id || '');
+          const messageExists = currentMessages.some(m => m.message_id === messageId);
           if (messageExists) return state;
 
           // Add the new message
           updatedMessages[threadId] = [
             ...currentMessages,
             {
-              message_id: data.message_id,
-              identifier: data.message_id,
+              message_id: messageId,
+              identifier: messageId,
               thread_id: threadId,
-              sender_id: data.sender_id,
-              sender_name: data.sender_name,
-              content: data.content || data.preview,
-              created_at: data.created_at || new Date().toISOString(),
+              sender_id: String(data.sender_id || ''),
+              sender_name: String(data.sender_name || ''),
+              content: String(data.content || data.preview || ''),
+              created_at: String(data.created_at || new Date().toISOString()),
               read_status: false,
               message_type: 'text',
               priority: 'normal',
@@ -426,9 +428,9 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
             if (thread.thread_id === threadId) {
               return {
                 ...thread,
-                last_message_preview: data.preview || data.content,
-                last_sender_name: data.sender_name,
-                last_message_at: data.created_at || new Date().toISOString(),
+                last_message_preview: String(data.preview || data.content || ''),
+                last_sender_name: String(data.sender_name || ''),
+                last_message_at: String(data.created_at || new Date().toISOString()),
                 unread_count: thread.unread_count + 1,
               };
             }
@@ -506,12 +508,12 @@ export const useMessagingUnreadCount = () => {
   const threads = useMessagingStore(selectThreads);
   
   // Prefer explicit unread count if available
-  if (stats && (stats as any).unread_count !== undefined) {
-    return (stats as any).unread_count as number;
+  if (stats && stats.unread_count !== undefined) {
+    return stats.unread_count;
   }
   // Backend currently returns `unread_messages` in stats
-  if (stats && (stats as any).unread_messages !== undefined) {
-    return (stats as any).unread_messages as number;
+  if (stats && stats.unread_messages !== undefined) {
+    return stats.unread_messages;
   }
   
   return threads.reduce((count, thread) => count + thread.unread_count, 0);

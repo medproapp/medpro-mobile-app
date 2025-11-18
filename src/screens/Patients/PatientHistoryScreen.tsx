@@ -57,89 +57,98 @@ export const PatientHistoryScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<PatientsStackParamList>>();
   const { patientCpf, patientName } = route.params;
 
-  const [encounters, setEncounters] = useState<EncounterWithDetails[]>([]);
+  const [encounters, setEncounters] = useState<Encounter[]>([]);
+  const [encounterDetails, setEncounterDetails] = useState<Map<string, Partial<EncounterWithDetails>>>(new Map());
+  const [loadingDetails, setLoadingDetails] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [expandedEncounters, setExpandedEncounters] = useState<Set<string>>(new Set());
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  const loadPatientHistory = async () => {
+  const loadPatientHistory = async (pageNum: number = 1, append: boolean = false) => {
     try {
-      // console.log('[PatientHistory] Loading history for CPF:', patientCpf);
-      
-      // First, get all encounters
-      const encountersResponse = await api.getPatientEncounters(patientCpf, { limit: 50 });
-      // console.log('[PatientHistory] Encounters response:', encountersResponse);
-      
+      const ITEMS_PER_PAGE = 10;
+
+      // Load encounters with pagination - ONLY basic encounter data
+      const encountersResponse = await api.getPatientEncounters(patientCpf, {
+        limit: ITEMS_PER_PAGE,
+        page: pageNum
+      });
+
       if (!encountersResponse?.data || !Array.isArray(encountersResponse.data)) {
-        console.warn('[PatientHistory] No encounters found or invalid response format');
-        setEncounters([]);
+        setEncounters(append ? encounters : []);
+        setHasMore(false);
         return;
       }
 
-      // For each encounter, load detailed information
-      const encountersWithDetails = await Promise.all(
-        encountersResponse.data.map(async (encounter: Encounter) => {
-          const encounterId = encounter.Identifier;
-          
-          try {
-            // Load all related data for this encounter in parallel
-            const [clinicalResponse, medicationResponse, diagnosticResponse, imageResponse, attachmentResponse] = await Promise.allSettled([
-              api.getEncounterClinicalRecords(encounterId, { limit: 10 }).catch(() => ({ data: [] })),
-              api.getEncounterMedications(patientCpf, encounterId, { limit: 10 }).catch(() => ({ data: [] })),
-              api.getEncounterDiagnostics(encounterId).catch(() => []),
-              api.getEncounterImages(encounterId).catch(() => []),
-              api.getEncounterAttachments(encounterId).catch(() => []),
-            ]);
-
-            // Extract data from settled promises - treat all as successful since we handle errors above
-            const clinicalRecords = clinicalResponse.status === 'fulfilled' ? (clinicalResponse.value?.data || []) : [];
-            const medications = medicationResponse.status === 'fulfilled' ? (medicationResponse.value?.data || []) : [];
-            const diagnostics = diagnosticResponse.status === 'fulfilled' ? (Array.isArray(diagnosticResponse.value) ? diagnosticResponse.value : []) : [];
-            const images = imageResponse.status === 'fulfilled' ? (Array.isArray(imageResponse.value) ? imageResponse.value : []) : [];
-            const attachments = attachmentResponse.status === 'fulfilled' ? (Array.isArray(attachmentResponse.value) ? attachmentResponse.value : []) : [];
-
-            return {
-              ...encounter,
-              clinicalRecords,
-              medications,
-              diagnostics,
-              images,
-              attachments,
-              clinicalCount: clinicalRecords.length,
-              medicationCount: medications.length,
-              diagnosticCount: diagnostics.length,
-              imageCount: images.length,
-              attachmentCount: attachments.length,
-            };
-          } catch (error) {
-            console.error(`[PatientHistory] Error loading details for encounter ${encounterId}:`, error);
-            return {
-              ...encounter,
-              clinicalRecords: [],
-              medications: [],
-              diagnostics: [],
-              images: [],
-              attachments: [],
-              clinicalCount: 0,
-              medicationCount: 0,
-              diagnosticCount: 0,
-              imageCount: 0,
-              attachmentCount: 0,
-            };
-          }
-        })
-      );
-
       // Sort encounters by date (most recent first)
-      encountersWithDetails.sort((a, b) => 
+      const sortedEncounters = [...encountersResponse.data].sort((a, b) =>
         new Date(b.actualStart).getTime() - new Date(a.actualStart).getTime()
       );
 
-      console.log('[PatientHistory] Loaded encounters with details:', encountersWithDetails.length);
-      setEncounters(encountersWithDetails);
+      if (append) {
+        setEncounters(prev => [...prev, ...sortedEncounters]);
+      } else {
+        setEncounters(sortedEncounters);
+      }
+
+      // Check if there are more pages
+      setHasMore(encountersResponse.data.length === ITEMS_PER_PAGE);
+      setPage(pageNum);
+
     } catch (error) {
       console.error('[PatientHistory] Error loading patient history:', error);
       Alert.alert('Erro', 'Não foi possível carregar o histórico do paciente');
+    }
+  };
+
+  // Load encounter details ONLY when expanded
+  const loadEncounterDetails = async (encounterId: string) => {
+    if (encounterDetails.has(encounterId) || loadingDetails.has(encounterId)) {
+      return; // Already loaded or loading
+    }
+
+    setLoadingDetails(prev => new Set(prev).add(encounterId));
+
+    try {
+      // Load all related data for this encounter in parallel
+      const [clinicalResponse, medicationResponse, diagnosticResponse, imageResponse, attachmentResponse] = await Promise.allSettled([
+        api.getEncounterClinicalRecords(encounterId, { limit: 10 }).catch(() => ({ data: [] })),
+        api.getEncounterMedications(patientCpf, encounterId, { limit: 10 }).catch(() => ({ data: [] })),
+        api.getEncounterDiagnostics(encounterId).catch(() => []),
+        api.getEncounterImages(encounterId).catch(() => []),
+        api.getEncounterAttachments(encounterId).catch(() => []),
+      ]);
+
+      // Extract data from settled promises
+      const clinicalRecords = clinicalResponse.status === 'fulfilled' ? (clinicalResponse.value?.data || []) : [];
+      const medications = medicationResponse.status === 'fulfilled' ? (medicationResponse.value?.data || []) : [];
+      const diagnostics = diagnosticResponse.status === 'fulfilled' ? (Array.isArray(diagnosticResponse.value) ? diagnosticResponse.value : []) : [];
+      const images = imageResponse.status === 'fulfilled' ? (Array.isArray(imageResponse.value) ? imageResponse.value : []) : [];
+      const attachments = attachmentResponse.status === 'fulfilled' ? (Array.isArray(attachmentResponse.value) ? attachmentResponse.value : []) : [];
+
+      setEncounterDetails(prev => new Map(prev).set(encounterId, {
+        clinicalRecords,
+        medications,
+        diagnostics,
+        images,
+        attachments,
+        clinicalCount: clinicalRecords.length,
+        medicationCount: medications.length,
+        diagnosticCount: diagnostics.length,
+        imageCount: images.length,
+        attachmentCount: attachments.length,
+      }));
+    } catch (error) {
+      console.error(`[PatientHistory] Error loading details for encounter ${encounterId}:`, error);
+    } finally {
+      setLoadingDetails(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(encounterId);
+        return newSet;
+      });
     }
   };
 
@@ -151,8 +160,18 @@ export const PatientHistoryScreen: React.FC = () => {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadPatientHistory();
+    setEncounterDetails(new Map()); // Clear cached details
+    setPage(1);
+    await loadPatientHistory(1, false);
     setRefreshing(false);
+  };
+
+  const loadMore = async () => {
+    if (!hasMore || loadingMore) return;
+
+    setLoadingMore(true);
+    await loadPatientHistory(page + 1, true);
+    setLoadingMore(false);
   };
 
   useEffect(() => {
@@ -183,13 +202,15 @@ export const PatientHistoryScreen: React.FC = () => {
       newExpanded.delete(encounterId);
     } else {
       newExpanded.add(encounterId);
+      // Load details when expanding
+      loadEncounterDetails(encounterId);
     }
     setExpandedEncounters(newExpanded);
   };
 
-  const navigateToEncounterDetails = (encounter: EncounterWithDetails) => {
-    navigation.navigate('EncounterDetails', { 
-      encounterId: encounter.Identifier, 
+  const navigateToEncounterDetails = (encounter: Encounter) => {
+    navigation.navigate('EncounterDetails', {
+      encounterId: encounter.Identifier,
       patientName,
       patientCpf,
     });
@@ -225,10 +246,17 @@ export const PatientHistoryScreen: React.FC = () => {
     }
   };
 
-  const renderEncounterCard = (encounter: EncounterWithDetails) => {
+  const renderEncounterCard = (encounter: Encounter) => {
     const isExpanded = expandedEncounters.has(encounter.Identifier);
-    const hasData = encounter.clinicalCount > 0 || encounter.medicationCount > 0 || 
-                   encounter.diagnosticCount > 0 || encounter.imageCount > 0 || encounter.attachmentCount > 0;
+    const details = encounterDetails.get(encounter.Identifier);
+    const isLoadingDetails = loadingDetails.has(encounter.Identifier);
+    const hasData = details && (
+      (details.clinicalCount ?? 0) > 0 ||
+      (details.medicationCount ?? 0) > 0 ||
+      (details.diagnosticCount ?? 0) > 0 ||
+      (details.imageCount ?? 0) > 0 ||
+      (details.attachmentCount ?? 0) > 0
+    );
 
     return (
       <View key={encounter.Identifier} style={styles.encounterCard}>
@@ -265,59 +293,71 @@ export const PatientHistoryScreen: React.FC = () => {
           </View>
         )}
 
-        {/* Data Counts */}
-        {hasData && (
-          <TouchableOpacity 
-            style={styles.dataCountsContainer}
-            onPress={() => toggleEncounterExpansion(encounter.Identifier)}
-          >
+        {/* Data Counts or Load Button */}
+        <TouchableOpacity
+          style={styles.dataCountsContainer}
+          onPress={() => toggleEncounterExpansion(encounter.Identifier)}
+        >
+          {isLoadingDetails ? (
             <View style={styles.dataCounts}>
-              {encounter.clinicalCount > 0 && (
-                <View style={styles.dataCount}>
-                  <FontAwesome name="file-text-o" size={12} color={theme.colors.info} />
-                  <Text style={styles.dataCountText}>{encounter.clinicalCount} Registros</Text>
-                </View>
-              )}
-              {encounter.medicationCount > 0 && (
-                <View style={styles.dataCount}>
-                  <FontAwesome name="medkit" size={12} color={theme.colors.success} />
-                  <Text style={styles.dataCountText}>{encounter.medicationCount} Medicações</Text>
-                </View>
-              )}
-              {encounter.diagnosticCount > 0 && (
-                <View style={styles.dataCount}>
-                  <FontAwesome name="stethoscope" size={12} color={theme.colors.warning} />
-                  <Text style={styles.dataCountText}>{encounter.diagnosticCount} Diagnósticos</Text>
-                </View>
-              )}
-              {encounter.imageCount > 0 && (
-                <View style={styles.dataCount}>
-                  <FontAwesome name="picture-o" size={12} color={theme.colors.primary} />
-                  <Text style={styles.dataCountText}>{encounter.imageCount} Imagens</Text>
-                </View>
-              )}
-              {encounter.attachmentCount > 0 && (
-                <View style={styles.dataCount}>
-                  <FontAwesome name="paperclip" size={12} color={theme.colors.textSecondary} />
-                  <Text style={styles.dataCountText}>{encounter.attachmentCount} Anexos</Text>
-                </View>
-              )}
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+              <Text style={styles.dataCountText}>Carregando detalhes...</Text>
             </View>
-            <FontAwesome 
-              name={isExpanded ? "chevron-up" : "chevron-down"} 
-              size={12} 
-              color={theme.colors.textSecondary} 
-            />
-          </TouchableOpacity>
-        )}
+          ) : hasData ? (
+            <>
+              <View style={styles.dataCounts}>
+                {(details.clinicalCount ?? 0) > 0 && (
+                  <View style={styles.dataCount}>
+                    <FontAwesome name="file-text-o" size={12} color={theme.colors.info} />
+                    <Text style={styles.dataCountText}>{details.clinicalCount} Registros</Text>
+                  </View>
+                )}
+                {(details.medicationCount ?? 0) > 0 && (
+                  <View style={styles.dataCount}>
+                    <FontAwesome name="medkit" size={12} color={theme.colors.success} />
+                    <Text style={styles.dataCountText}>{details.medicationCount} Medicações</Text>
+                  </View>
+                )}
+                {(details.diagnosticCount ?? 0) > 0 && (
+                  <View style={styles.dataCount}>
+                    <FontAwesome name="stethoscope" size={12} color={theme.colors.warning} />
+                    <Text style={styles.dataCountText}>{details.diagnosticCount} Diagnósticos</Text>
+                  </View>
+                )}
+                {(details.imageCount ?? 0) > 0 && (
+                  <View style={styles.dataCount}>
+                    <FontAwesome name="picture-o" size={12} color={theme.colors.primary} />
+                    <Text style={styles.dataCountText}>{details.imageCount} Imagens</Text>
+                  </View>
+                )}
+                {(details.attachmentCount ?? 0) > 0 && (
+                  <View style={styles.dataCount}>
+                    <FontAwesome name="paperclip" size={12} color={theme.colors.textSecondary} />
+                    <Text style={styles.dataCountText}>{details.attachmentCount} Anexos</Text>
+                  </View>
+                )}
+              </View>
+              <FontAwesome
+                name={isExpanded ? "chevron-up" : "chevron-down"}
+                size={12}
+                color={theme.colors.textSecondary}
+              />
+            </>
+          ) : (
+            <View style={styles.dataCounts}>
+              <FontAwesome name="info-circle" size={12} color={theme.colors.textSecondary} />
+              <Text style={styles.dataCountText}>Ver detalhes</Text>
+            </View>
+          )}
+        </TouchableOpacity>
 
         {/* Expanded Content */}
-        {isExpanded && hasData && (
+        {isExpanded && details && (
           <View style={styles.expandedContent}>
-            {encounter.clinicalRecords.length > 0 && (
+            {(details.clinicalRecords?.length ?? 0) > 0 && (
               <View style={styles.expandedSection}>
                 <Text style={styles.expandedSectionTitle}>Registros Clínicos</Text>
-                {encounter.clinicalRecords.slice(0, 3).map((record: any, index: number) => (
+                {details.clinicalRecords!.slice(0, 3).map((record: any, index: number) => (
                   <Text key={index} style={styles.expandedItem}>
                     • {record.clinicalType || 'ServiceRequest'} #{record.clinicalId}
                   </Text>
@@ -325,10 +365,10 @@ export const PatientHistoryScreen: React.FC = () => {
               </View>
             )}
 
-            {encounter.medications.length > 0 && (
+            {(details.medications?.length ?? 0) > 0 && (
               <View style={styles.expandedSection}>
                 <Text style={styles.expandedSectionTitle}>Medicações</Text>
-                {encounter.medications.slice(0, 3).map((med: any, index: number) => (
+                {details.medications!.slice(0, 3).map((med: any, index: number) => (
                   <Text key={index} style={styles.expandedItem}>
                     • {med.medRequestItens?.[0]?.productName || `Prescrição #${med.medId}`}
                   </Text>
@@ -336,10 +376,10 @@ export const PatientHistoryScreen: React.FC = () => {
               </View>
             )}
 
-            {encounter.diagnostics.length > 0 && (
+            {(details.diagnostics?.length ?? 0) > 0 && (
               <View style={styles.expandedSection}>
                 <Text style={styles.expandedSectionTitle}>Diagnósticos</Text>
-                {encounter.diagnostics.slice(0, 2).map((diag: any, index: number) => (
+                {details.diagnostics!.slice(0, 2).map((diag: any, index: number) => (
                   <Text key={index} style={styles.expandedItem}>
                     • {diag.conclusion || `Diagnóstico #${diag.identifier}`}
                   </Text>
@@ -407,6 +447,27 @@ export const PatientHistoryScreen: React.FC = () => {
               </Text>
             </View>
             {encounters.map(renderEncounterCard)}
+
+            {/* Load More Button */}
+            {hasMore && (
+              <TouchableOpacity
+                style={styles.loadMoreButton}
+                onPress={loadMore}
+                disabled={loadingMore}
+              >
+                {loadingMore ? (
+                  <>
+                    <ActivityIndicator size="small" color={theme.colors.primary} />
+                    <Text style={styles.loadMoreText}>Carregando...</Text>
+                  </>
+                ) : (
+                  <>
+                    <FontAwesome name="chevron-down" size={14} color={theme.colors.primary} />
+                    <Text style={styles.loadMoreText}>Carregar mais encontros</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
           </>
         ) : (
           <View style={styles.emptyContainer}>
@@ -638,6 +699,24 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  loadMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    marginVertical: 16,
+    backgroundColor: theme.colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  },
+  loadMoreText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.colors.primary,
   },
 });
 

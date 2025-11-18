@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Service, ServiceCoverageStatus, RecentPatient } from '../types/api';
 
 export interface AppointmentData {
   // Patient info
@@ -26,11 +27,11 @@ export interface AppointmentData {
   servicecategory: string;
   servicetype: string;
   appointmenttype: string;
-  selected_services: any[];
-  
+  selected_services: Service[];
+
   // Payment
   paymentType: string | null;
-  servicesCoverageStatus: any[];
+  servicesCoverageStatus: ServiceCoverageStatus[];
   
   // Notes
   description: string;
@@ -50,17 +51,17 @@ interface AppointmentStore {
   
   // Current step (1-6)
   currentStep: number;
-  
+
   // Recent patients for quick selection
-  recentPatients: any[];
+  recentPatients: RecentPatient[];
   
   // Selected services for step 2
   selectedServices: SelectedService[];
   
   // Actions
   setPatient: (cpf: string, name: string, phone: string) => void;
-  setServices: (category: string, type: string, appointmentType: string, services: any[], duration: number) => void;
-  setPayment: (paymentType: string, coverage: any[]) => void;
+  setServices: (category: string, type: string, appointmentType: string, services: Service[], duration: number) => void;
+  setPayment: (paymentType: string, coverage: ServiceCoverageStatus[]) => void;
   setLocation: (locationId: string, locationName: string) => void;
   setDateTime: (date: string, time: string, endTime: string) => void;
   setNotes: (description: string, note?: string) => void;
@@ -78,7 +79,7 @@ interface AppointmentStore {
   resetAppointment: () => void;
   
   // Recent patients management
-  addRecentPatient: (patient: any) => Promise<void>;
+  addRecentPatient: (patient: RecentPatient) => Promise<void>;
   loadRecentPatients: () => Promise<void>;
   
   // Validation helpers
@@ -128,7 +129,7 @@ export const useAppointmentStore = create<AppointmentStore>((set, get) => ({
   },
 
   // Set services information
-  setServices: (category: string, type: string, appointmentType: string, services: any[], duration: number) => {
+  setServices: (category: string, type: string, appointmentType: string, services: Service[], duration: number) => {
     set((state) => ({
       appointmentData: {
         ...state.appointmentData,
@@ -142,7 +143,7 @@ export const useAppointmentStore = create<AppointmentStore>((set, get) => ({
   },
 
   // Set payment information
-  setPayment: (paymentType: string, coverage: any[]) => {
+  setPayment: (paymentType: string, coverage: ServiceCoverageStatus[]) => {
     set((state) => ({
       appointmentData: {
         ...state.appointmentData,
@@ -283,7 +284,7 @@ export const useAppointmentStore = create<AppointmentStore>((set, get) => ({
   },
 
   // Add patient to recent patients list
-  addRecentPatient: async (patient: any) => {
+  addRecentPatient: async (patient: RecentPatient) => {
     try {
       const currentRecent = get().recentPatients;
       const updatedRecent = [

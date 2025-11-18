@@ -8,16 +8,17 @@ import {
   TouchableOpacity,
   TextInput,
   StatusBar,
-  Image,
   Dimensions,
+  Image,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
-import { Card, Loading } from '@components/common';
+import { Card, Loading, CachedImage } from '@components/common';
 import { theme } from '@theme/index';
 import { useAuthStore } from '@store/authStore';
 import { apiService } from '@services/api';
+import { API_BASE_URL } from '@services/api';
 import { PatientsStackParamList } from '@/types/navigation';
 
 type PatientsNavigationProp = StackNavigationProp<PatientsStackParamList, 'PatientsList'>;
@@ -28,7 +29,6 @@ interface Patient {
   email: string;
   phone: string;
   gender: 'male' | 'female';
-  photo?: string; // Add photo field
 }
 
 interface PatientsData {
@@ -63,35 +63,15 @@ export const PatientsScreen: React.FC = () => {
         email: patient.patientEmail,
         phone: patient.patientPhone,
         gender: patient.patientGender,
-        photo: null, // Will be loaded separately
       }));
 
-      console.log('[PatientsScreen] Fetched', patients.length, 'patients, now loading photos...');
+      if (__DEV__) {
+        console.log('[PatientsScreen] Fetched', patients.length, 'patients');
+      }
 
-      // Load photos for each patient in parallel
-      const patientsWithPhotos = await Promise.all(
-        patients.map(async (patient) => {
-          try {
-            console.log('[PatientsScreen] Loading photo for patient:', patient.name, 'CPF:', patient.cpf);
-            const photo = await apiService.getPatientPhoto(patient.cpf);
-            return {
-              ...patient,
-              photo: photo || null,
-            };
-          } catch (error) {
-            console.log('[PatientsScreen] Photo not available for', patient.name, ':', error.message);
-            return {
-              ...patient,
-              photo: null,
-            };
-          }
-        })
-      );
-
-      console.log('[PatientsScreen] Completed loading photos for all patients');
-
+      // Photos will be loaded automatically by CachedImage with caching
       setData({
-        patients: patientsWithPhotos,
+        patients: patients,
         total: response.data.total,
         page: pageNum,
         pages: Math.ceil(response.data.total / 20),
@@ -108,7 +88,6 @@ export const PatientsScreen: React.FC = () => {
             email: 'maria@email.com',
             phone: '(11) 98765-4321',
             gender: 'female',
-            photo: null,
           },
           {
             cpf: '987.654.321-00',
@@ -116,7 +95,6 @@ export const PatientsScreen: React.FC = () => {
             email: 'joao@email.com',
             phone: '(11) 91234-5678',
             gender: 'male',
-            photo: null,
           },
         ],
         total: 2,
@@ -166,26 +144,13 @@ export const PatientsScreen: React.FC = () => {
         <View style={styles.patientRow}>
           {/* Enhanced Avatar Section */}
           <View style={styles.avatarSection}>
-            <View style={styles.patientAvatar}>
-              {item.photo ? (
-                <Image 
-                  source={{ uri: item.photo }} 
-                  style={styles.patientPhotoImage}
-                  onError={(error) => {
-                    console.log('[PatientsScreen] Failed to load photo for', item.name, ':', error);
-                  }}
-                  onLoad={() => {
-                    console.log('[PatientsScreen] Photo loaded successfully for', item.name);
-                  }}
-                />
-              ) : (
-                <FontAwesome 
-                  name={item.gender === 'female' ? 'female' : 'male'} 
-                  size={26} 
-                  color={theme.colors.white}
-                />
-              )}
-            </View>
+            <CachedImage
+              uri={`${API_BASE_URL}/patient/getpatientphoto?patientCpf=${item.cpf}`}
+              style={[styles.patientAvatar, styles.patientPhotoImage]}
+              fallbackIcon={item.gender === 'female' ? 'female' : 'male'}
+              fallbackIconSize={26}
+              fallbackIconColor={theme.colors.white}
+            />
             {/* Online status indicator (could be dynamic in the future) */}
             <View style={styles.statusIndicator} />
           </View>

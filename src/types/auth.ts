@@ -52,6 +52,8 @@ export interface RegisterResponse {
 export interface AuthState {
   user: User | null;
   token: string | null;
+  refreshToken: string | null;
+  tokenExpiresAt: number | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;

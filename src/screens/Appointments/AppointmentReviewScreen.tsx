@@ -161,7 +161,7 @@ export const AppointmentReviewScreen: React.FC<Props> = ({ navigation }) => {
 
         // Load appointment types
         if (appointmentData.appointmenttype) {
-          const APPOINTMENT_TYPE_LABELS = {
+          const APPOINTMENT_TYPE_LABELS: Record<string, string> = {
             ROUTINE: "Agendamento Regular",
             FIRST: "Primeira Consulta",
             WALKIN: "Visita não agendada",
@@ -169,15 +169,15 @@ export const AppointmentReviewScreen: React.FC<Props> = ({ navigation }) => {
             FOLLOWUP: "Retorno",
             EMERGENCY: "Emergência",
           };
-          
+
           const appointmentTypesResult = await api.getAppointmentTypes(user.email);
           const apptConfigItem = appointmentTypesResult?.find((item: any) => item.configitem === "APPT_TYPES_CONFIG");
-          
+
           if (apptConfigItem && apptConfigItem.configvalue) {
             const savedApptConfigs = typeof apptConfigItem.configvalue === "string"
               ? JSON.parse(apptConfigItem.configvalue)
               : apptConfigItem.configvalue;
-              
+
             if (savedApptConfigs[appointmentData.appointmenttype]) {
               setAppointmentTypeName(APPOINTMENT_TYPE_LABELS[appointmentData.appointmenttype] || appointmentData.appointmenttype);
             }
