@@ -227,13 +227,27 @@ export const ClinicalRecordDetailsScreen: React.FC = () => {
   };
 
   const handleAttachmentPress = async (attachment: any) => {
+    console.log('[ClinicalRecord] Attachment pressed:', {
+      identifier: attachment?.identifier,
+      hasExternalLink: !!attachment?.externallink,
+      externalLink: attachment?.externallink,
+      hasBlob: !!attachment?.blob,
+      blobLength: attachment?.blob?.length,
+      contentType: attachment?.contentType,
+      hasBlobError: !!attachment?.blobError,
+      blobError: attachment?.blobError,
+    });
+
     try {
       if (attachment?.externallink) {
+        console.log('[ClinicalRecord] Opening external link:', attachment.externallink);
         await Linking.openURL(attachment.externallink);
+        console.log('[ClinicalRecord] External link opened successfully');
         return;
       }
 
       if (attachment?.blob && attachment?.contentType) {
+        console.log('[ClinicalRecord] Processing blob attachment');
         const filename = attachment?.suggestedFilename
           || attachment?.blobname
           || `${attachment?.identifier || 'anexo'}${resolveExtension(attachment)}`;
@@ -242,32 +256,43 @@ export const ClinicalRecordDetailsScreen: React.FC = () => {
           .toString()
           .replace(/[^a-zA-Z0-9-_]/g, '_');
         const filePath = `${FileSystem.cacheDirectory}${safeIdentifier}${extension}`;
+        console.log('[ClinicalRecord] Writing blob to:', filePath);
 
         await FileSystem.writeAsStringAsync(filePath, attachment.blob, {
           encoding: FileSystem.EncodingType.Base64,
         });
+        console.log('[ClinicalRecord] Blob written successfully');
 
         if (Platform.OS === 'android') {
+          console.log('[ClinicalRecord] Android - Getting content URI');
           const contentUri = await FileSystem.getContentUriAsync(filePath);
+          console.log('[ClinicalRecord] Content URI:', contentUri);
 
           await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
             data: contentUri,
             type: attachment.contentType,
             flags: ANDROID_READ_PERMISSION_FLAG,
           });
+          console.log('[ClinicalRecord] Intent launched successfully');
         } else {
+          console.log('[ClinicalRecord] iOS - Checking sharing availability');
           const sharingAvailable = await Sharing.isAvailableAsync();
+          console.log('[ClinicalRecord] Sharing available:', sharingAvailable);
 
           if (sharingAvailable) {
             await Sharing.shareAsync(filePath, {
               mimeType: attachment.contentType,
               dialogTitle: filename,
             });
+            console.log('[ClinicalRecord] File shared successfully');
           } else {
             const canOpen = await Linking.canOpenURL(filePath);
+            console.log('[ClinicalRecord] Can open URL:', canOpen);
             if (canOpen) {
               await Linking.openURL(filePath);
+              console.log('[ClinicalRecord] File opened successfully');
             } else {
+              console.log('[ClinicalRecord] Cannot open file on this device');
               Alert.alert('Anexo', 'Não foi possível abrir o arquivo neste dispositivo.');
             }
           }
@@ -278,8 +303,11 @@ export const ClinicalRecordDetailsScreen: React.FC = () => {
       const errorMessage = attachment?.blobError
         ? `Arquivo indisponível: ${attachment.blobError}`
         : 'Arquivo indisponível para visualização.';
+      console.log('[ClinicalRecord] No valid attachment data found:', errorMessage);
       Alert.alert('Anexo indisponível', errorMessage);
     } catch (error) {
+      console.error('[ClinicalRecord] Error opening attachment:', error);
+      console.error('[ClinicalRecord] Error details:', JSON.stringify(error, null, 2));
       Alert.alert('Erro', 'Não foi possível abrir o anexo.');
     }
   };
@@ -299,10 +327,23 @@ export const ClinicalRecordDetailsScreen: React.FC = () => {
 
       try {
         const response = await api.getClinicalRecordAttachments(clinicalId);
+        console.log('[ClinicalRecord] Attachments API response:', JSON.stringify(response, null, 2));
         if (!isMounted) return;
 
         const payload = response?.attachments ?? response?.data?.attachments ?? [];
         const normalized = Array.isArray(payload) ? payload : [];
+        console.log('[ClinicalRecord] Normalized attachments:', normalized.length, 'items');
+        normalized.forEach((att, idx) => {
+          console.log(`[ClinicalRecord] Attachment ${idx}:`, {
+            identifier: att?.identifier,
+            hasExternalLink: !!att?.externallink,
+            hasBlob: !!att?.blob,
+            blobLength: att?.blob?.length,
+            contentType: att?.contentType,
+            filename: att?.suggestedFilename || att?.blobname,
+            hasBlobError: !!att?.blobError,
+          });
+        });
         setAttachments(normalized);
       } catch (error: any) {
         if (!isMounted) return;

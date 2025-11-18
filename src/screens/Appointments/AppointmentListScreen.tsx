@@ -31,6 +31,7 @@ interface AppointmentListItem {
   status: string;
   patientPhoto?: string | null;
   startDateTime: Date;
+  isLead?: boolean;
 }
 
 const formatAppointmentType = (type: string): string => {
@@ -82,7 +83,7 @@ const formatLocalDateIso = (date: Date) => {
 
 export const AppointmentListScreen: React.FC = () => {
   const navigation = useNavigation<AppointmentListNavigationProp>();
-  const { user } = useAuthStore();
+  const { user, token } = useAuthStore();
 
   const [appointments, setAppointments] = useState<AppointmentListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -255,18 +256,20 @@ export const AppointmentListScreen: React.FC = () => {
           startTimeValue
         );
 
-        // Photos will be loaded automatically by CachedImage with caching
+        // Check if this is a lead appointment
+        const isLead = appointment.subject_type === 'lead';
         const status = appointment.status || 'unknown';
 
         items.push({
           id: String(identifier),
-          patientName: appointment.patientName || appointment.patientname || 'Paciente',
-          patientCpf: appointment.patientCpf || appointment.subject || null,
+          patientName: appointment.patientName || appointment.patientname || (isLead ? 'Lead' : 'Paciente'),
+          patientCpf: isLead ? null : (appointment.patientCpf || appointment.subject || null),
           time: localDateTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
           date: formatLocalDateIso(localDateTime),
           type: formatAppointmentType(appointment.appointmenttype || appointment.servicetype || ''),
           status,
           startDateTime: localDateTime,
+          isLead,
         });
       }
 
@@ -400,6 +403,7 @@ export const AppointmentListScreen: React.FC = () => {
                     >
                       <CachedImage
                         uri={appointment.patientCpf ? `${API_BASE_URL}/patient/getpatientphoto?patientCpf=${appointment.patientCpf}` : undefined}
+                        headers={token ? { Authorization: `Bearer ${token}` } : undefined}
                         style={styles.patientAvatar}
                         fallbackIcon="user"
                         fallbackIconSize={20}
@@ -416,7 +420,14 @@ export const AppointmentListScreen: React.FC = () => {
                             ]}
                           />
                         </View>
-                        <Text style={styles.patientName}>{appointment.patientName}</Text>
+                        <View style={styles.patientNameRow}>
+                          <Text style={styles.patientName}>{appointment.patientName}</Text>
+                          {appointment.isLead && (
+                            <View style={styles.leadBadge}>
+                              <Text style={styles.leadBadgeText}>LEAD</Text>
+                            </View>
+                          )}
+                        </View>
                         <View style={styles.appointmentFooter}>
                           <Text style={styles.appointmentType} numberOfLines={1}>
                             {appointment.type}
@@ -596,12 +607,32 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     marginLeft: theme.spacing.xs,
   },
+  patientNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.xs,
+    flexWrap: 'wrap',
+  },
   patientName: {
     ...theme.typography.body,
     color: theme.colors.text,
     fontWeight: '600',
     fontSize: 16,
-    marginBottom: theme.spacing.xs,
+    flexShrink: 1,
+  },
+  leadBadge: {
+    backgroundColor: theme.colors.warning + '20',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
+  leadBadgeText: {
+    ...theme.typography.caption,
+    color: theme.colors.warning,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   appointmentFooter: {
     flexDirection: 'row',

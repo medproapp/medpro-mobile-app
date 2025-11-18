@@ -18,6 +18,9 @@ const AUTH_API_BASE_URL = API_BASE_URL;
 interface AuthStore extends AuthState {
   // Last login email (persists across logouts)
   lastLoginEmail: string | null;
+  // Token refresh state
+  isRefreshing: boolean;
+  lastRefreshAttempt: number | null;
   // Actions
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (data: RegisterData) => Promise<RegisterResponse>;
@@ -42,6 +45,8 @@ export const useAuthStore = create<AuthStore>()(
       isLoading: false,
       error: null,
       lastLoginEmail: null,
+      isRefreshing: false,
+      lastRefreshAttempt: null,
 
       // Actions
       login: async (credentials: LoginCredentials) => {
@@ -316,14 +321,25 @@ export const useAuthStore = create<AuthStore>()(
       refreshAccessToken: async () => {
         const state = get();
         const currentRefreshToken = state.refreshToken;
-        const { logout } = state;
+        const { logout, isRefreshing, lastRefreshAttempt } = state;
 
+        // Don't refresh if no refresh token
         if (!currentRefreshToken) {
-          logger.warn('No refresh token available');
+          return false;
+        }
+
+        // Prevent concurrent refresh attempts
+        if (isRefreshing) {
+          return false;
+        }
+
+        // Debounce: Don't refresh if we tried less than 30 seconds ago
+        if (lastRefreshAttempt && Date.now() - lastRefreshAttempt < 30000) {
           return false;
         }
 
         try {
+          set({ isRefreshing: true, lastRefreshAttempt: Date.now() });
           logger.debug('Refreshing access token');
 
           const response = await fetch(`${AUTH_API_BASE_URL}/refresh`, {
@@ -351,12 +367,14 @@ export const useAuthStore = create<AuthStore>()(
             token: data.token,
             refreshToken: data.refreshToken || data.refresh_token || currentRefreshToken,
             tokenExpiresAt,
+            isRefreshing: false,
           });
 
           logger.info('Token refreshed successfully');
           return true;
         } catch (error) {
           logger.error('Token refresh error:', error);
+          set({ isRefreshing: false });
           logout();
           return false;
         }
@@ -373,13 +391,16 @@ export const useAuthStore = create<AuthStore>()(
 
       // Ensure token is valid before making API calls
       ensureValidToken: async () => {
-        const { shouldRefreshToken, refreshAccessToken, isAuthenticated } = get();
+        const { shouldRefreshToken, refreshAccessToken, isAuthenticated, refreshToken } = get();
 
         if (!isAuthenticated) {
           return false;
         }
 
-        if (shouldRefreshToken()) {
+        // Only attempt refresh if:
+        // 1. Token needs refresh
+        // 2. We have a refresh token available
+        if (shouldRefreshToken() && refreshToken) {
           logger.debug('Token expiring soon, refreshing automatically');
           return await refreshAccessToken();
         }

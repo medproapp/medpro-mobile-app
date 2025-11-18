@@ -11,6 +11,7 @@ import {
   Image,
   StatusBar,
   Platform,
+  Switch,
 } from 'react-native';
 import { RouteProp, useRoute, useNavigation, NavigationProp } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
@@ -66,6 +67,7 @@ export const PatientHistoryScreen: React.FC = () => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [showAutomatic, setShowAutomatic] = useState(true);
 
   const loadPatientHistory = async (pageNum: number = 1, append: boolean = false) => {
     try {
@@ -250,6 +252,7 @@ export const PatientHistoryScreen: React.FC = () => {
     const isExpanded = expandedEncounters.has(encounter.Identifier);
     const details = encounterDetails.get(encounter.Identifier);
     const isLoadingDetails = loadingDetails.has(encounter.Identifier);
+    const isAutomatic = encounter.Class === 'automatic';
     const hasData = details && (
       (details.clinicalCount ?? 0) > 0 ||
       (details.medicationCount ?? 0) > 0 ||
@@ -259,14 +262,28 @@ export const PatientHistoryScreen: React.FC = () => {
     );
 
     return (
-      <View key={encounter.Identifier} style={styles.encounterCard}>
+      <View key={encounter.Identifier} style={[
+        styles.encounterCard,
+        isAutomatic && styles.automaticEncounterCard
+      ]}>
+        {/* Automatic Badge */}
+        {isAutomatic && (
+          <View style={styles.automaticBadge}>
+            <FontAwesome name="cog" size={10} color={theme.colors.white} />
+            <Text style={styles.automaticBadgeText}>Automático</Text>
+          </View>
+        )}
+
         {/* Header */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.encounterHeader}
           onPress={() => navigateToEncounterDetails(encounter)}
         >
           <View style={styles.encounterHeaderLeft}>
-            <View style={styles.timelineDot} />
+            <View style={[
+              styles.timelineDot,
+              isAutomatic && styles.automaticTimelineDot
+            ]} />
             <View style={styles.encounterMainInfo}>
               <Text style={styles.encounterTitle}>Encontro #{encounter.Identifier}</Text>
               <Text style={styles.encounterDate}>{formatDateTime(encounter.actualStart)}</Text>
@@ -275,7 +292,7 @@ export const PatientHistoryScreen: React.FC = () => {
               </Text>
             </View>
           </View>
-          
+
           <View style={styles.encounterHeaderRight}>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(encounter.Status) }]}>
               <Text style={styles.statusText}>{getStatusLabel(encounter.Status)}</Text>
@@ -297,9 +314,11 @@ export const PatientHistoryScreen: React.FC = () => {
         <TouchableOpacity
           style={styles.dataCountsContainer}
           onPress={() => toggleEncounterExpansion(encounter.Identifier)}
+          disabled={details && !hasData}
+          activeOpacity={0.7}
         >
           {isLoadingDetails ? (
-            <View style={styles.dataCounts}>
+            <View style={styles.dataCountsFull}>
               <ActivityIndicator size="small" color={theme.colors.primary} />
               <Text style={styles.dataCountText}>Carregando detalhes...</Text>
             </View>
@@ -343,8 +362,13 @@ export const PatientHistoryScreen: React.FC = () => {
                 color={theme.colors.textSecondary}
               />
             </>
+          ) : details ? (
+            <View style={styles.dataCountsFull}>
+              <FontAwesome name="inbox" size={12} color={theme.colors.textSecondary} />
+              <Text style={styles.dataCountText}>Este encontro não possui detalhes</Text>
+            </View>
           ) : (
-            <View style={styles.dataCounts}>
+            <View style={styles.dataCountsFull}>
               <FontAwesome name="info-circle" size={12} color={theme.colors.textSecondary} />
               <Text style={styles.dataCountText}>Ver detalhes</Text>
             </View>
@@ -443,10 +467,21 @@ export const PatientHistoryScreen: React.FC = () => {
           <>
             <View style={styles.timelineHeader}>
               <Text style={styles.timelineHeaderText}>
-                {encounters.length} encontro{encounters.length !== 1 ? 's' : ''} encontrado{encounters.length !== 1 ? 's' : ''}
+                {encounters.length} encontro{encounters.length !== 1 ? 's' : ''}
               </Text>
+              <View style={styles.toggleContainer}>
+                <Text style={styles.timelineHeaderText}>Automáticos</Text>
+                <Switch
+                  value={showAutomatic}
+                  onValueChange={setShowAutomatic}
+                  trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+                  thumbColor={theme.colors.white}
+                />
+              </View>
             </View>
-            {encounters.map(renderEncounterCard)}
+            {encounters
+              .filter(enc => showAutomatic || enc.Class !== 'automatic')
+              .map(renderEncounterCard)}
 
             {/* Load More Button */}
             {hasMore && (
@@ -567,11 +602,19 @@ const styles = StyleSheet.create({
   },
   timelineHeader: {
     marginBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   timelineHeaderText: {
     fontSize: 14,
     color: theme.colors.textSecondary,
     fontWeight: '500',
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   encounterCard: {
     backgroundColor: theme.colors.surface,
@@ -580,6 +623,30 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     position: 'relative',
+  },
+  automaticEncounterCard: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderColor: theme.colors.warning + '40',
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.warning,
+  },
+  automaticBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: theme.colors.warning,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    zIndex: 1,
+  },
+  automaticBadgeText: {
+    fontSize: 10,
+    color: theme.colors.white,
+    fontWeight: '600',
   },
   encounterHeader: {
     flexDirection: 'row',
@@ -597,6 +664,9 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: theme.colors.primary,
     marginRight: 16,
+  },
+  automaticTimelineDot: {
+    backgroundColor: theme.colors.warning,
   },
   encounterMainInfo: {
     flex: 1,
@@ -649,6 +719,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
+  },
+  dataCountsFull: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   dataCount: {
     flexDirection: 'row',

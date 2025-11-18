@@ -264,7 +264,7 @@ class ApiService {
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
-      search,
+      filter: search,
       orderBy: 'name',
       order: 'ASC'
     });
@@ -452,6 +452,29 @@ class ApiService {
     });
   }
 
+  async getPractitionerPatientEncounters(patientCpf: string) {
+    if (__DEV__) {
+      console.log('[API] getPractitionerPatientEncounters called with CPF:', patientCpf);
+    }
+
+    try {
+      const response = await this.request(`/encounter/practitioner-encounters/${patientCpf}`, {
+        headers: this.getOrgHeaders(),
+      });
+
+      if (__DEV__) {
+        console.log('[API] getPractitionerPatientEncounters response:', JSON.stringify(response, null, 2));
+      }
+
+      return response;
+    } catch (error) {
+      if (__DEV__) {
+        console.error('[API] getPractitionerPatientEncounters error:', error);
+      }
+      throw error;
+    }
+  }
+
   async getEncounterInfoById(encounterId: string) {
     return this.request(`/encounter/getencounterinfobyid/${encounterId}`, {
       headers: this.getOrgHeaders(),
@@ -534,6 +557,184 @@ class ApiService {
     return response;
   }
 
+  async getPatientClinicalRecords(patientCpf: string, options: { page?: number; limit?: number; type?: string; category?: string; pract?: string; encounter?: string } = {}) {
+    const params = new URLSearchParams({
+      page: (options.page || 1).toString(),
+      limit: (options.limit || 10).toString(),
+      ...(options.type && { type: options.type }),
+      ...(options.category && { category: options.category }),
+      ...(options.pract && { pract: options.pract }),
+      ...(options.encounter && { encounter: options.encounter })
+    });
+
+    if (__DEV__) {
+      console.log('[API] getPatientClinicalRecords called with CPF:', patientCpf, 'options:', options);
+    }
+
+    try {
+      const response = await this.request(`/clinical/records/${patientCpf}?${params}`, {
+        headers: this.getOrgHeaders(),
+      });
+
+      if (__DEV__) {
+        console.log('[API] getPatientClinicalRecords response:', JSON.stringify(response, null, 2));
+      }
+
+      return response;
+    } catch (error) {
+      if (__DEV__) {
+        console.error('[API] getPatientClinicalRecords error:', error);
+      }
+      throw error;
+    }
+  }
+
+  async getPatientMedicationRecords(patientCpf: string, options: { page?: number; limit?: number; type?: string; pract?: string; encounter?: string } = {}) {
+    const params = new URLSearchParams({
+      page: (options.page || 1).toString(),
+      limit: (options.limit || 10).toString(),
+      ...(options.type && { type: options.type }),
+      ...(options.pract && { pract: options.pract }),
+      ...(options.encounter && { encounter: options.encounter })
+    });
+
+    if (__DEV__) {
+      console.log('[API] getPatientMedicationRecords called with CPF:', patientCpf, 'options:', options);
+    }
+
+    try {
+      const response = await this.request(`/medication/records/${patientCpf}?${params}`, {
+        headers: this.getOrgHeaders(),
+      });
+
+      if (__DEV__) {
+        console.log('[API] getPatientMedicationRecords response:', JSON.stringify(response, null, 2));
+      }
+
+      return response;
+    } catch (error) {
+      if (__DEV__) {
+        console.error('[API] getPatientMedicationRecords error:', error);
+      }
+      throw error;
+    }
+  }
+
+  async getPatientDiagnosticRecords(patientCpf: string, options: { page?: number; limit?: number; type?: string; category?: string; code?: string } = {}) {
+    const params = new URLSearchParams({
+      page: (options.page || 1).toString(),
+      limit: (options.limit || 10).toString(),
+      ...(options.type && { type: options.type }),
+      ...(options.category && { category: options.category }),
+      ...(options.code && { code: options.code })
+    });
+
+    if (__DEV__) {
+      console.log('[API] getPatientDiagnosticRecords called with CPF:', patientCpf, 'options:', options);
+    }
+
+    try {
+      const response = await this.request(`/diagnostic/records/${patientCpf}?${params}`, {
+        headers: this.getOrgHeaders(),
+      });
+
+      if (__DEV__) {
+        console.log('[API] getPatientDiagnosticRecords response:', JSON.stringify(response, null, 2));
+      }
+
+      return response;
+    } catch (error) {
+      if (__DEV__) {
+        console.error('[API] getPatientDiagnosticRecords error:', error);
+      }
+      throw error;
+    }
+  }
+
+  async getPatientImageRecords(patientId: string, options: { page?: number; limit?: number } = {}) {
+    const params = new URLSearchParams({
+      page: (options.page || 1).toString(),
+      limit: (options.limit || 10).toString(),
+    });
+
+    if (__DEV__) {
+      console.log('[API] getPatientImageRecords called with ID:', patientId, 'options:', options);
+    }
+
+    try {
+      const response = await this.request(`/images/records/${patientId}?${params}`, {
+        headers: this.getOrgHeaders(),
+      });
+
+      if (__DEV__) {
+        console.log('[API] getPatientImageRecords response:', JSON.stringify(response, null, 2));
+      }
+
+      return response;
+    } catch (error) {
+      if (__DEV__) {
+        console.error('[API] getPatientImageRecords error:', error);
+      }
+      throw error;
+    }
+  }
+
+  async getPatientAttachments(patientId: string, options: { page?: number; limit?: number } = {}) {
+    const params = new URLSearchParams({
+      page: (options.page || 1).toString(),
+      limit: (options.limit || 10).toString(),
+    });
+
+    if (__DEV__) {
+      console.log('[API] getPatientAttachments called with ID:', patientId, 'options:', options);
+    }
+
+    try {
+      const response = await this.request(`/attach/getbypatient/${patientId}?${params}`, {
+        headers: this.getOrgHeaders(),
+      });
+
+      if (__DEV__) {
+        console.log('[API] getPatientAttachments response:', JSON.stringify(response, null, 2));
+      }
+
+      return response;
+    } catch (error) {
+      if (__DEV__) {
+        console.error('[API] getPatientAttachments error:', error);
+      }
+      throw error;
+    }
+  }
+
+  async getPatientRecordings(patientCpf: string, options: { page?: number; limit?: number } = {}) {
+    const params = new URLSearchParams({
+      page: (options.page || 1).toString(),
+      limit: (options.limit || 10).toString(),
+    });
+
+    if (__DEV__) {
+      console.log('[API] getPatientRecordings called with CPF:', patientCpf, 'options:', options);
+    }
+
+    try {
+      const response = await this.request(`/recordings/patient/${patientCpf}?${params}`, {
+        headers: this.getOrgHeaders(),
+      });
+
+      if (__DEV__) {
+        console.log('[API] getPatientRecordings response:', JSON.stringify(response, null, 2));
+      }
+
+      return response;
+    } catch (error) {
+      if (__DEV__) {
+        console.error('[API] getPatientRecordings error:', error);
+      }
+      throw error;
+    }
+  }
+
   async getEncounterMedications(patientCpf: string, encounterId: string, options: { page?: number; limit?: number; type?: string } = {}) {
     const { user } = useAuthStore.getState();
     const params = new URLSearchParams({
@@ -579,6 +780,18 @@ class ApiService {
     return response;
   }
 
+  async getAttachmentsByContext(contextId: string) {
+    const response = await this.request(`/attach/getbycontext/${contextId}`, {
+      headers: this.getOrgHeaders(),
+    });
+
+    if (__DEV__) {
+      console.log('[API] getAttachmentsByContext response:', JSON.stringify(response, null, 2));
+    }
+
+    return response;
+  }
+
   async getEncounterServices(encounterId: string) {
     return this.request(`/encounter/getencounterservices/${encounterId}`, {
       headers: this.getOrgHeaders(),
@@ -587,6 +800,27 @@ class ApiService {
 
   async getEncounterFinancials(encounterId: string) {
     return this.request(`/encounter/getencounterfinancials/${encounterId}`, {
+      headers: this.getOrgHeaders(),
+    });
+  }
+
+  async getEncounterSummary(encounterId: string) {
+    return this.request(`/encounter/load/summary/${encounterId}`, {
+      headers: this.getOrgHeaders(),
+    });
+  }
+
+  async getEncounterAI(encounterId: string) {
+    return this.request(`/encounter/ai/${encounterId}`, {
+      headers: this.getOrgHeaders(),
+    });
+  }
+
+  async getEncounterRecordings(encounterId: string, options: { limit?: number } = {}) {
+    const params = new URLSearchParams({
+      limit: (options.limit || 20).toString(),
+    });
+    return this.request(`/recordings/encounter/${encounterId}?${params}`, {
       headers: this.getOrgHeaders(),
     });
   }
@@ -767,6 +1001,107 @@ class ApiService {
   async archiveNotification(id: number): Promise<any> {
     return this.request(`/api/notifications/${id}`, {
       method: 'DELETE',
+    });
+  }
+
+  // Upload prescription PDF
+  async uploadPrescriptionPdf(
+    filePath: string,
+    fileName: string,
+    prescriptionId: string,
+    encounterId: string,
+    patientCpf: string
+  ): Promise<{ success: boolean; fileid: string }> {
+    const { token } = useAuthStore.getState();
+
+    const formData = new FormData();
+    // Field name must be 'attach_file' to match backend multer config
+    formData.append('attach_file', {
+      uri: filePath,
+      type: 'application/pdf',
+      name: fileName,
+    } as unknown as Blob);
+
+    // Add metadata fields to FormData body (matching the backend flow)
+    formData.append('patient', patientCpf);
+    formData.append('encounter', encounterId);
+    formData.append('type', 'MEDREQUEST'); // Type for unsigned prescription PDFs
+    formData.append('context', prescriptionId); // Link to prescription (KEY FIELD!)
+    formData.append('date', new Date().toISOString().split('T')[0]); // YYYY-MM-DD
+    formData.append('status', 'active');
+    formData.append('filetype', 'application/pdf');
+    formData.append('datasource', 'medpro-mobile');
+
+    if (__DEV__) {
+      console.log('[API] uploadPrescriptionPdf called with:', {
+        filePath,
+        fileName,
+        prescriptionId,
+        encounterId,
+        patientCpf,
+      });
+      console.log('[API] uploadPrescriptionPdf context (prescription ID):', prescriptionId);
+    }
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          const percentComplete = (event.loaded / event.total) * 100;
+          if (__DEV__) {
+            console.log(`[API] Prescription PDF upload progress: ${percentComplete.toFixed(1)}%`);
+          }
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (__DEV__) {
+          console.log('[API] Prescription PDF upload response status:', xhr.status);
+          console.log('[API] Prescription PDF upload response text:', xhr.responseText);
+        }
+
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            if (__DEV__) {
+              console.log('[API] Prescription PDF uploaded successfully:', response);
+            }
+            resolve(response);
+          } catch (error) {
+            if (__DEV__) {
+              console.error('[API] Error parsing prescription PDF upload response:', error);
+            }
+            reject(new Error('Invalid response format'));
+          }
+        } else {
+          reject(new Error(`Prescription PDF upload failed with status: ${xhr.status}`));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        if (__DEV__) {
+          console.error('[API] Prescription PDF upload network error');
+        }
+        reject(new Error('Network error during prescription PDF upload'));
+      });
+
+      xhr.addEventListener('abort', () => {
+        if (__DEV__) {
+          console.log('[API] Prescription PDF upload was aborted');
+        }
+        reject(new Error('Prescription PDF upload was aborted'));
+      });
+
+      // Use /uploadToAzure endpoint
+      xhr.open('POST', `${API_BASE_URL}/attach/uploadToAzure`);
+
+      // Add auth headers
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+
+      xhr.send(formData);
     });
   }
 
@@ -1982,9 +2317,13 @@ class ApiService {
         console.log('[API] getPreAppointmentFormStatus response:', response);
       }
 
-      // Return the first result if available
+      // Return the first result if available and appointmentId matches
       if (response.success && response.data && response.data.length > 0) {
-        return response.data[0];
+        const form = response.data[0];
+        // Only return if appointmentId matches the request
+        if (form.appointmentId === appointmentId) {
+          return form;
+        }
       }
 
       return null;
@@ -2022,6 +2361,342 @@ class ApiService {
     } catch (error) {
       if (__DEV__) {
         console.error('[API] getPreAppointmentFormDetails error:', error);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Download attachment blob data
+   * @param blobname The blob filename to download
+   * @param type The attachment type (e.g., "MEDREQUEST-SIGNED")
+   * @param filetype The MIME type of the file
+   * @returns Base64 encoded file data
+   */
+  async downloadAttachmentBlob(params: {
+    blobname: string;
+    type: string;
+    filetype: string;
+  }): Promise<string | null> {
+    const { token } = useAuthStore.getState();
+
+    if (__DEV__) {
+      console.log('[API] downloadAttachmentBlob called with:', params);
+    }
+
+    try {
+      const url = `${API_BASE_URL}/attach/getblob2`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          ...this.getAuthHeaders(),
+          ...this.getOrgHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(params),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to download attachment: ${response.statusText}`);
+      }
+
+      // Convert blob response to base64
+      const blob = await response.blob();
+      return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64data = reader.result as string;
+          // Remove the data URL prefix (e.g., "data:application/pdf;base64,")
+          const base64 = base64data.split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      if (__DEV__) {
+        console.error('[API] downloadAttachmentBlob error:', error);
+      }
+      return null;
+    }
+  }
+
+  /**
+   * Renew a prescription - creates a new draft prescription based on the original
+   * @param prescriptionId The ID of the prescription to renew
+   * @returns Renewed prescription data
+   */
+  async renewPrescription(prescriptionId: string): Promise<{
+    success: boolean;
+    message: string;
+    data: any;
+  }> {
+    if (__DEV__) {
+      console.log('[API] renewPrescription called with:', prescriptionId);
+    }
+
+    try {
+      const response = await this.request(`/medication/renew/${prescriptionId}`, {
+        method: 'POST',
+        headers: this.getOrgHeaders(),
+      });
+
+      if (__DEV__) {
+        console.log('[API] renewPrescription response:', response);
+      }
+
+      return response;
+    } catch (error) {
+      if (__DEV__) {
+        console.error('[API] renewPrescription error:', error);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Update prescription status (e.g., from draft to completed)
+   * @param prescriptionData Complete prescription data with updated status
+   * @returns API response
+   */
+  async updatePrescriptionStatus(prescriptionData: {
+    identifier: string;
+    status: string;
+    category: string;
+    patient: string;
+    encounter: string;
+    date: string;
+    type?: string;
+    metadata?: any;
+    requestitens?: any[];
+  }): Promise<any> {
+    if (__DEV__) {
+      console.log('[API] updatePrescriptionStatus called with identifier:', prescriptionData.identifier);
+      console.log('[API] updatePrescriptionStatus new status:', prescriptionData.status);
+    }
+
+    try {
+      const response = await this.request('/medication/save', {
+        method: 'POST',
+        headers: this.getOrgHeaders(),
+        body: prescriptionData, // Don't stringify - request method does it automatically
+      });
+
+      if (__DEV__) {
+        console.log('[API] updatePrescriptionStatus response:', response);
+      }
+
+      return response;
+    } catch (error) {
+      if (__DEV__) {
+        console.error('[API] updatePrescriptionStatus error:', error);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Generate prescription PDF
+   * @param params Prescription data including practitioner, patient, and medication items
+   * @returns PDF response
+   */
+  async generatePrescriptionPdf(params: {
+    category: string;
+    pract: {
+      name: string;
+      email: string;
+      crm?: string;
+      phone?: string;
+      specialty?: string;
+    };
+    patient: {
+      name: string;
+      cpf: string;
+      birthDate?: string;
+      phone?: string;
+      email?: string;
+    };
+    header: {
+      identifier: string;
+      medicationRequestReceita: string;
+      medicationRequestStatus: string;
+      medicationRequestCategory: string;
+      medicationRequestNote?: string;
+      medicationRequestPatientInstructions?: string;
+      encounter?: string;
+      subject: string;
+      practitioner: string;
+    };
+    items: Array<{
+      produto: string;
+      substancia: string;
+      apresentacao: string;
+      registro?: string;
+      mododeuso: string;
+      note?: string;
+      medication: string;
+      activeIngredient: string;
+      presentation: string;
+      posology: string;
+      groupIdentifier: string;
+    }>;
+  }): Promise<any> {
+    if (__DEV__) {
+      console.log('[API] generatePrescriptionPdf called with category:', params.category);
+    }
+
+    try {
+      // Ensure token is valid before making request
+      await useAuthStore.getState().ensureValidToken();
+      const { token } = useAuthStore.getState();
+
+      const url = `${API_BASE_URL}/medication/requestMedication/${params.category}`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          ...this.getAuthHeaders(),
+          ...this.getOrgHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(params),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`PDF generation failed: ${response.status} ${errorText}`);
+      }
+
+      if (__DEV__) {
+        console.log('[API] generatePrescriptionPdf success');
+      }
+
+      return { success: true };
+    } catch (error) {
+      if (__DEV__) {
+        console.error('[API] generatePrescriptionPdf error:', error);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Generate prescription PDF and return as base64
+   * @param params Prescription data including practitioner, patient, and medication items
+   * @returns Base64 encoded PDF data
+   */
+  async generatePrescriptionPdfBlob(params: {
+    category: string;
+    pract: {
+      name: string;
+      email: string;
+      crm?: string;
+      phone?: string;
+      specialty?: string;
+    };
+    patient: {
+      name: string;
+      cpf: string;
+      birthDate?: string;
+      phone?: string;
+      email?: string;
+    };
+    header: {
+      identifier: string;
+      medicationRequestReceita: string;
+      medicationRequestStatus: string;
+      medicationRequestCategory: string;
+      medicationRequestNote?: string;
+      medicationRequestPatientInstructions?: string;
+      encounter?: string;
+      subject: string;
+      practitioner: string;
+    };
+    items: Array<{
+      produto: string;
+      substancia: string;
+      apresentacao: string;
+      registro?: string;
+      mododeuso: string;
+      note?: string;
+      medication: string;
+      activeIngredient: string;
+      presentation: string;
+      posology: string;
+      groupIdentifier: string;
+    }>;
+  }): Promise<{ base64: string; fileName: string }> {
+    if (__DEV__) {
+      console.log('[API] generatePrescriptionPdfBlob called with category:', params.category);
+      console.log('[API] generatePrescriptionPdfBlob prescription ID:', params.header.identifier);
+    }
+
+    try {
+      // Ensure token is valid before making request
+      await useAuthStore.getState().ensureValidToken();
+
+      const url = `${API_BASE_URL}/medication/requestMedication/${params.category}`;
+
+      if (__DEV__) {
+        console.log('[API] Calling PDF generation endpoint:', url);
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          ...this.getAuthHeaders(),
+          ...this.getOrgHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(params),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        if (__DEV__) {
+          console.error('[API] PDF generation failed:', response.status, errorText);
+        }
+        throw new Error(`PDF generation failed: ${response.status} ${errorText}`);
+      }
+
+      if (__DEV__) {
+        console.log('[API] PDF generation successful, processing response...');
+      }
+
+      // Get PDF as blob
+      const blob = await response.blob();
+
+      if (__DEV__) {
+        console.log('[API] PDF blob received, size:', blob.size, 'bytes');
+      }
+
+      // Convert blob to base64
+      const reader = new FileReader();
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          // Remove data URL prefix (e.g., "data:application/pdf;base64,")
+          const base64 = result.includes(',') ? result.split(',')[1] : result;
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      if (__DEV__) {
+        console.log('[API] PDF converted to base64, length:', base64Data.length);
+      }
+
+      const fileName = `prescription-${params.header.identifier}-${Date.now()}.pdf`;
+
+      return {
+        base64: base64Data,
+        fileName,
+      };
+    } catch (error) {
+      if (__DEV__) {
+        console.error('[API] generatePrescriptionPdfBlob error:', error);
       }
       throw error;
     }

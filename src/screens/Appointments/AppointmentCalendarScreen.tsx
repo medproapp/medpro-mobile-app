@@ -138,7 +138,7 @@ function getTodayString(): string {
 
 export function AppointmentCalendarScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const { user } = useAuthStore();
+  const { user, token } = useAuthStore();
   const userEmail = user?.email || '';
 
   const [appointments, setAppointments] = useState<AppointmentItem[]>([]);
@@ -334,6 +334,7 @@ export function AppointmentCalendarScreen() {
       <View style={styles.appointmentContent}>
         <CachedImage
           uri={item.patientCpf && !item.isLead ? `${API_BASE_URL}/patient/getpatientphoto?patientCpf=${item.patientCpf}` : undefined}
+          headers={token ? { Authorization: `Bearer ${token}` } : undefined}
           style={styles.patientAvatar}
           fallbackIcon="user"
           fallbackIconSize={18}

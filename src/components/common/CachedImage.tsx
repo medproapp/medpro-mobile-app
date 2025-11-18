@@ -1,5 +1,5 @@
 import { Image, ImageProps } from 'expo-image';
-import React from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
@@ -23,6 +23,7 @@ interface CachedImageProps extends Omit<ImageProps, 'source'> {
  * - Automatic LRU cache eviction
  * - Progressive loading with transitions
  * - Fallback icon for missing images
+ * - Automatic fallback on load error
  *
  * Usage:
  * <CachedImage
@@ -42,8 +43,10 @@ export const CachedImage: React.FC<CachedImageProps> = ({
   transition = 200,
   ...props
 }) => {
-  // Show fallback icon if no URI provided
-  if (!uri) {
+  const [imageError, setImageError] = useState(false);
+
+  // Show fallback icon if no URI provided or image failed to load
+  if (!uri || imageError) {
     return (
       <View style={[styles.fallback, style]}>
         <FontAwesome name={fallbackIcon} size={fallbackIconSize} color={fallbackIconColor} />
@@ -58,6 +61,10 @@ export const CachedImage: React.FC<CachedImageProps> = ({
       contentFit={contentFit}
       transition={transition}
       cachePolicy="memory-disk"
+      onError={(error) => {
+        console.log('[CachedImage] Failed to load image:', uri, error);
+        setImageError(true);
+      }}
       {...props}
     />
   );

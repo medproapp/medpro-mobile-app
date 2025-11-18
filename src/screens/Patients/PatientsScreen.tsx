@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   StatusBar,
   Dimensions,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -39,13 +40,15 @@ interface PatientsData {
 }
 
 export const PatientsScreen: React.FC = () => {
-  const { user } = useAuthStore();
+  const { user, token } = useAuthStore();
   const navigation = useNavigation<PatientsNavigationProp>();
   const [data, setData] = useState<PatientsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [page, setPage] = useState(1);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const fetchPatients = async (pageNum: number = 1, search: string = '') => {
     try {
@@ -78,32 +81,16 @@ export const PatientsScreen: React.FC = () => {
       });
     } catch (error) {
       console.error('Error fetching patients:', error);
-      
-      // Fallback to mock data if API fails
       setData({
-        patients: [
-          {
-            cpf: '123.456.789-00',
-            name: 'Maria Silva',
-            email: 'maria@email.com',
-            phone: '(11) 98765-4321',
-            gender: 'female',
-          },
-          {
-            cpf: '987.654.321-00',
-            name: 'João Santos',
-            email: 'joao@email.com',
-            phone: '(11) 91234-5678',
-            gender: 'male',
-          },
-        ],
-        total: 2,
+        patients: [],
+        total: 0,
         page: 1,
         pages: 1,
       });
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setSearchLoading(false);
     }
   };
 
@@ -120,7 +107,17 @@ export const PatientsScreen: React.FC = () => {
   const handleSearch = (text: string) => {
     setSearchText(text);
     setPage(1);
-    fetchPatients(1, text);
+    setSearchLoading(true);
+
+    // Clear previous timeout
+    if (searchTimeout.current) {
+      clearTimeout(searchTimeout.current);
+    }
+
+    // Debounce API call - wait 500ms after user stops typing
+    searchTimeout.current = setTimeout(() => {
+      fetchPatients(1, text);
+    }, 500);
   };
 
   const formatCPF = (cpf: string) => {
@@ -146,6 +143,7 @@ export const PatientsScreen: React.FC = () => {
           <View style={styles.avatarSection}>
             <CachedImage
               uri={`${API_BASE_URL}/patient/getpatientphoto?patientCpf=${item.cpf}`}
+              headers={token ? { Authorization: `Bearer ${token}` } : undefined}
               style={[styles.patientAvatar, styles.patientPhotoImage]}
               fallbackIcon={item.gender === 'female' ? 'female' : 'male'}
               fallbackIconSize={26}
@@ -223,51 +221,69 @@ export const PatientsScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Quick Stats */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <FontAwesome name="users" size={24} color={theme.colors.primary} />
-            <Text style={styles.statNumber}>{data?.total || 0}</Text>
-            <Text style={styles.statLabel}>Total</Text>
-          </View>
-          <View style={styles.statCard}>
-            <FontAwesome name="user-plus" size={24} color={theme.colors.success} />
-            <Text style={styles.statNumber}>
-              {data?.patients.filter(p => p.gender === 'female').length || 0}
-            </Text>
-            <Text style={styles.statLabel}>Mulheres</Text>
-          </View>
-          <View style={styles.statCard}>
-            <FontAwesome name="user" size={24} color={theme.colors.info} />
-            <Text style={styles.statNumber}>
-              {data?.patients.filter(p => p.gender === 'male').length || 0}
-            </Text>
-            <Text style={styles.statLabel}>Homens</Text>
-          </View>
-        </View>
-
-        {/* Search */}
-        <View style={styles.searchContainer}>
-          <FontAwesome name="search" size={16} color={theme.colors.textSecondary} style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Buscar por nome, CPF ou telefone..."
-            value={searchText}
-            onChangeText={handleSearch}
-            autoCapitalize="none"
-            placeholderTextColor={theme.colors.textSecondary}
-          />
-        </View>
-
         {/* Patients List */}
         <FlatList
           data={data?.patients || []}
           renderItem={renderPatientItem}
           keyExtractor={(item) => item.cpf}
           contentContainerStyle={styles.listContent}
+          ListHeaderComponent={
+            <>
+              {/* Quick Stats */}
+              <View style={styles.statsContainer}>
+                <View style={styles.statCard}>
+                  <FontAwesome name="users" size={24} color={theme.colors.primary} />
+                  <Text style={styles.statNumber}>{data?.total || 0}</Text>
+                  <Text style={styles.statLabel}>Total</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <FontAwesome name="user-plus" size={24} color={theme.colors.success} />
+                  <Text style={styles.statNumber}>
+                    {data?.patients.filter(p => p.gender === 'female').length || 0}
+                  </Text>
+                  <Text style={styles.statLabel}>Mulheres</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <FontAwesome name="user" size={24} color={theme.colors.info} />
+                  <Text style={styles.statNumber}>
+                    {data?.patients.filter(p => p.gender === 'male').length || 0}
+                  </Text>
+                  <Text style={styles.statLabel}>Homens</Text>
+                </View>
+              </View>
+
+              {/* Search */}
+              <View style={styles.searchContainer}>
+                <FontAwesome name="search" size={16} color={theme.colors.textSecondary} style={styles.searchIcon} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Buscar por nome, CPF ou telefone..."
+                  value={searchText}
+                  onChangeText={handleSearch}
+                  autoCapitalize="none"
+                  placeholderTextColor={theme.colors.textSecondary}
+                />
+                {searchLoading && (
+                  <ActivityIndicator
+                    size="small"
+                    color={theme.colors.primary}
+                    style={styles.searchSpinner}
+                  />
+                )}
+                {!searchLoading && searchText.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => handleSearch('')}
+                    style={styles.clearButton}
+                  >
+                    <FontAwesome name="times-circle" size={16} color={theme.colors.textSecondary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </>
+          }
           refreshControl={
-            <RefreshControl 
-              refreshing={refreshing} 
+            <RefreshControl
+              refreshing={refreshing}
               onRefresh={handleRefresh}
               colors={[theme.colors.primary]}
               tintColor={theme.colors.primary}
@@ -306,7 +322,6 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 24,
     paddingTop: StatusBar.currentHeight || 44,
     paddingBottom: theme.spacing.lg,
-    marginBottom: -theme.spacing.md,
     shadowColor: theme.colors.primary,
     shadowOffset: {
       width: 0,
@@ -360,8 +375,7 @@ const styles = StyleSheet.create({
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.lg,
-    marginTop: theme.spacing.xl,
+    marginTop: theme.spacing.md,
     marginBottom: theme.spacing.lg,
   },
   statCard: {
@@ -397,7 +411,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: theme.colors.surface,
-    marginHorizontal: theme.spacing.lg,
     marginBottom: theme.spacing.md,
     paddingHorizontal: theme.spacing.md,
     borderRadius: 12,
@@ -421,7 +434,15 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     paddingVertical: theme.spacing.md,
   },
+  searchSpinner: {
+    marginLeft: theme.spacing.xs,
+  },
+  clearButton: {
+    marginLeft: theme.spacing.xs,
+    padding: theme.spacing.xs,
+  },
   listContent: {
+    paddingTop: theme.spacing.xl,
     paddingHorizontal: theme.spacing.lg,
     paddingBottom: theme.spacing.xl,
   },
