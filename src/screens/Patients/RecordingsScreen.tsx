@@ -12,14 +12,26 @@ import {
   Platform,
   FlatList,
   Image,
+  Modal,
 } from 'react-native';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import * as FileSystem from 'expo-file-system/legacy';
 import { theme } from '@theme/index';
 import { api } from '@services/api';
+import { useAuthStore } from '@store/authStore';
+import { API_BASE_URL } from '@config/environment';
 import { PatientsStackParamList } from '@/types/navigation';
 
 type RecordingsRouteProp = RouteProp<PatientsStackParamList, 'Recordings'>;
+
+interface TranscriptSegment {
+  persona: string;
+  speaker: string;
+  textpart: string;
+  timestamp: string;
+}
 
 interface RecordingRecord {
   enc_id: string;
@@ -28,7 +40,7 @@ interface RecordingRecord {
   date: string;
   duration: number;
   rec_file: string;
-  transcript?: string | null;
+  transcript?: TranscriptSegment[] | null;
   status: 'completed' | 'processing';
   encounterClass?: string;
   encounterStatus?: string;
@@ -50,6 +62,7 @@ export const RecordingsScreen: React.FC = () => {
   const route = useRoute<RecordingsRouteProp>();
   const navigation = useNavigation();
   const { patientCpf, patientName } = route.params;
+  const { token } = useAuthStore();
 
   const [records, setRecords] = useState<RecordingRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,6 +72,16 @@ export const RecordingsScreen: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const [totalRecords, setTotalRecords] = useState(0);
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+
+  // Audio playback state (using expo-audio hook)
+  const audioPlayer = useAudioPlayer();
+  const audioStatus = useAudioPlayerStatus(audioPlayer);
+  const [playingRecordingId, setPlayingRecordingId] = useState<string | null>(null);
+  const [isLoadingAudio, setIsLoadingAudio] = useState<string | null>(null);
+  const [currentAudioUrl, setCurrentAudioUrl] = useState<string | null>(null);
+
+  // Transcript viewer state
+  const [selectedTranscript, setSelectedTranscript] = useState<RecordingRecord | null>(null);
 
   const loadRecordings = async (pageNum: number = 1, append: boolean = false, status?: string) => {
     try {
@@ -146,6 +169,80 @@ export const RecordingsScreen: React.FC = () => {
     setLoading(false);
   };
 
+  // Audio playback functions using expo-audio
+  const playRecording = async (recording: RecordingRecord) => {
+    try {
+      setIsLoadingAudio(recording.recordingId);
+
+      const audioUrl = `${API_BASE_URL}${recording.url}`;
+
+      // Download audio file with auth headers if not already cached
+      const fileName = `recording_${recording.recordingId}.wav`;
+      const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+
+      // Check if file exists in cache
+      const fileInfo = await FileSystem.getInfoAsync(fileUri);
+
+      if (!fileInfo.exists || currentAudioUrl !== audioUrl) {
+        console.log('[Recordings] Downloading audio from:', audioUrl);
+
+        // Download with auth headers
+        const downloadResult = await FileSystem.downloadAsync(
+          audioUrl,
+          fileUri,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          }
+        );
+
+        console.log('[Recordings] Download complete:', downloadResult.uri);
+
+        // Load the downloaded file into the player
+        audioPlayer.replace(downloadResult.uri);
+        setCurrentAudioUrl(audioUrl);
+      } else if (currentAudioUrl !== audioUrl) {
+        // File exists in cache, use it
+        console.log('[Recordings] Using cached audio file:', fileUri);
+        audioPlayer.replace(fileUri);
+        setCurrentAudioUrl(audioUrl);
+      }
+
+      // Play the audio
+      audioPlayer.play();
+      setPlayingRecordingId(recording.recordingId);
+      setIsLoadingAudio(null);
+    } catch (error) {
+      console.error('[Recordings] Error playing audio:', error);
+      Alert.alert('Erro', 'Não foi possível reproduzir a gravação');
+      setIsLoadingAudio(null);
+    }
+  };
+
+  const pauseRecording = () => {
+    audioPlayer.pause();
+    setPlayingRecordingId(null);
+  };
+
+  const resumeRecording = (recordingId: string) => {
+    audioPlayer.play();
+    setPlayingRecordingId(recordingId);
+  };
+
+  const stopRecording = () => {
+    audioPlayer.pause();
+    audioPlayer.seekTo(0);
+    setPlayingRecordingId(null);
+  };
+
+  // Monitor playback completion
+  useEffect(() => {
+    if (!audioStatus.playing && audioStatus.currentTime >= audioStatus.duration && audioStatus.duration > 0) {
+      setPlayingRecordingId(null);
+    }
+  }, [audioStatus.playing, audioStatus.currentTime, audioStatus.duration]);
+
   useEffect(() => {
     loadData();
   }, [patientCpf]);
@@ -172,6 +269,12 @@ export const RecordingsScreen: React.FC = () => {
     } else {
       return `${secs}s`;
     }
+  };
+
+  const formatPlaybackTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const getStatusColor = (status: string) => {
@@ -270,20 +373,83 @@ export const RecordingsScreen: React.FC = () => {
               </Text>
             </View>
           )}
-
-          {/* Transcript Section */}
-          {record.transcript && record.status === 'completed' && (
-            <View style={styles.transcriptSection}>
-              <View style={styles.transcriptHeader}>
-                <FontAwesome name="file-text-o" size={12} color={theme.colors.primary} style={{ marginRight: 6 }} />
-                <Text style={styles.transcriptHeaderText}>Transcrição:</Text>
-              </View>
-              <Text style={styles.transcriptText} numberOfLines={4}>
-                {record.transcript}
-              </Text>
-            </View>
-          )}
         </View>
+
+        {/* Audio Playback Controls */}
+        {record.status === 'completed' && (
+          <View style={styles.playbackSection}>
+            <View style={styles.playbackControls}>
+              {isLoadingAudio === record.recordingId ? (
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+              ) : (
+                <TouchableOpacity
+                  onPress={() => {
+                    if (playingRecordingId === record.recordingId) {
+                      pauseRecording();
+                    } else if (playingRecordingId && playingRecordingId !== record.recordingId) {
+                      playRecording(record);
+                    } else if (playingRecordingId) {
+                      resumeRecording(record.recordingId);
+                    } else {
+                      playRecording(record);
+                    }
+                  }}
+                  style={styles.playButton}
+                >
+                  <FontAwesome
+                    name={playingRecordingId === record.recordingId ? 'pause' : 'play'}
+                    size={18}
+                    color={theme.colors.white}
+                  />
+                </TouchableOpacity>
+              )}
+
+              {playingRecordingId === record.recordingId && (
+                <View style={styles.playbackInfo}>
+                  <Text style={styles.playbackTime}>
+                    {formatPlaybackTime(audioStatus.currentTime)} / {formatPlaybackTime(audioStatus.duration)}
+                  </Text>
+                  <View style={styles.progressBarContainer}>
+                    <View
+                      style={[
+                        styles.progressBar,
+                        {
+                          width: `${audioStatus.duration > 0 ? (audioStatus.currentTime / audioStatus.duration) * 100 : 0}%`,
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+              )}
+
+              {playingRecordingId === record.recordingId && (
+                <TouchableOpacity onPress={stopRecording} style={styles.stopButton}>
+                  <FontAwesome name="stop" size={16} color={theme.colors.error} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Transcript Preview Section */}
+        {record.transcript && Array.isArray(record.transcript) && record.transcript.length > 0 && record.status === 'completed' && (
+          <View style={styles.transcriptSection}>
+            <View style={styles.transcriptHeader}>
+              <FontAwesome name="file-text-o" size={12} color={theme.colors.primary} style={{ marginRight: 6 }} />
+              <Text style={styles.transcriptHeaderText}>Transcrição:</Text>
+            </View>
+            <Text style={styles.transcriptText} numberOfLines={3}>
+              {record.transcript.map(segment => segment.textpart).join(' ')}
+            </Text>
+            <TouchableOpacity
+              onPress={() => setSelectedTranscript(record)}
+              style={styles.viewTranscriptButton}
+            >
+              <Text style={styles.viewTranscriptButtonText}>Ver transcrição completa</Text>
+              <FontAwesome name="chevron-right" size={12} color={theme.colors.primary} />
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     );
   };
@@ -425,6 +591,57 @@ export const RecordingsScreen: React.FC = () => {
           ListEmptyComponent={renderEmptyState}
         />
       </View>
+
+      {/* Full Transcript Viewer Modal */}
+      <Modal
+        visible={selectedTranscript !== null}
+        animationType="slide"
+        onRequestClose={() => setSelectedTranscript(null)}
+      >
+        <View style={styles.modalContainer}>
+          {/* Modal Header */}
+          <View style={styles.modalHeaderBackground}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity
+                onPress={() => setSelectedTranscript(null)}
+                style={styles.modalCloseButton}
+              >
+                <FontAwesome name="times" size={20} color={theme.colors.white} />
+              </TouchableOpacity>
+              <View style={styles.modalHeaderContent}>
+                <Text style={styles.modalTitle}>Transcrição Completa</Text>
+                <Text style={styles.modalSubtitle}>{selectedTranscript?.title}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Transcript Content */}
+          <ScrollView style={styles.transcriptModal} contentContainerStyle={styles.transcriptModalContent}>
+            {selectedTranscript?.transcript && Array.isArray(selectedTranscript.transcript) && (
+              <>
+                {selectedTranscript.transcript.map((segment, index) => (
+                  <View key={index} style={styles.dialogueSegment}>
+                    <View style={styles.dialogueHeader}>
+                      <View style={[styles.speakerBadge, { backgroundColor: theme.colors.primary + '20' }]}>
+                        <FontAwesome name="user" size={12} color={theme.colors.primary} />
+                        <Text style={styles.speakerName}>{segment.persona}</Text>
+                      </View>
+                      <Text style={styles.dialogueTimestamp}>
+                        {new Date(segment.timestamp).toLocaleTimeString('pt-BR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                        })}
+                      </Text>
+                    </View>
+                    <Text style={styles.dialogueText}>{segment.textpart}</Text>
+                  </View>
+                ))}
+              </>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
     </>
   );
 };
@@ -687,5 +904,133 @@ const styles = StyleSheet.create({
   footerLoaderText: {
     fontSize: 14,
     color: theme.colors.textSecondary,
+  },
+  // Playback controls styles
+  playbackSection: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.borderLight,
+  },
+  playbackControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  playButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stopButton: {
+    padding: 8,
+  },
+  playbackInfo: {
+    flex: 1,
+  },
+  playbackTime: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    marginBottom: 4,
+  },
+  progressBarContainer: {
+    height: 4,
+    backgroundColor: theme.colors.border,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: theme.colors.primary,
+  },
+  viewTranscriptButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    paddingVertical: 8,
+    gap: 6,
+  },
+  viewTranscriptButtonText: {
+    fontSize: 13,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  // Modal styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
+  modalHeaderBackground: {
+    backgroundColor: theme.colors.primary,
+    paddingTop: HEADER_TOP_PADDING,
+    paddingBottom: 16,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  modalCloseButton: {
+    padding: 8,
+    marginRight: 12,
+  },
+  modalHeaderContent: {
+    flex: 1,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: theme.colors.white,
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  transcriptModal: {
+    flex: 1,
+  },
+  transcriptModalContent: {
+    padding: 16,
+  },
+  dialogueSegment: {
+    marginBottom: 20,
+    backgroundColor: theme.colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  dialogueHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  speakerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 6,
+  },
+  speakerName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  dialogueTimestamp: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+  },
+  dialogueText: {
+    fontSize: 15,
+    color: theme.colors.text,
+    lineHeight: 22,
   },
 });
