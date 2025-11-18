@@ -333,9 +333,6 @@ export const EncounterDetailsScreen: React.FC = () => {
   const [encounterDetails, setEncounterDetails] = useState<EncounterDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<
-    'general' | 'notes' | 'clinical' | 'medications' | 'diagnostics' | 'images' | 'attachments' | 'recordings' | 'documents' | 'summaries' | 'ai'
-  >('general');
   const [patientOverview, setPatientOverview] = useState<PatientOverview | null>(null);
   const [patientDetails, setPatientDetails] = useState<PatientDetails>(null);
   const [encounterInfo, setEncounterInfo] = useState<EncounterInfo>(null);
@@ -343,6 +340,9 @@ export const EncounterDetailsScreen: React.FC = () => {
   const [encounterServicesError, setEncounterServicesError] = useState<string | null>(null);
   const [encounterFinancials, setEncounterFinancials] = useState<EncounterFinancialsData | null>(null);
   const [encounterFinancialsError, setEncounterFinancialsError] = useState<string | null>(null);
+  const [encounterSummary, setEncounterSummary] = useState<any>(null);
+  const [encounterAI, setEncounterAI] = useState<any>(null);
+  const [recordings, setRecordings] = useState<any[]>([]);
 
   const loadEncounterDetails = async () => {
     try {
@@ -603,6 +603,43 @@ export const EncounterDetailsScreen: React.FC = () => {
     }
   };
 
+  const loadEncounterSummary = async () => {
+    try {
+      console.log('[EncounterDetails] Loading encounter summary for:', encounterId);
+      const response = await api.getEncounterSummary(encounterId);
+      console.log('[EncounterDetails] Raw encounter summary response:', JSON.stringify(response, null, 2));
+      setEncounterSummary(response?.data || response || null);
+    } catch (error) {
+      console.error('[EncounterDetails] Error loading encounter summary:', error);
+      setEncounterSummary(null);
+    }
+  };
+
+  const loadEncounterAI = async () => {
+    try {
+      console.log('[EncounterDetails] Loading encounter AI data for:', encounterId);
+      const response = await api.getEncounterAI(encounterId);
+      console.log('[EncounterDetails] Raw encounter AI response:', JSON.stringify(response, null, 2));
+      setEncounterAI(response?.data || response || null);
+    } catch (error) {
+      console.error('[EncounterDetails] Error loading encounter AI:', error);
+      setEncounterAI(null);
+    }
+  };
+
+  const loadRecordings = async () => {
+    try {
+      console.log('[EncounterDetails] Loading recordings for encounter:', encounterId);
+      const response = await api.getEncounterRecordings(encounterId, { limit: 20 });
+      console.log('[EncounterDetails] Raw recordings response:', JSON.stringify(response, null, 2));
+      const data = response?.data || response || [];
+      setRecordings(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('[EncounterDetails] Error loading recordings:', error);
+      setRecordings([]);
+    }
+  };
+
   const loadData = async () => {
     setLoading(true);
     await Promise.all([
@@ -612,6 +649,9 @@ export const EncounterDetailsScreen: React.FC = () => {
       loadEncounterInfo(),
       loadEncounterServices(),
       loadEncounterFinancials(),
+      loadEncounterSummary(),
+      loadEncounterAI(),
+      loadRecordings(),
     ]);
     setLoading(false);
   };
@@ -625,6 +665,9 @@ export const EncounterDetailsScreen: React.FC = () => {
       loadEncounterInfo(),
       loadEncounterServices(),
       loadEncounterFinancials(),
+      loadEncounterSummary(),
+      loadEncounterAI(),
+      loadRecordings(),
     ]);
     setRefreshing(false);
   };
@@ -664,674 +707,526 @@ export const EncounterDetailsScreen: React.FC = () => {
     }
   };
 
-  const renderTabContent = () => {
-    if (!encounterDetails) return null;
+  // Section rendering helpers
+  const renderSectionHeader = (title: string, icon: string) => (
+    <View style={styles.sectionHeader}>
+      <FontAwesome name={icon} size={18} color={theme.colors.primary} />
+      <Text style={styles.sectionTitle}>{title}</Text>
+    </View>
+  );
 
-    switch (activeTab) {
-      case 'general': {
-        const details = patientDetails || {};
-        const totalEncounters = patientOverview?.total;
-        const name = details.name || details.fullName || details.patientName || patientName;
-        const genderLabel = formatGenderLabel(details.gender || details.patientGender);
-        const birthDate = details.birthdate || details.patientBirthDate;
-        const age = calculateAge(birthDate);
-        const metaParts: string[] = [];
-        if (genderLabel) metaParts.push(genderLabel);
-        if (typeof age === 'number') metaParts.push(`${age} ${age === 1 ? 'ano' : 'anos'}`);
-        const metaLine = metaParts.join(' • ');
-        const appointmentStatusLabel = formatStatusLabel(encounterServices?.appointmentStatus);
+  const renderPatientInfo = () => {
+    const details = patientDetails || {};
+    const name = details.name || details.fullName || details.patientName || patientName;
+    const genderLabel = formatGenderLabel(details.gender || details.patientGender);
+    const birthDate = details.birthdate || details.patientBirthDate;
+    const age = calculateAge(birthDate);
+    const metaParts: string[] = [];
+    if (genderLabel) metaParts.push(genderLabel);
+    if (typeof age === 'number') metaParts.push(`${age} ${age === 1 ? 'ano' : 'anos'}`);
+    const metaLine = metaParts.join(' • ');
 
-        return (
-          <View style={styles.tabContent}>
-            <Text style={styles.tabTitle}>Dados Gerais</Text>
-            <View style={styles.generalGrid}>
-              <View style={[styles.generalCard, styles.patientCard]}>
-                <View style={styles.patientCardHeader}>
-                  <CachedImage
-                    uri={patientCpf ? `${API_BASE_URL}/patient/getpatientphoto?patientCpf=${patientCpf}` : undefined}
-                    headers={token ? { Authorization: `Bearer ${token}` } : undefined}
-                    style={styles.patientAvatar}
-                    fallbackIcon="user"
-                    fallbackIconSize={30}
-                    fallbackIconColor={theme.colors.white}
-                  />
-                  <View style={styles.patientInfo}>
-                    {name ? <Text style={styles.patientNameText}>{name}</Text> : null}
-                    {metaLine ? <Text style={styles.patientMeta}>{metaLine}</Text> : null}
-                  </View>
-                </View>
-
-                {typeof totalEncounters === 'number' && (
-                  <View style={styles.patientBadges}>
-                    <View style={styles.patientBadge}>
-                      <FontAwesome name="calendar" size={12} color={theme.colors.primary} />
-                      <View>
-                        <Text style={styles.patientBadgeLabel}>Total de encontros</Text>
-                        <Text style={styles.patientBadgeValue}>
-                          {totalEncounters} encontro{totalEncounters === 1 ? '' : 's'}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.generalCard}>
-                <Text style={styles.generalCardTitle}>Serviços Agendados</Text>
-                {encounterServicesError ? (
-                  <Text style={styles.generalError}>{encounterServicesError}</Text>
-                ) : !encounterServices ? (
-                  <Text style={styles.generalPlaceholder}>Carregando serviços...</Text>
-                ) : (
-                  <>
-                    {(encounterServices.appointmentId || appointmentStatusLabel || encounterServices.serviceCategory || encounterServices.serviceType) && (
-                      <View style={styles.servicesMetaRow}>
-                        {encounterServices.appointmentId && (
-                          <View style={[styles.serviceBadge, styles.serviceBadgeNeutral]}>
-                            <FontAwesome name="bookmark" size={12} color={theme.colors.primary} />
-                            <Text style={styles.serviceBadgeText}>Atendimento #{encounterServices.appointmentId}</Text>
-                          </View>
-                        )}
-                        {appointmentStatusLabel && (
-                          <View style={[styles.serviceBadge, styles.serviceBadgeStatus]}>
-                            <FontAwesome name="info-circle" size={12} color={theme.colors.white} />
-                            <Text style={[styles.serviceBadgeText, styles.serviceBadgeTextOnDark]}>{appointmentStatusLabel}</Text>
-                          </View>
-                        )}
-                        {encounterServices.serviceCategory && (
-                          <View style={[styles.serviceBadge, styles.serviceBadgeOutline]}>
-                            <FontAwesome name="tags" size={12} color={theme.colors.primary} />
-                            <Text style={styles.serviceBadgeText}>{encounterServices.serviceCategory}</Text>
-                          </View>
-                        )}
-                        {encounterServices.serviceType && (
-                          <View style={[styles.serviceBadge, styles.serviceBadgeOutline]}>
-                            <FontAwesome name="briefcase" size={12} color={theme.colors.primary} />
-                            <Text style={styles.serviceBadgeText}>{encounterServices.serviceType}</Text>
-                          </View>
-                        )}
-                      </View>
-                    )}
-
-                    {encounterServices.services.length === 0 ? (
-                      <Text style={styles.generalPlaceholder}>Nenhum serviço associado ao encontro.</Text>
-                    ) : (
-                      <View style={styles.servicesList}>
-                        {encounterServices.services.map((service, index) => {
-                          const priceLabel = formatCurrencyBRL(service.price);
-                          const durationLabel = formatDurationMinutesLabel(service.duration || service.durationMinutes);
-                          const professionalLabel = service.professional || service.providerName || service.professionalName || service.practitioner;
-
-                          return (
-                            <View key={service.id || `${service.name || 'service'}-${index}`} style={styles.serviceItem}>
-                              <View style={styles.serviceItemHeader}>
-                                <FontAwesome name="stethoscope" size={16} color={theme.colors.primary} />
-                                <Text style={styles.serviceName}>{service.name || 'Serviço sem nome'}</Text>
-                              </View>
-                              <View style={styles.serviceDetailRow}>
-                                {priceLabel && (
-                                  <View style={styles.serviceDetailItem}>
-                                    <FontAwesome name="money" size={12} color={theme.colors.textSecondary} />
-                                    <Text style={styles.serviceDetailText}>{priceLabel}</Text>
-                                  </View>
-                                )}
-                                {durationLabel && (
-                                  <View style={styles.serviceDetailItem}>
-                                    <FontAwesome name="clock-o" size={12} color={theme.colors.textSecondary} />
-                                    <Text style={styles.serviceDetailText}>{durationLabel}</Text>
-                                  </View>
-                                )}
-                                {professionalLabel && (
-                                  <View style={styles.serviceDetailItem}>
-                                    <FontAwesome name="user-md" size={12} color={theme.colors.textSecondary} />
-                                    <Text style={styles.serviceDetailText}>{professionalLabel}</Text>
-                                  </View>
-                                )}
-                              </View>
-                            </View>
-                          );
-                        })}
-                      </View>
-                    )}
-                  </>
-                )}
-              </View>
-
-              <View style={styles.generalCard}>
-                <Text style={styles.generalCardTitle}>Resumo Financeiro</Text>
-                {encounterFinancialsError ? (
-                  <Text style={styles.generalError}>{encounterFinancialsError}</Text>
-                ) : !encounterFinancials ? (
-                  <Text style={styles.generalPlaceholder}>Carregando resumo financeiro...</Text>
-                ) : (
-                  <>
-                    {(() => {
-                      const badges: React.ReactNode[] = [];
-                      const paymentTypeLabel = formatStatusLabel(encounterFinancials.paymentType);
-                      const carePlanCode = encounterFinancials.selectedPatientCarePlanCode;
-                      const planId = encounterFinancials.selectedPractCarePlanIdForAppointment;
-
-                      if (paymentTypeLabel) {
-                        badges.push(
-                          <View key="payment-type" style={[styles.serviceBadge, styles.serviceBadgeNeutral]}>
-                            <FontAwesome name="credit-card" size={12} color={theme.colors.primary} />
-                            <Text style={styles.serviceBadgeText}>{paymentTypeLabel}</Text>
-                          </View>
-                        );
-                      }
-
-                      if (carePlanCode) {
-                        badges.push(
-                          <View key="care-plan" style={[styles.serviceBadge, styles.serviceBadgeOutline]}>
-                            <FontAwesome name="shield" size={12} color={theme.colors.primary} />
-                            <Text style={styles.serviceBadgeText}>Plano {carePlanCode}</Text>
-                          </View>
-                        );
-                      }
-
-                      if (planId) {
-                        badges.push(
-                          <View key="care-plan-id" style={[styles.serviceBadge, styles.serviceBadgeOutline]}>
-                            <FontAwesome name="id-card" size={12} color={theme.colors.primary} />
-                            <Text style={styles.serviceBadgeText}>ID Plano #{planId}</Text>
-                          </View>
-                        );
-                      }
-
-                      if (badges.length === 0) return null;
-                      return <View style={styles.servicesMetaRow}>{badges}</View>;
-                    })()}
-
-                    {(() => {
-                      const totals = encounterFinancials.totals;
-                      if (!totals) {
-                        return <Text style={styles.generalPlaceholder}>Totais indisponíveis.</Text>;
-                      }
-
-                      const totalServicesLabel = formatCurrencyBRL(totals.totalServicesAmount) ?? '—';
-                      const directPayLabel = formatCurrencyBRL(totals.directPayAmount) ?? '—';
-                      const planCoveredLabel = formatCurrencyBRL(totals.planCoveredAmount) ?? '—';
-                      const uncoveredLabel = formatCurrencyBRL(totals.uncoveredAmount) ?? '—';
-                      const pendingDecisionLabel = typeof totals.pendingDecisionCount === 'number'
-                        ? `${totals.pendingDecisionCount}`
-                        : '—';
-
-                      return (
-                        <View style={styles.financialTotalsGrid}>
-                          <View style={styles.financialTotalCard}>
-                            <Text style={styles.financialTotalLabel}>Total de Serviços</Text>
-                            <Text style={styles.financialTotalValue}>{totalServicesLabel}</Text>
-                          </View>
-                          <View style={styles.financialTotalCard}>
-                            <Text style={styles.financialTotalLabel}>Pago Diretamente</Text>
-                            <Text style={styles.financialTotalValue}>{directPayLabel}</Text>
-                          </View>
-                          <View style={styles.financialTotalCard}>
-                            <Text style={styles.financialTotalLabel}>Coberto pelo Plano</Text>
-                            <Text style={styles.financialTotalValue}>{planCoveredLabel}</Text>
-                          </View>
-                          <View style={styles.financialTotalCard}>
-                            <Text style={styles.financialTotalLabel}>Não Coberto</Text>
-                            <Text style={styles.financialTotalValue}>{uncoveredLabel}</Text>
-                          </View>
-                          <View style={styles.financialTotalCard}>
-                            <Text style={styles.financialTotalLabel}>Pendências</Text>
-                            <Text style={styles.financialTotalValue}>{pendingDecisionLabel}</Text>
-                          </View>
-                        </View>
-                      );
-                    })()}
-
-                    {(() => {
-                      const coverage = encounterFinancials.servicesCoverageStatus || [];
-                      if (!coverage.length) {
-                        const selectedServicesCount = encounterFinancials.selectedServices?.length || 0;
-                        if (selectedServicesCount > 0) {
-                          return (
-                            <Text style={styles.generalPlaceholder}>
-                              Nenhuma informação de cobertura registrada para os {selectedServicesCount} serviço(s).
-                            </Text>
-                          );
-                        }
-                        return <Text style={styles.generalPlaceholder}>Nenhum serviço financeiro vinculado.</Text>;
-                      }
-
-                      return (
-                        <View style={styles.coverageList}>
-                          {coverage.map((item, index) => {
-                            const paymentChoice = (item.chosenPayment || '').toLowerCase();
-                            let badgeStyle = styles.coverageBadgeNeutral;
-                            let badgeIcon: string = 'question-circle';
-                            let badgeText = 'Pagamento indefinido';
-                            let badgeTextColor = theme.colors.primary;
-                            let badgeIconColor = theme.colors.primary;
-
-                            if (paymentChoice === 'plan') {
-                              badgeStyle = styles.coverageBadgePlan;
-                              badgeIcon = 'shield';
-                              badgeText = 'Plano de saúde';
-                              badgeTextColor = theme.colors.white;
-                              badgeIconColor = theme.colors.white;
-                            } else if (paymentChoice === 'direct_pay' || paymentChoice === 'direct') {
-                              badgeStyle = styles.coverageBadgeDirect;
-                              badgeIcon = 'money';
-                              badgeText = 'Pagamento direto';
-                            } else if (paymentChoice === 'pending' || paymentChoice === 'decision_pending') {
-                              badgeStyle = styles.coverageBadgePending;
-                              badgeIcon = 'hourglass-half';
-                              badgeText = 'Decisão pendente';
-                              badgeTextColor = theme.colors.warning;
-                              badgeIconColor = theme.colors.warning;
-                            } else if (item.isCoveredByPlan) {
-                              badgeStyle = styles.coverageBadgePlan;
-                              badgeIcon = 'shield';
-                              badgeText = 'Coberto pelo plano';
-                              badgeTextColor = theme.colors.white;
-                              badgeIconColor = theme.colors.white;
-                            }
-
-                            const priceLabel = formatCurrencyBRL(item.price);
-
-                            return (
-                              <View key={item.serviceId || item.serviceName || index} style={styles.coverageItem}>
-                                <View style={styles.coverageHeader}>
-                                  <View style={styles.coverageTitleRow}>
-                                    <FontAwesome name="file-text-o" size={14} color={theme.colors.primary} />
-                                    <Text style={styles.coverageServiceName}>{item.serviceName || 'Serviço'}</Text>
-                                  </View>
-                                  <View style={[styles.coverageBadge, badgeStyle]}>
-                                    <FontAwesome name={badgeIcon} size={11} color={badgeIconColor} />
-                                    <Text style={[styles.coverageBadgeText, badgeStyle === styles.coverageBadgePlan && styles.coverageBadgeTextOnDark, { color: badgeTextColor }]}>
-                                      {badgeText}
-                                    </Text>
-                                  </View>
-                                </View>
-                                <View style={styles.coverageDetails}>
-                                  {priceLabel && (
-                                    <View style={styles.coverageDetailItem}>
-                                      <FontAwesome name="money" size={11} color={theme.colors.textSecondary} />
-                                      <Text style={styles.coverageDetailText}>{priceLabel}</Text>
-                                    </View>
-                                  )}
-                                  {typeof item.isCoveredByPlan === 'boolean' && (
-                                    <View style={styles.coverageDetailItem}>
-                                      <FontAwesome name={item.isCoveredByPlan ? 'check-circle' : 'times-circle'} size={11} color={item.isCoveredByPlan ? theme.colors.success : theme.colors.error} />
-                                      <Text style={styles.coverageDetailText}>
-                                        {item.isCoveredByPlan ? 'Coberto pelo plano' : 'Não coberto pelo plano'}
-                                      </Text>
-                                    </View>
-                                  )}
-                                </View>
-                              </View>
-                            );
-                          })}
-                        </View>
-                      );
-                    })()}
-                  </>
-                )}
+    return (
+      <View style={styles.section}>
+        {renderSectionHeader('Informações do Paciente', 'user')}
+        <View style={styles.sectionContent}>
+          {!patientDetails ? (
+            <Text style={styles.emptyMessage}>Carregando informações do paciente...</Text>
+          ) : (
+            <View style={styles.patientCardHeader}>
+              <CachedImage
+                uri={patientCpf ? `${API_BASE_URL}/patient/getpatientphoto?patientCpf=${patientCpf}` : undefined}
+                headers={token ? { Authorization: `Bearer ${token}` } : undefined}
+                style={styles.patientAvatar}
+                fallbackIcon="user"
+                fallbackIconSize={30}
+                fallbackIconColor={theme.colors.white}
+              />
+              <View style={styles.patientInfo}>
+                {name ? <Text style={styles.patientNameText}>{name}</Text> : null}
+                {metaLine ? <Text style={styles.patientMeta}>{metaLine}</Text> : null}
+                {patientCpf ? <Text style={styles.patientCpf}>CPF: {patientCpf}</Text> : null}
               </View>
             </View>
-          </View>
-        );
-      }
-      
-      case 'notes':
-        const noteSource =
-          (encounterInfo as any)?.Note ??
-          (encounterInfo as any)?.note ??
-          (encounterInfo as any)?.encounter?.Note ??
-          (encounterInfo as any)?.encounter?.note ??
-          encounterDetails.encounter?.Note ??
-          encounterDetails.encounter?.note ??
-          null;
-        const formattedNote = (quillDeltaToPlainText(noteSource) || '').trim();
-
-        return (
-          <View style={styles.tabContent}>
-            <Text style={styles.tabTitle}>Notas</Text>
-            {encounterDetails.encounter?.shortAISummary ? (
-              <View style={styles.notesCard}>
-                <Text style={styles.notesTitle}>Resumo IA</Text>
-                <Text style={styles.notesText}>{encounterDetails.encounter.shortAISummary}</Text>
-              </View>
-            ) : null}
-
-            {formattedNote ? (
-              <View style={styles.notesCard}>
-                <Text style={styles.notesText}>{formattedNote}</Text>
-              </View>
-            ) : (
-              !encounterDetails.encounter?.shortAISummary && (
-                <Text style={styles.emptyMessage}>Nenhuma nota disponível</Text>
-              )
-            )}
-          </View>
-        );
-
-      case 'clinical':
-        return (
-          <View style={styles.tabContent}>
-            <Text style={styles.tabTitle}>Registros Clínicos ({encounterDetails.clinicalRecords.length})</Text>
-            {encounterDetails.clinicalRecords.length > 0 ? (
-              encounterDetails.clinicalRecords.map((record: any, index: number) => {
-                const typeLabel = translateClinicalType(record.clinicalType) || translateClinicalType(record.type) || 'Registro Clínico';
-                const statusLabel = translateClinicalStatus(record.clinicalStatus) || record.clinicalStatus || null;
-                const categoryLabel = translateClinicalCategory(
-                  record.clinicalMetadata?.servicerequestCategory ||
-                  record.clinicalMetadata?.category ||
-                  record.category
-                );
-                const recordId = record.clinicalId || record.identifier || record.id || `registro-${index}`;
-                const rawStatus = (record.clinicalStatus || record.status || '').toString().trim().toLowerCase();
-
-                const badges: Array<{
-                  key: string;
-                  label: string;
-                  icon: string;
-                  containerStyle: any[];
-                  textStyle: any[];
-                  iconColor: string;
-                }> = [];
-
-                if (typeLabel) {
-                  badges.push({
-                    key: 'type',
-                    label: typeLabel,
-                    icon: 'tag',
-                    containerStyle: [styles.clinicalBadge, styles.clinicalBadgeInfo],
-                    textStyle: [styles.clinicalBadgeText, styles.clinicalBadgeTextOnDark],
-                    iconColor: theme.colors.white,
-                  });
-                }
-
-                if (statusLabel) {
-                  const statusBadge = getStatusBadgeStyle(rawStatus);
-
-                  badges.push({
-                    key: 'status',
-                    label: statusLabel,
-                    icon: statusBadge.icon,
-                    containerStyle: [styles.clinicalBadge, statusBadge.container],
-                    textStyle: [styles.clinicalBadgeText, { color: statusBadge.textColor }],
-                    iconColor: statusBadge.iconColor,
-                  });
-                }
-
-                if (categoryLabel) {
-                  badges.push({
-                    key: 'category',
-                    label: categoryLabel,
-                    icon: 'folder-open',
-                    containerStyle: [styles.clinicalBadge, styles.clinicalBadgeNeutral],
-                    textStyle: [styles.clinicalBadgeText],
-                    iconColor: theme.colors.primary,
-                  });
-                }
-
-                return (
-                  <TouchableOpacity
-                    key={recordId}
-                    style={styles.itemCard}
-                    activeOpacity={0.85}
-                    onPress={() => handleClinicalRecordPress(record)}
-                  >
-                    <View style={styles.itemHeader}>
-                      <FontAwesome name="file-text-o" size={16} color={theme.colors.info} />
-                      <Text style={styles.itemTitle}>
-                        {typeLabel} #{recordId}
-                      </Text>
-                    </View>
-                    {record.clinicalDate && (
-                      <Text style={styles.itemDate}>{formatDateTime(record.clinicalDate)}</Text>
-                    )}
-                    {badges.length > 0 && (
-                      <View style={styles.clinicalBadgeRow}>
-                        {badges.map((badge) => (
-                          <View key={`${recordId}-${badge.key}`} style={badge.containerStyle}>
-                            <FontAwesome name={badge.icon} size={11} color={badge.iconColor} />
-                            <Text style={badge.textStyle}>{badge.label}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              })
-            ) : (
-              <Text style={styles.emptyMessage}>Nenhum registro clínico encontrado</Text>
-            )}
-          </View>
-        );
-
-      case 'medications':
-        return (
-          <View style={styles.tabContent}>
-            <Text style={styles.tabTitle}>Medicações ({encounterDetails.medications.length})</Text>
-            {encounterDetails.medications.length > 0 ? (
-              encounterDetails.medications.map((med: any, index: number) => (
-                <View key={index} style={styles.itemCard}>
-                  <View style={styles.itemHeader}>
-                    <FontAwesome name="medkit" size={16} color={theme.colors.success} />
-                    <Text style={styles.itemTitle}>Prescrição #{med.medId}</Text>
-                  </View>
-                  <Text style={styles.itemDate}>{formatDateTime(med.medDate)}</Text>
-                  <Text style={styles.itemStatus}>Status: {med.medStatus}</Text>
-                  {med.medRequestItens && med.medRequestItens.length > 0 && (
-                    <View style={styles.medicationItems}>
-                      {med.medRequestItens.map((item: any, itemIndex: number) => (
-                        <View key={itemIndex} style={styles.medicationItem}>
-                          <Text style={styles.medicationName}>{item.productName}</Text>
-                          <Text style={styles.medicationDosage}>Posologia: {item.posology}</Text>
-                          <Text style={styles.medicationRegistry}>Registro: {item.registry}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                </View>
-              ))
-            ) : (
-              <Text style={styles.emptyMessage}>Nenhuma medicação encontrada</Text>
-            )}
-          </View>
-        );
-
-      case 'diagnostics':
-        return (
-          <View style={styles.tabContent}>
-            <Text style={styles.tabTitle}>Diagnósticos ({encounterDetails.diagnostics.length})</Text>
-            {encounterDetails.diagnostics.length > 0 ? (
-              encounterDetails.diagnostics.map((diag: any, index: number) => (
-                <View key={index} style={styles.itemCard}>
-                  <View style={styles.itemHeader}>
-                    <FontAwesome name="stethoscope" size={16} color={theme.colors.warning} />
-                    <Text style={styles.itemTitle}>Diagnóstico #{diag.identifier}</Text>
-                  </View>
-                  <Text style={styles.itemDate}>{formatDateTime(diag.effectiveDateTime)}</Text>
-                  <Text style={styles.itemStatus}>Status: {diag.status}</Text>
-                  <Text style={styles.itemCategory}>Categoria: {diag.category_code}</Text>
-                  {diag.conclusion && (
-                    <View style={styles.conclusionContainer}>
-                      <Text style={styles.conclusionTitle}>Conclusão:</Text>
-                      <Text style={styles.conclusionText}>{diag.conclusion}</Text>
-                    </View>
-                  )}
-                </View>
-              ))
-            ) : (
-              <Text style={styles.emptyMessage}>Nenhum diagnóstico encontrado</Text>
-            )}
-          </View>
-        );
-
-      case 'images':
-        return (
-          <View style={styles.tabContent}>
-            <Text style={styles.tabTitle}>Imagens ({encounterDetails.images.length})</Text>
-            {encounterDetails.images.length > 0 ? (
-              encounterDetails.images.map((image: any, index: number) => (
-                <View key={index} style={styles.itemCard}>
-                  <View style={styles.itemHeader}>
-                    <FontAwesome name="picture-o" size={16} color={theme.colors.primary} />
-                    <Text style={styles.itemTitle}>{image.file}</Text>
-                  </View>
-                  <Text style={styles.itemDate}>{formatDateTime(image.date)}</Text>
-                  {image.title && <Text style={styles.imageTitle}>Título: {image.title}</Text>}
-                  {image.description && <Text style={styles.imageDescription}>Descrição: {image.description}</Text>}
-                </View>
-              ))
-            ) : (
-              <Text style={styles.emptyMessage}>Nenhuma imagem encontrada</Text>
-            )}
-          </View>
-        );
-
-      case 'attachments':
-        return (
-          <View style={styles.tabContent}>
-            <Text style={styles.tabTitle}>Anexos ({encounterDetails.attachments.length})</Text>
-            {encounterDetails.attachments.length > 0 ? (
-              encounterDetails.attachments.map((attachment: any, index: number) => (
-                <TouchableOpacity 
-                  key={index} 
-                  style={styles.itemCard}
-                  onPress={() => handleAttachmentPress(attachment)}
-                >
-                  <View style={styles.itemHeader}>
-                    <FontAwesome name="paperclip" size={16} color={theme.colors.textSecondary} />
-                    <Text style={styles.itemTitle}>{attachment.identifier}</Text>
-                    {attachment.externallink && (
-                      <FontAwesome name="external-link" size={12} color={theme.colors.primary} />
-                    )}
-                  </View>
-                  <Text style={styles.itemDate}>{formatDateTime(attachment.date)}</Text>
-                  <Text style={styles.itemType}>Tipo: {attachment.type}</Text>
-                  <Text style={styles.itemFileType}>Formato: {attachment.filetype}</Text>
-                  {attachment.file_size && (
-                    <Text style={styles.itemSize}>Tamanho: {(attachment.file_size / 1024).toFixed(1)} KB</Text>
-                  )}
-                  {attachment.metadata?.aiAnalysis?.summary && (
-                    <View style={styles.aiAnalysisContainer}>
-                      <Text style={styles.aiAnalysisTitle}>Análise IA:</Text>
-                      <Text style={styles.aiAnalysisText}>{attachment.metadata.aiAnalysis.summary}</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              ))
-            ) : (
-              <Text style={styles.emptyMessage}>Nenhum anexo encontrado</Text>
-            )}
-          </View>
-        );
-
-      case 'recordings':
-        return (
-          <View style={styles.tabContent}>
-            <Text style={styles.tabTitle}>Gravações de Áudio</Text>
-            {Array.isArray(encounterDetails.encounter?.recordings) && encounterDetails.encounter.recordings.length > 0 ? (
-              encounterDetails.encounter.recordings.map((recording: any, index: number) => (
-                <TouchableOpacity key={index} style={styles.itemCard} onPress={() => handleAttachmentPress(recording)}>
-                  <View style={styles.itemHeader}>
-                    <FontAwesome name="microphone" size={16} color={theme.colors.primary} />
-                    <Text style={styles.itemTitle}>{recording.title || `Gravação ${index + 1}`}</Text>
-                    {recording.externallink && (
-                      <FontAwesome name="play" size={12} color={theme.colors.primary} />
-                    )}
-                  </View>
-                  {recording.date && <Text style={styles.itemDate}>{formatDateTime(recording.date)}</Text>}
-                  {recording.duration && <Text style={styles.itemStatus}>Duração: {recording.duration}</Text>}
-                </TouchableOpacity>
-              ))
-            ) : (
-              <Text style={styles.emptyMessage}>Nenhuma gravação disponível</Text>
-            )}
-          </View>
-        );
-
-      case 'documents':
-        return (
-          <View style={styles.tabContent}>
-            <Text style={styles.tabTitle}>Documentos</Text>
-            {Array.isArray(encounterDetails.encounter?.documents) && encounterDetails.encounter.documents.length > 0 ? (
-              encounterDetails.encounter.documents.map((doc: any, index: number) => (
-                <TouchableOpacity key={index} style={styles.itemCard} onPress={() => handleAttachmentPress(doc)}>
-                  <View style={styles.itemHeader}>
-                    <FontAwesome name="file-pdf-o" size={16} color={theme.colors.error} />
-                    <Text style={styles.itemTitle}>{doc.name || `Documento ${index + 1}`}</Text>
-                    {doc.externallink && (
-                      <FontAwesome name="external-link" size={12} color={theme.colors.primary} />
-                    )}
-                  </View>
-                  {doc.date && <Text style={styles.itemDate}>{formatDateTime(doc.date)}</Text>}
-                  {doc.description && <Text style={styles.itemType}>{doc.description}</Text>}
-                </TouchableOpacity>
-              ))
-            ) : (
-              <Text style={styles.emptyMessage}>Nenhum documento disponível</Text>
-            )}
-          </View>
-        );
-
-      case 'summaries':
-        return (
-          <View style={styles.tabContent}>
-            <Text style={styles.tabTitle}>Sumários Clínicos</Text>
-            {Array.isArray(encounterDetails.encounter?.summaries) && encounterDetails.encounter.summaries.length > 0 ? (
-              encounterDetails.encounter.summaries.map((summary: any, index: number) => (
-                <View key={index} style={styles.notesCard}>
-                  <View style={styles.notesHeader}>
-                    <Text style={styles.notesAuthor}>{summary.author || 'Resumo automático'}</Text>
-                    {summary.date && <Text style={styles.notesDate}>{formatDateTime(summary.date)}</Text>}
-                  </View>
-                  <Text style={styles.notesText}>{summary.text}</Text>
-                </View>
-              ))
-            ) : (
-              <Text style={styles.emptyMessage}>Nenhum sumário disponível</Text>
-            )}
-          </View>
-        );
-
-      case 'ai':
-        return (
-          <View style={styles.tabContent}>
-            <Text style={styles.tabTitle}>Insights de IA Clínica</Text>
-            {encounterDetails.encounter?.aiInsights ? (
-              <View style={styles.aiInsightsCard}>
-                <Text style={styles.notesText}>{encounterDetails.encounter.aiInsights}</Text>
-              </View>
-            ) : encounterDetails.encounter?.metadata?.aiAnalysis ? (
-              <View style={styles.aiInsightsCard}>
-                {encounterDetails.encounter.metadata.aiAnalysis.summary && (
-                  <Text style={styles.notesText}>{encounterDetails.encounter.metadata.aiAnalysis.summary}</Text>
-                )}
-                {encounterDetails.encounter.metadata.aiAnalysis.recommendations && (
-                  <View style={styles.aiRecommendations}>
-                    <Text style={styles.notesTitle}>Recomendações</Text>
-                    {encounterDetails.encounter.metadata.aiAnalysis.recommendations.map((rec: string, idx: number) => (
-                      <Text key={idx} style={styles.notesText}>• {rec}</Text>
-                    ))}
-                  </View>
-                )}
-              </View>
-            ) : (
-              <Text style={styles.emptyMessage}>Nenhuma análise de IA disponível</Text>
-            )}
-          </View>
-        );
-
-      default:
-        return null;
-    }
+          )}
+        </View>
+      </View>
+    );
   };
 
+  const renderEncounterDetails = () => {
+    const encounterRecord = encounterInfo || encounterDetails?.encounter;
+
+    return (
+      <View style={styles.section}>
+        {renderSectionHeader('Detalhes do Atendimento', 'clipboard')}
+        <View style={styles.sectionContent}>
+          {!encounterRecord ? (
+            <Text style={styles.emptyMessage}>Carregando detalhes do atendimento...</Text>
+          ) : (
+            <View style={styles.dataGrid}>
+              <View style={styles.dataItem}>
+                <Text style={styles.dataLabel}>Profissional</Text>
+                <Text style={styles.dataValue}>
+                  {encounterRecord.practName || encounterRecord.practitioner || encounterRecord.Practitioner || '—'}
+                </Text>
+              </View>
+              <View style={styles.dataItem}>
+                <Text style={styles.dataLabel}>Status</Text>
+                {(() => {
+                  const status = encounterRecord.Status || encounterRecord.status;
+                  const statusLabel = formatStatusLabel(status) || '—';
+                  const statusLower = (status || '').toLowerCase();
+
+                  let badgeStyle = styles.statusBadgeNeutral;
+                  if (statusLower === 'finished' || statusLower === 'completed' || statusLower === 'finalizado') {
+                    badgeStyle = styles.statusBadgeSuccess;
+                  } else if (statusLower === 'in-progress' || statusLower === 'ongoing' || statusLower === 'em andamento') {
+                    badgeStyle = styles.statusBadgeInfo;
+                  } else if (statusLower === 'cancelled' || statusLower === 'canceled' || statusLower === 'cancelado') {
+                    badgeStyle = styles.statusBadgeError;
+                  } else if (statusLower === 'planned' || statusLower === 'planejado' || statusLower === 'agendado') {
+                    badgeStyle = styles.statusBadgeWarning;
+                  }
+
+                  return (
+                    <View style={[styles.statusBadgeContainer, badgeStyle]}>
+                      <Text style={styles.statusBadgeTextSmall}>{statusLabel}</Text>
+                    </View>
+                  );
+                })()}
+              </View>
+              <View style={styles.dataItem}>
+                <Text style={styles.dataLabel}>Início</Text>
+                <Text style={styles.dataValue}>
+                  {(() => {
+                    const startIso = encounterRecord.actualStart || encounterRecord.startDate || encounterRecord.startdate || encounterRecord.encounterDate || encounterRecord.encounterdate;
+                    return startIso ? formatDateTime(startIso) : '—';
+                  })()}
+                </Text>
+              </View>
+              <View style={styles.dataItem}>
+                <Text style={styles.dataLabel}>Término</Text>
+                <Text style={styles.dataValue}>
+                  {(() => {
+                    const endIso = encounterRecord.actualEnd || encounterRecord.endDate || encounterRecord.enddate;
+                    return endIso ? formatDateTime(endIso) : '—';
+                  })()}
+                </Text>
+              </View>
+              <View style={styles.dataItem}>
+                <Text style={styles.dataLabel}>Duração</Text>
+                <Text style={styles.dataValue}>
+                  {(() => {
+                    const durationRaw = encounterRecord.Length ?? encounterRecord.length ?? encounterRecord.durationMinutes ?? encounterRecord.duration ?? encounterRecord.totalMinutes;
+                    const durationSeconds = typeof durationRaw === 'string' ? Number(durationRaw) : durationRaw;
+                    return formatDurationLabel(durationSeconds) || '—';
+                  })()}
+                </Text>
+              </View>
+              <View style={styles.dataItem}>
+                <Text style={styles.dataLabel}>Consulta</Text>
+                <Text style={styles.dataValue}>
+                  {encounterServices?.appointmentId || encounterRecord.appointmentId || '—'}
+                </Text>
+              </View>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderServices = () => {
+    return (
+      <View style={styles.section}>
+        {renderSectionHeader('Serviços Realizados', 'briefcase')}
+        <View style={styles.sectionContent}>
+          {encounterServicesError ? (
+            <Text style={styles.emptyMessage}>{encounterServicesError}</Text>
+          ) : encounterServices?.services && encounterServices.services.length > 0 ? (
+            encounterServices.services.map((service, index) => {
+              const priceLabel = formatCurrencyBRL(service.price);
+              const durationLabel = formatDurationMinutesLabel(service.duration || service.durationMinutes);
+
+              return (
+                <View key={service.id || `service-${index}`} style={styles.serviceItem}>
+                  <View style={styles.serviceItemHeader}>
+                    <FontAwesome name="stethoscope" size={14} color={theme.colors.primary} />
+                    <Text style={styles.serviceName}>{service.name || 'Serviço sem nome'}</Text>
+                  </View>
+                  <View style={styles.serviceDetailRow}>
+                    {priceLabel && (
+                      <View style={styles.serviceDetailItem}>
+                        <FontAwesome name="money" size={11} color={theme.colors.textSecondary} />
+                        <Text style={styles.serviceDetailText}>{priceLabel}</Text>
+                      </View>
+                    )}
+                    {durationLabel && (
+                      <View style={styles.serviceDetailItem}>
+                        <FontAwesome name="clock-o" size={11} color={theme.colors.textSecondary} />
+                        <Text style={styles.serviceDetailText}>{durationLabel}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              );
+            })
+          ) : (
+            <Text style={styles.emptyMessage}>Nenhum serviço registrado</Text>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderAISummary = () => {
+    const summary = encounterSummary?.summary || encounterSummary?.shortAISummary || encounterDetails?.encounter?.shortAISummary;
+
+    return (
+      <View style={styles.section}>
+        {renderSectionHeader('Resumo Clínico AI', 'magic')}
+        <View style={[styles.sectionContent, styles.aiSection]}>
+          {summary ? (
+            <Text style={styles.aiSummaryText}>{summary}</Text>
+          ) : (
+            <Text style={styles.emptyMessage}>Nenhum resumo AI disponível</Text>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderAIFindings = () => {
+    const hasDiagnoses = Array.isArray(encounterAI?.diagnoses) && encounterAI.diagnoses.length > 0;
+    const hasMedications = Array.isArray(encounterAI?.medications) && encounterAI.medications.length > 0;
+    const hasLabs = Array.isArray(encounterAI?.labs) && encounterAI.labs.length > 0;
+    const hasProcedures = Array.isArray(encounterAI?.procedures) && encounterAI.procedures.length > 0;
+
+    return (
+      <View style={styles.section}>
+        {renderSectionHeader('Dados de IA', 'lightbulb-o')}
+        <View style={[styles.sectionContent, styles.aiSection]}>
+          {!hasDiagnoses && !hasMedications && !hasLabs && !hasProcedures ? (
+            <Text style={styles.emptyMessage}>Nenhum dado AI disponível</Text>
+          ) : (
+            <>
+              {hasDiagnoses && (
+            <View style={styles.aiSubsection}>
+              <View style={styles.aiSubsectionHeader}>
+                <FontAwesome name="stethoscope" size={14} color={theme.colors.white} />
+                <Text style={styles.aiSubsectionTitle}>Diagnósticos AI</Text>
+                <View style={styles.aiCountBadge}>
+                  <Text style={styles.aiCountText}>{encounterAI.diagnoses.length}</Text>
+                </View>
+              </View>
+              {encounterAI.diagnoses.map((diag: any, idx: number) => (
+                <View key={idx} style={styles.aiItem}>
+                  <Text style={styles.aiItemText}>{diag.code || diag.name || diag.description}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {hasMedications && (
+            <View style={styles.aiSubsection}>
+              <View style={styles.aiSubsectionHeader}>
+                <FontAwesome name="medkit" size={14} color={theme.colors.white} />
+                <Text style={styles.aiSubsectionTitle}>Medicações AI</Text>
+                <View style={styles.aiCountBadge}>
+                  <Text style={styles.aiCountText}>{encounterAI.medications.length}</Text>
+                </View>
+              </View>
+              {encounterAI.medications.map((med: any, idx: number) => (
+                <View key={idx} style={styles.aiItem}>
+                  <Text style={styles.aiItemText}>{med.name || med.productName}</Text>
+                  {med.dosage && <Text style={styles.aiItemSubtext}>Dosagem: {med.dosage}</Text>}
+                </View>
+              ))}
+            </View>
+          )}
+
+          {hasLabs && (
+            <View style={styles.aiSubsection}>
+              <View style={styles.aiSubsectionHeader}>
+                <FontAwesome name="flask" size={14} color={theme.colors.white} />
+                <Text style={styles.aiSubsectionTitle}>Resultados de Laboratório AI</Text>
+                <View style={styles.aiCountBadge}>
+                  <Text style={styles.aiCountText}>{encounterAI.labs.length}</Text>
+                </View>
+              </View>
+              {encounterAI.labs.map((lab: any, idx: number) => (
+                <View key={idx} style={styles.aiItem}>
+                  <Text style={styles.aiItemText}>{lab.name || lab.test}</Text>
+                  {lab.result && <Text style={styles.aiItemSubtext}>Resultado: {lab.result}</Text>}
+                </View>
+              ))}
+            </View>
+          )}
+
+          {hasProcedures && (
+            <View style={styles.aiSubsection}>
+              <View style={styles.aiSubsectionHeader}>
+                <FontAwesome name="plus-square" size={14} color={theme.colors.white} />
+                <Text style={styles.aiSubsectionTitle}>Procedimentos AI</Text>
+                <View style={styles.aiCountBadge}>
+                  <Text style={styles.aiCountText}>{encounterAI.procedures.length}</Text>
+                </View>
+              </View>
+              {encounterAI.procedures.map((proc: any, idx: number) => (
+                <View key={idx} style={styles.aiItem}>
+                  <Text style={styles.aiItemText}>{proc.name || proc.description}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+            </>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderClinicalNotes = () => {
+    const noteSource =
+      (encounterInfo as any)?.Note ??
+      (encounterInfo as any)?.note ??
+      (encounterInfo as any)?.encounter?.Note ??
+      (encounterInfo as any)?.encounter?.note ??
+      encounterDetails?.encounter?.Note ??
+      encounterDetails?.encounter?.note ??
+      encounterSummary?.note ??
+      encounterSummary?.clinicalNote ??
+      null;
+
+    const formattedNote = (quillDeltaToPlainText(noteSource) || '').trim();
+
+    return (
+      <View style={styles.section}>
+        {renderSectionHeader('Notas Clínicas', 'file-text-o')}
+        <View style={styles.sectionContent}>
+          {formattedNote ? (
+            <Text style={styles.notesText}>{formattedNote}</Text>
+          ) : (
+            <Text style={styles.emptyMessage}>Nenhuma nota clínica disponível</Text>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderClinicalRecords = () => {
+    const records = encounterDetails?.clinicalRecords || [];
+
+    return (
+      <View style={styles.section}>
+        {renderSectionHeader(`Registros Clínicos (${records.length})`, 'file-text')}
+        <View style={styles.sectionContent}>
+          {records.length === 0 ? (
+            <Text style={styles.emptyMessage}>Nenhum registro clínico disponível</Text>
+          ) : (
+            records.map((record: any, index: number) => {
+            const typeLabel = translateClinicalType(record.clinicalType) || translateClinicalType(record.type) || 'Registro Clínico';
+            const statusLabel = translateClinicalStatus(record.clinicalStatus) || record.clinicalStatus || null;
+            const recordId = record.clinicalId || record.identifier || record.id || `registro-${index}`;
+
+            return (
+              <TouchableOpacity
+                key={recordId}
+                style={styles.itemCard}
+                activeOpacity={0.85}
+                onPress={() => handleClinicalRecordPress(record)}
+              >
+                <View style={styles.itemHeader}>
+                  <FontAwesome name="file-text-o" size={14} color={theme.colors.info} />
+                  <Text style={styles.itemTitle}>{typeLabel} #{recordId}</Text>
+                </View>
+                {record.clinicalDate && (
+                  <Text style={styles.itemDate}>{formatDateTime(record.clinicalDate)}</Text>
+                )}
+                {statusLabel && (
+                  <View style={styles.statusBadge}>
+                    <Text style={styles.statusBadgeText}>{statusLabel}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+            })
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderPrescriptions = () => {
+    const medications = encounterDetails?.medications || [];
+
+    return (
+      <View style={styles.section}>
+        {renderSectionHeader(`Prescrições (${medications.length})`, 'medkit')}
+        <View style={styles.sectionContent}>
+          {medications.length === 0 ? (
+            <Text style={styles.emptyMessage}>Nenhuma prescrição disponível</Text>
+          ) : (
+            medications.map((med: any, index: number) => (
+            <View key={index} style={styles.itemCard}>
+              <View style={styles.itemHeader}>
+                <FontAwesome name="medkit" size={14} color={theme.colors.success} />
+                <Text style={styles.itemTitle}>Prescrição #{med.medId}</Text>
+              </View>
+              <Text style={styles.itemDate}>{formatDateTime(med.medDate)}</Text>
+              {med.medRequestItens && med.medRequestItens.length > 0 && (
+                <View style={styles.medicationItems}>
+                  {med.medRequestItens.map((item: any, itemIndex: number) => (
+                    <View key={itemIndex} style={styles.medicationItem}>
+                      <Text style={styles.medicationName}>{item.productName}</Text>
+                      {item.posology && <Text style={styles.medicationDosage}>Posologia: {item.posology}</Text>}
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+            ))
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderDiagnostics = () => {
+    const diagnostics = encounterDetails?.diagnostics || [];
+
+    return (
+      <View style={styles.section}>
+        {renderSectionHeader(`Diagnósticos e Exames (${diagnostics.length})`, 'flask')}
+        <View style={styles.sectionContent}>
+          {diagnostics.length === 0 ? (
+            <Text style={styles.emptyMessage}>Nenhum diagnóstico disponível</Text>
+          ) : (
+            diagnostics.map((diag: any, index: number) => (
+            <View key={index} style={styles.itemCard}>
+              <View style={styles.itemHeader}>
+                <FontAwesome name="stethoscope" size={14} color={theme.colors.warning} />
+                <Text style={styles.itemTitle}>Diagnóstico #{diag.identifier}</Text>
+              </View>
+              <Text style={styles.itemDate}>{formatDateTime(diag.effectiveDateTime)}</Text>
+              {diag.conclusion && (
+                <View style={styles.conclusionContainer}>
+                  <Text style={styles.conclusionText}>{diag.conclusion}</Text>
+                </View>
+              )}
+            </View>
+            ))
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderImages = () => {
+    const images = encounterDetails?.images || [];
+
+    return (
+      <View style={styles.section}>
+        {renderSectionHeader(`Imagens (${images.length})`, 'picture-o')}
+        <View style={styles.sectionContent}>
+          {images.length === 0 ? (
+            <Text style={styles.emptyMessage}>Nenhuma imagem disponível</Text>
+          ) : (
+            images.map((image: any, index: number) => (
+            <View key={index} style={styles.itemCard}>
+              <View style={styles.itemHeader}>
+                <FontAwesome name="picture-o" size={14} color={theme.colors.primary} />
+                <Text style={styles.itemTitle}>{image.title || image.file}</Text>
+              </View>
+              <Text style={styles.itemDate}>{formatDateTime(image.date)}</Text>
+              {image.description && <Text style={styles.imageDescription}>{image.description}</Text>}
+            </View>
+            ))
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderAttachments = () => {
+    const attachments = encounterDetails?.attachments || [];
+
+    return (
+      <View style={styles.section}>
+        {renderSectionHeader(`Anexos (${attachments.length})`, 'paperclip')}
+        <View style={styles.sectionContent}>
+          {attachments.length === 0 ? (
+            <Text style={styles.emptyMessage}>Nenhum anexo disponível</Text>
+          ) : (
+            attachments.map((attachment: any, index: number) => (
+            <TouchableOpacity
+              key={index}
+              style={styles.itemCard}
+              onPress={() => handleAttachmentPress(attachment)}
+            >
+              <View style={styles.itemHeader}>
+                <FontAwesome name="paperclip" size={14} color={theme.colors.textSecondary} />
+                <Text style={styles.itemTitle}>Anexo #{attachment.identifier}</Text>
+                {attachment.externallink && (
+                  <FontAwesome name="external-link" size={11} color={theme.colors.primary} />
+                )}
+              </View>
+              <Text style={styles.itemDate}>{formatDateTime(attachment.date)}</Text>
+              {attachment.filetype && <Text style={styles.itemFileType}>Formato: {attachment.filetype}</Text>}
+            </TouchableOpacity>
+            ))
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderRecordings = () => {
+    return (
+      <View style={styles.section}>
+        {renderSectionHeader(`Gravações (${recordings.length})`, 'microphone')}
+        <View style={styles.sectionContent}>
+          {recordings.length === 0 ? (
+            <Text style={styles.emptyMessage}>Nenhuma gravação disponível</Text>
+          ) : (
+            recordings.map((recording: any, index: number) => (
+            <TouchableOpacity
+              key={index}
+              style={styles.itemCard}
+              onPress={() => handleAttachmentPress(recording)}
+            >
+              <View style={styles.itemHeader}>
+                <FontAwesome name="microphone" size={14} color={theme.colors.primary} />
+                <Text style={styles.itemTitle}>{recording.title || `Gravação ${index + 1}`}</Text>
+                {recording.url && <FontAwesome name="play" size={11} color={theme.colors.primary} />}
+              </View>
+              {recording.date && <Text style={styles.itemDate}>{formatDateTime(recording.date)}</Text>}
+              {recording.duration && (
+                <Text style={styles.itemStatus}>Duração: {formatDurationLabel(recording.duration)}</Text>
+              )}
+              {recording.transcript && (
+                <View style={styles.transcriptContainer}>
+                  <Text style={styles.transcriptLabel}>Transcrição:</Text>
+                  <Text style={styles.transcriptText} numberOfLines={3}>{recording.transcript}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            ))
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  // Loading state
   if (loading) {
     return (
       <>
         <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
         <View style={styles.loadingContainer}>
-          <Image 
-            source={require('../../assets/medpro-logo.png')} 
+          <Image
+            source={require('../../assets/medpro-logo.png')}
             style={styles.loadingLogo}
             resizeMode="contain"
           />
@@ -1342,24 +1237,12 @@ export const EncounterDetailsScreen: React.FC = () => {
     );
   }
 
-  const tabs = [
-    { key: 'general', label: 'Dados Gerais', icon: 'info-circle', count: 0 },
-    { key: 'notes', label: 'Notas', icon: 'sticky-note', count: (encounterDetails?.encounter?.notes?.length || 0) + (encounterDetails?.encounter?.shortAISummary ? 1 : 0) },
-    { key: 'clinical', label: 'Clínicos', icon: 'file-text-o', count: encounterDetails?.clinicalRecords.length || 0 },
-    { key: 'medications', label: 'Medicações', icon: 'medkit', count: encounterDetails?.medications.length || 0 },
-    { key: 'diagnostics', label: 'Diagnósticos', icon: 'stethoscope', count: encounterDetails?.diagnostics.length || 0 },
-    { key: 'images', label: 'Imagens', icon: 'picture-o', count: encounterDetails?.images.length || 0 },
-    { key: 'attachments', label: 'Anexos', icon: 'paperclip', count: encounterDetails?.attachments.length || 0 },
-    { key: 'recordings', label: 'Áudios', icon: 'microphone', count: encounterDetails?.encounter?.recordings?.length || 0 },
-    { key: 'documents', label: 'Documentos', icon: 'file-pdf-o', count: encounterDetails?.encounter?.documents?.length || 0 },
-    { key: 'summaries', label: 'Sumários', icon: 'file-text', count: encounterDetails?.encounter?.summaries?.length || 0 },
-    { key: 'ai', label: 'IA Clínica', icon: 'magic', count: encounterDetails?.encounter?.metadata?.aiAnalysis ? 1 : (encounterDetails?.encounter?.aiInsights ? 1 : 0) },
-  ];
-
+  // Main render with vertical sections
   return (
     <>
       <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
       <View style={styles.container}>
+        {/* Header */}
         <View style={styles.headerBackground}>
           <Image
             source={require('../../assets/medpro-logo.png')}
@@ -1367,7 +1250,7 @@ export const EncounterDetailsScreen: React.FC = () => {
             resizeMode="contain"
           />
           <View style={styles.header}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.backButton}
               onPress={() => navigation.goBack()}
             >
@@ -1378,63 +1261,30 @@ export const EncounterDetailsScreen: React.FC = () => {
               <Text style={styles.headerSubtitle}>{patientName}</Text>
               {(() => {
                 const encounterRecord = encounterInfo || encounterDetails?.encounter;
-                if (!encounterRecord) {
-                  console.warn('[EncounterDetails] Encounter record missing for header metadata');
-                  return null;
-                }
+                if (!encounterRecord) return null;
 
                 const startIso =
                   encounterRecord.actualStart ||
                   encounterRecord.startDate ||
                   encounterRecord.startdate ||
-                  (encounterRecord.start && encounterRecord.starttime
-                    ? `${encounterRecord.start}T${encounterRecord.starttime}`
-                    : null) ||
                   encounterRecord.encounterDate ||
                   encounterRecord.encounterdate;
 
-                const endIso =
-                  encounterRecord.actualEnd ||
-                  encounterRecord.endDate ||
-                  encounterRecord.enddate ||
-                  (encounterRecord.end && encounterRecord.endtime
-                    ? `${encounterRecord.end}T${encounterRecord.endtime}`
-                    : null);
-
-                const durationRaw =
-                  encounterRecord.Length ??
-                  encounterRecord.length ??
-                  encounterRecord.durationMinutes ??
-                  encounterRecord.duration ??
-                  encounterRecord.totalMinutes;
-
-                const dateLabel = formatDateLabel(startIso || encounterRecord.date || encounterRecord.encounterDate);
-                const timeLabel = formatTimeLabel(startIso, endIso);
-                const durationSeconds = typeof durationRaw === 'string' ? Number(durationRaw) : durationRaw;
-                const durationLabel = formatDurationLabel(durationSeconds);
-
-                if (!dateLabel && !timeLabel && !durationLabel) {
-                  return null;
-                }
+                const dateLabel = formatDateLabel(startIso || encounterRecord.date);
+                const timeLabel = formatTimeLabel(startIso, encounterRecord.actualEnd || encounterRecord.endDate);
 
                 return (
                   <View style={styles.headerMetaRow}>
                     {dateLabel && (
                       <View style={styles.headerMetaItem}>
-                        <FontAwesome name="calendar" size={12} color={theme.colors.white} />
+                        <FontAwesome name="calendar" size={11} color={theme.colors.white} />
                         <Text style={styles.headerMetaText}>{dateLabel}</Text>
                       </View>
                     )}
                     {timeLabel && (
                       <View style={styles.headerMetaItem}>
-                        <FontAwesome name="clock-o" size={12} color={theme.colors.white} />
+                        <FontAwesome name="clock-o" size={11} color={theme.colors.white} />
                         <Text style={styles.headerMetaText}>{timeLabel}</Text>
-                      </View>
-                    )}
-                    {durationLabel && (
-                      <View style={styles.headerMetaItem}>
-                        <FontAwesome name="hourglass-half" size={12} color={theme.colors.white} />
-                        <Text style={styles.headerMetaText}>{durationLabel}</Text>
                       </View>
                     )}
                   </View>
@@ -1444,40 +1294,7 @@ export const EncounterDetailsScreen: React.FC = () => {
           </View>
         </View>
 
-        <ScrollView 
-          horizontal 
-          style={styles.tabsContainer} 
-          contentContainerStyle={styles.tabsContent}
-          showsHorizontalScrollIndicator={false}
-        >
-          {tabs.map((tab) => (
-            <TouchableOpacity
-              key={tab.key}
-              style={[styles.tab, activeTab === tab.key && styles.activeTab]}
-              onPress={() => setActiveTab(tab.key as any)}
-            >
-              <FontAwesome 
-                name={tab.icon} 
-                size={16} 
-                color={activeTab === tab.key ? theme.colors.primary : theme.colors.textSecondary} 
-              />
-              <Text style={[
-                styles.tabText,
-                activeTab === tab.key && styles.activeTabText
-              ]}>
-                {tab.label}
-              </Text>
-              {tab.count > 0 && (
-                <View style={[styles.tabBadge, activeTab === tab.key && styles.activeTabBadge]}>
-                  <Text style={[styles.tabBadgeText, activeTab === tab.key && styles.activeTabBadgeText]}>
-                    {tab.count}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
+        {/* Vertical Scrolling Content */}
         <ScrollView
           style={styles.content}
           contentContainerStyle={styles.contentContainer}
@@ -1485,7 +1302,18 @@ export const EncounterDetailsScreen: React.FC = () => {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
-          {renderTabContent()}
+          {renderPatientInfo()}
+          {renderEncounterDetails()}
+          {renderServices()}
+          {renderAISummary()}
+          {renderAIFindings()}
+          {renderClinicalNotes()}
+          {renderClinicalRecords()}
+          {renderPrescriptions()}
+          {renderDiagnostics()}
+          {renderImages()}
+          {renderAttachments()}
+          {renderRecordings()}
         </ScrollView>
       </View>
     </>
@@ -1582,450 +1410,35 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontWeight: '500',
   },
-  tabsContainer: {
-    backgroundColor: theme.colors.surface,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-    maxHeight: 56,
-  },
-  tabsContent: {
-    alignItems: 'center',
-    flexGrow: 0,
-  },
-  tab: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 6,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-    marginRight: 16,
-  },
-  activeTab: {
-    borderBottomColor: theme.colors.primary,
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: theme.colors.textSecondary,
-  },
-  activeTabText: {
-    color: theme.colors.primary,
-  },
-  tabBadge: {
-    backgroundColor: theme.colors.backgroundSecondary,
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    minWidth: 20,
-    alignItems: 'center',
-  },
-  activeTabBadge: {
-    backgroundColor: theme.colors.primary,
-  },
-  tabBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: theme.colors.textSecondary,
-  },
-  activeTabBadgeText: {
-    color: theme.colors.white,
-  },
   content: {
     flex: 1,
   },
   contentContainer: {
     paddingBottom: 32,
   },
-  tabContent: {
-    padding: 16,
-  },
-  tabTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: theme.colors.text,
+  section: {
     marginBottom: 16,
   },
-  itemCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  itemHeader: {
+  sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  itemTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.text,
-    flex: 1,
-  },
-  itemDate: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginBottom: 4,
-  },
-  itemStatus: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginBottom: 4,
-  },
-  itemCategory: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginBottom: 4,
-  },
-  itemType: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginBottom: 4,
-  },
-  clinicalBadgeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 8,
-  },
-  clinicalBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: theme.colors.borderLight,
-    backgroundColor: theme.colors.backgroundSecondary,
-  },
-  clinicalBadgeInfo: {
-    backgroundColor: theme.colors.info,
-    borderColor: theme.colors.info,
-  },
-  clinicalBadgeSuccess: {
-    backgroundColor: theme.colors.success,
-    borderColor: theme.colors.success,
-  },
-  clinicalBadgeActive: {
-    backgroundColor: theme.colors.primary,
-    borderColor: theme.colors.primary,
-  },
-  clinicalBadgeWarning: {
-    backgroundColor: theme.colors.warningLight,
-    borderColor: theme.colors.warning,
-  },
-  clinicalBadgeError: {
-    backgroundColor: theme.colors.error,
-    borderColor: theme.colors.error,
-  },
-  clinicalBadgeNeutral: {
-    backgroundColor: theme.colors.backgroundSecondary,
-    borderColor: theme.colors.borderLight,
-  },
-  clinicalBadgeMuted: {
-    backgroundColor: theme.colors.backgroundSecondary,
-    borderColor: theme.colors.border,
-  },
-  clinicalBadgeText: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-  },
-  clinicalBadgeTextOnDark: {
-    color: theme.colors.white,
-  },
-  itemFileType: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginBottom: 4,
-  },
-  itemSize: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginBottom: 4,
-  },
-  medicationItems: {
-    marginTop: 8,
-    gap: 8,
-  },
-  medicationItem: {
-    backgroundColor: theme.colors.backgroundSecondary,
-    padding: 12,
-    borderRadius: 6,
-  },
-  medicationName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: theme.colors.text,
-    marginBottom: 4,
-  },
-  medicationDosage: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginBottom: 2,
-  },
-  medicationRegistry: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-    fontFamily: 'monospace',
-  },
-  conclusionContainer: {
-    marginTop: 8,
-    padding: 12,
-    backgroundColor: theme.colors.backgroundSecondary,
-    borderRadius: 6,
-  },
-  conclusionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.colors.text,
-    marginBottom: 4,
-  },
-  conclusionText: {
-    fontSize: 14,
-    color: theme.colors.text,
-    lineHeight: 20,
-  },
-  imageTitle: {
-    fontSize: 14,
-    color: theme.colors.text,
-    marginBottom: 4,
-  },
-  imageDescription: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginBottom: 4,
-  },
-  aiAnalysisContainer: {
-    marginTop: 8,
-    padding: 12,
-    backgroundColor: theme.colors.backgroundSecondary,
-    borderRadius: 6,
-    borderLeftWidth: 3,
-    borderLeftColor: theme.colors.primary,
-  },
-  aiAnalysisTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.colors.primary,
-    marginBottom: 4,
-  },
-  aiAnalysisText: {
-    fontSize: 14,
-    color: theme.colors.text,
-    lineHeight: 20,
-  },
-  emptyMessage: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
-    paddingVertical: 40,
-    fontStyle: 'italic',
-  },
-  generalGrid: {
-    gap: 16,
-  },
-  generalCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: 12,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  generalCardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.text,
-    marginBottom: 8,
-  },
-  generalPlaceholder: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    lineHeight: 20,
-  },
-  generalError: {
-    fontSize: 14,
-    color: theme.colors.error,
-    lineHeight: 20,
-  },
-  servicesMetaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
-  },
-  serviceBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-  },
-  serviceBadgeNeutral: {
-    backgroundColor: theme.colors.backgroundSecondary,
-  },
-  serviceBadgeStatus: {
-    backgroundColor: theme.colors.primary,
-  },
-  serviceBadgeOutline: {
-    borderWidth: 1,
-    borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.surface,
-  },
-  serviceBadgeText: {
-    fontSize: 12,
-    color: theme.colors.text,
-  },
-  serviceBadgeTextOnDark: {
-    color: theme.colors.white,
-  },
-  servicesList: {
     gap: 12,
-  },
-  serviceItem: {
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 10,
-    padding: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     backgroundColor: theme.colors.surface,
-    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
-  serviceItemHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  serviceName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: theme.colors.text,
-    flex: 1,
-  },
-  serviceDetailRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  serviceDetailItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  serviceDetailText: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-  },
-  financialTotalsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 12,
-  },
-  financialTotalCard: {
-    flexGrow: 1,
-    minWidth: 130,
-    backgroundColor: theme.colors.backgroundSecondary,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  financialTotalLabel: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-    marginBottom: 4,
-  },
-  financialTotalValue: {
+  sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: theme.colors.text,
   },
-  coverageList: {
-    gap: 12,
-  },
-  coverageItem: {
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 10,
-    padding: 12,
+  sectionContent: {
     backgroundColor: theme.colors.surface,
-    gap: 8,
-  },
-  coverageHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     gap: 12,
-  },
-  coverageTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flex: 1,
-  },
-  coverageServiceName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.colors.text,
-    flexShrink: 1,
-  },
-  coverageBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.surface,
-  },
-  coverageBadgePlan: {
-    backgroundColor: theme.colors.primary,
-    borderColor: theme.colors.primary,
-  },
-  coverageBadgeDirect: {
-    backgroundColor: theme.colors.backgroundSecondary,
-  },
-  coverageBadgeNeutral: {
-    backgroundColor: theme.colors.backgroundSecondary,
-  },
-  coverageBadgePending: {
-    backgroundColor: theme.colors.warningLight,
-    borderColor: theme.colors.warning,
-  },
-  coverageBadgeText: {
-    fontSize: 12,
-    color: theme.colors.primary,
-  },
-  coverageBadgeTextOnDark: {
-    color: theme.colors.white,
-  },
-  coverageDetails: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  coverageDetailItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  coverageDetailText: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-  },
-  patientCard: {
-    gap: 16,
   },
   patientCardHeader: {
     flexDirection: 'row',
@@ -2043,9 +1456,6 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 4,
   },
-  patientInfoStandalone: {
-    paddingLeft: 0,
-  },
   patientNameText: {
     fontSize: 18,
     fontWeight: '600',
@@ -2055,73 +1465,257 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.textSecondary,
   },
-  patientBadges: {
+  patientCpf: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  dataGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+  },
+  dataItem: {
+    width: '47%',
+    gap: 4,
+  },
+  dataLabel: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
+  },
+  dataValue: {
+    fontSize: 15,
+    color: theme.colors.text,
+    fontWeight: '400',
+  },
+  serviceItem: {
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 8,
+    padding: 12,
+    gap: 8,
+  },
+  serviceItemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  serviceName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.text,
+    flex: 1,
+  },
+  serviceDetailRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
   },
-  patientBadge: {
+  serviceDetailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  serviceDetailText: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+  },
+  aiSection: {
+    backgroundColor: theme.colors.info + '10',
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.info,
+  },
+  aiSummaryText: {
+    fontSize: 14,
+    color: theme.colors.text,
+    lineHeight: 20,
+  },
+  aiSubsection: {
+    marginBottom: 16,
+  },
+  aiSubsectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: theme.colors.backgroundSecondary,
-    borderRadius: 12,
+    backgroundColor: theme.colors.info,
     paddingVertical: 8,
     paddingHorizontal: 12,
-  },
-  patientBadgeLabel: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-  },
-  patientBadgeValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.colors.text,
-  },
-  notesCard: {
-    backgroundColor: theme.colors.surface,
     borderRadius: 8,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    marginBottom: 12,
-  },
-  notesHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 8,
   },
-  notesAuthor: {
-    fontSize: 14,
+  aiSubsectionTitle: {
+    fontSize: 13,
     fontWeight: '600',
-    color: theme.colors.text,
+    color: theme.colors.white,
+    flex: 1,
   },
-  notesDate: {
+  aiCountBadge: {
+    backgroundColor: theme.colors.white,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+  aiCountText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: theme.colors.info,
+  },
+  aiItem: {
+    backgroundColor: theme.colors.surface,
+    padding: 10,
+    borderRadius: 6,
+    marginBottom: 6,
+    borderLeftWidth: 3,
+    borderLeftColor: theme.colors.info,
+  },
+  aiItemText: {
+    fontSize: 13,
+    color: theme.colors.text,
+    fontWeight: '500',
+  },
+  aiItemSubtext: {
     fontSize: 12,
     color: theme.colors.textSecondary,
-  },
-  notesTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: theme.colors.primary,
-    marginBottom: 8,
+    marginTop: 4,
   },
   notesText: {
     fontSize: 14,
     color: theme.colors.text,
     lineHeight: 20,
   },
-  aiInsightsCard: {
-    backgroundColor: theme.colors.backgroundSecondary,
+  itemCard: {
+    backgroundColor: theme.colors.background,
     borderRadius: 8,
-    padding: 16,
+    padding: 12,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    marginBottom: 12,
   },
-  aiRecommendations: {
-    marginTop: 12,
-    gap: 6,
+  itemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  itemTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.text,
+    flex: 1,
+  },
+  itemDate: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    marginBottom: 4,
+  },
+  itemStatus: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    marginBottom: 4,
+  },
+  itemFileType: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+  },
+  statusBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 4,
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    color: theme.colors.white,
+    fontWeight: '500',
+  },
+  statusBadgeContainer: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    marginTop: 4,
+  },
+  statusBadgeTextSmall: {
+    fontSize: 12,
+    color: theme.colors.white,
+    fontWeight: '600',
+  },
+  statusBadgeSuccess: {
+    backgroundColor: theme.colors.success,
+  },
+  statusBadgeInfo: {
+    backgroundColor: theme.colors.info,
+  },
+  statusBadgeWarning: {
+    backgroundColor: theme.colors.warning,
+  },
+  statusBadgeError: {
+    backgroundColor: theme.colors.error,
+  },
+  statusBadgeNeutral: {
+    backgroundColor: theme.colors.textSecondary,
+  },
+  medicationItems: {
+    gap: 8,
+    marginTop: 8,
+  },
+  medicationItem: {
+    backgroundColor: theme.colors.backgroundSecondary,
+    padding: 10,
+    borderRadius: 6,
+  },
+  medicationName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.colors.text,
+    marginBottom: 4,
+  },
+  medicationDosage: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+  },
+  conclusionContainer: {
+    marginTop: 8,
+    padding: 10,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 6,
+  },
+  conclusionText: {
+    fontSize: 13,
+    color: theme.colors.text,
+    lineHeight: 18,
+  },
+  imageDescription: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    fontStyle: 'italic',
+  },
+  transcriptContainer: {
+    marginTop: 8,
+    padding: 10,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 6,
+  },
+  transcriptLabel: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  transcriptText: {
+    fontSize: 12,
+    color: theme.colors.text,
+    lineHeight: 16,
+  },
+  emptyMessage: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    paddingVertical: 20,
+    fontStyle: 'italic',
   },
 });

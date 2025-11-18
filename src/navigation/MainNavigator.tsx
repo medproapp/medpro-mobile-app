@@ -32,6 +32,7 @@ import { AttachmentsScreen } from '@screens/Patients/AttachmentsScreen';
 import { RecordingsScreen } from '@screens/Patients/RecordingsScreen';
 import { EncounterDetailsScreen } from '@screens/Patients/EncounterDetailsScreen';
 import { ClinicalRecordDetailsScreen } from '@screens/Patients/ClinicalRecordDetailsScreen';
+import { PdfViewerScreen } from '@screens/Patients/PdfViewerScreen';
 import { MoreScreen, MyProfileScreen, AboutScreen, HelpSupportScreen } from '@screens/More';
 import { MessagesListScreen, ConversationScreen, NewMessageScreen } from '@screens/Messages';
 import { AssistantScreen } from '@screens/Assistant';
@@ -73,7 +74,7 @@ const getDashboardTabBarStyle = (route: RouteProp<MainTabParamList, 'Dashboard'>
 
 const getPatientsTabBarStyle = (route: RouteProp<MainTabParamList, 'Patients'>): typeof TAB_BAR_BASE_STYLE & { display?: 'none' } => {
   const routeName = getFocusedRouteNameFromRoute(route) ?? 'PatientsList';
-  if (routeName === 'PatientDashboard' || routeName === 'PatientHistory' || routeName === 'ClinicalRecords' || routeName === 'Prescriptions' || routeName === 'Diagnostics' || routeName === 'Images' || routeName === 'Attachments' || routeName === 'Recordings' || routeName === 'EncounterDetails' || routeName === 'ClinicalRecordDetails') {
+  if (routeName === 'PatientDashboard' || routeName === 'PatientHistory' || routeName === 'ClinicalRecords' || routeName === 'Prescriptions' || routeName === 'Diagnostics' || routeName === 'Images' || routeName === 'Attachments' || routeName === 'Recordings' || routeName === 'EncounterDetails' || routeName === 'ClinicalRecordDetails' || routeName === 'PdfViewer') {
     return { ...TAB_BAR_BASE_STYLE, display: 'none' };
   }
   return TAB_BAR_BASE_STYLE;
@@ -275,6 +276,11 @@ const PatientsStackNavigator: React.FC = () => {
       <PatientsStack.Screen name="Recordings" component={RecordingsScreen} />
       <PatientsStack.Screen name="EncounterDetails" component={EncounterDetailsScreen} />
       <PatientsStack.Screen name="ClinicalRecordDetails" component={ClinicalRecordDetailsScreen} />
+      <PatientsStack.Screen
+        name="PdfViewer"
+        component={PdfViewerScreen}
+        options={{ headerShown: false }}
+      />
     </PatientsStack.Navigator>
   );
 };

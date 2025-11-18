@@ -79,6 +79,7 @@ export type PatientsStackParamList = {
     patientName: string;
     clinicalRecord: any;
   };
+  PdfViewer: { fileUri: string; fileName: string; title?: string };
   AddPatient: undefined;
   EditPatient: { patientId: string };
 };

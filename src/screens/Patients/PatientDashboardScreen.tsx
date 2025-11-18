@@ -23,6 +23,18 @@ import { useAuthStore } from '@store/authStore';
 
 type PatientDashboardRouteProp = RouteProp<PatientsStackParamList, 'PatientDashboard'>;
 
+interface MedicalData {
+  bloodType?: string;
+  vaccinationStatus?: string;
+  allergies?: string;
+  chronicConditions?: string;
+  surgicalHistory?: string;
+  hereditaryConditions?: string;
+  continuousMedications?: string;
+  lifestyleHabits?: string;
+  implantedDevices?: string;
+}
+
 interface PatientData {
   id: string;
   cpf: string;
@@ -39,6 +51,7 @@ interface PatientData {
   summary?: string;
   lastPrescriptions?: string;
   conditionDiagnostics?: string;
+  medical_data?: MedicalData;
   address?: {
     street?: string;
     number?: string;
@@ -84,9 +97,10 @@ export const PatientDashboardScreen: React.FC = () => {
 
   const [patient, setPatient] = useState<PatientData | null>(null);
   const [appointments, setAppointments] = useState<PatientAppointment[]>([]);
+  const [lastEncounter, setLastEncounter] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeSection, setActiveSection] = useState<'overview' | 'history' | 'medical' | 'contact'>('overview');
+  const [activeSection, setActiveSection] = useState<'overview' | 'history' | 'medical'>('overview');
   const [clinicalRecordsCount, setClinicalRecordsCount] = useState<number | null>(null);
   const [prescriptionsCount, setPrescriptionsCount] = useState<number | null>(null);
   const [diagnosticsCount, setDiagnosticsCount] = useState<number | null>(null);
@@ -274,6 +288,23 @@ export const PatientDashboardScreen: React.FC = () => {
     }
   };
 
+  const loadLastEncounter = async () => {
+    try {
+      console.log('[PatientDashboard] Loading practitioner encounters for CPF:', patientCpf);
+      const response = await api.getPractitionerPatientEncounters(patientCpf);
+      console.log('[PatientDashboard] Practitioner encounters response:', JSON.stringify(response, null, 2));
+      console.log('[PatientDashboard] Last encounter date:', response?.data?.data?.[0]?.date);
+      if (mountedRef.current) {
+        setLastEncounter(response);
+      }
+    } catch (error) {
+      console.error('[PatientDashboard] Error loading last encounter:', error);
+      if (mountedRef.current) {
+        setLastEncounter(null);
+      }
+    }
+  };
+
   const loadData = async () => {
     // Prevent concurrent load requests
     if (loadingRef.current) {
@@ -296,12 +327,13 @@ export const PatientDashboardScreen: React.FC = () => {
         loadImagesCount(),
         loadAttachmentsCount(),
         loadRecordingsCount(),
+        loadLastEncounter(),
       ]);
 
       // Log any failures (for debugging)
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
-          const names = ['PatientData', 'Appointments', 'ClinicalRecords', 'Prescriptions', 'Diagnostics', 'Images', 'Attachments', 'Recordings'];
+          const names = ['PatientData', 'Appointments', 'ClinicalRecords', 'Prescriptions', 'Diagnostics', 'Images', 'Attachments', 'Recordings', 'LastEncounter'];
           console.warn(`[PatientDashboard] ${names[index]} failed:`, result.reason);
         }
       });
@@ -540,7 +572,6 @@ export const PatientDashboardScreen: React.FC = () => {
           { key: 'overview', label: 'Resumo', icon: 'user' },
           { key: 'history', label: 'Histórico', icon: 'history' },
           { key: 'medical', label: 'Médico', icon: 'heartbeat' },
-          { key: 'contact', label: 'Contato', icon: 'phone' },
         ].map((section) => (
           <TouchableOpacity
             key={section.key}
@@ -584,8 +615,14 @@ export const PatientDashboardScreen: React.FC = () => {
                 <Text style={styles.infoValue}>{formatDate(patient.birthDate)}</Text>
               </View>
               <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Última Consulta:</Text>
-                <Text style={styles.infoValue}>{formatDate(patient.lastAppointment)}</Text>
+                <Text style={styles.infoLabel}>Último Encontro:</Text>
+                <Text style={styles.infoValue}>
+                  {(() => {
+                    const encounters = lastEncounter?.data?.data || [];
+                    const nonAutomaticEncounter = encounters.find((enc: any) => enc.class !== 'automatic');
+                    return nonAutomaticEncounter?.date ? formatDate(nonAutomaticEncounter.date) : '-';
+                  })()}
+                </Text>
               </View>
             </View>
 
@@ -635,121 +672,112 @@ export const PatientDashboardScreen: React.FC = () => {
 
         {activeSection === 'medical' && (
           <View>
-            <View style={styles.infoSection}>
-              <Text style={styles.sectionTitle}>Condições Médicas</Text>
-              {patient.conditions && patient.conditions.length > 0 ? (
-                patient.conditions.map((condition, index) => (
-                  <View key={index} style={styles.listItem}>
-                    <FontAwesome name="circle" size={6} color={theme.colors.primary} />
-                    <Text style={styles.listItemText}>{condition}</Text>
-                  </View>
-                ))
-              ) : (
-                <Text style={styles.emptyMessage}>Nenhuma condição registrada</Text>
-              )}
-            </View>
-
-            <View style={styles.infoSection}>
-              <Text style={styles.sectionTitle}>Alergias</Text>
-              {patient.allergies && patient.allergies.length > 0 ? (
-                patient.allergies.map((allergy, index) => (
-                  <View key={index} style={styles.listItem}>
-                    <FontAwesome name="circle" size={6} color={theme.colors.error} />
-                    <Text style={styles.listItemText}>{allergy}</Text>
-                  </View>
-                ))
-              ) : (
-                <Text style={styles.emptyMessage}>Nenhuma alergia registrada</Text>
-              )}
-            </View>
-
-            <View style={styles.infoSection}>
-              <Text style={styles.sectionTitle}>Medicamentos</Text>
-              {patient.medications && patient.medications.length > 0 ? (
-                patient.medications.map((medication, index) => (
-                  <View key={index} style={styles.listItem}>
-                    <FontAwesome name="circle" size={6} color={theme.colors.success} />
-                    <Text style={styles.listItemText}>{medication}</Text>
-                  </View>
-                ))
-              ) : (
-                <Text style={styles.emptyMessage}>Nenhum medicamento registrado</Text>
-              )}
-            </View>
-          </View>
-        )}
-
-        {activeSection === 'contact' && (
-          <View>
-            <View style={styles.infoSection}>
-              <Text style={styles.sectionTitle}>Endereço</Text>
-              {patient.address?.fullAddress ? (
-                <>
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Endereço:</Text>
-                    <Text style={styles.infoValue}>{patient.address.fullAddress}</Text>
-                  </View>
-                  {patient.address.city && (
+            {patient.medical_data ? (
+              <>
+                {/* Blood Type */}
+                {patient.medical_data.bloodType && (
+                  <View style={styles.infoSection}>
+                    <Text style={styles.sectionTitle}>Tipo Sanguíneo</Text>
                     <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>Cidade:</Text>
-                      <Text style={styles.infoValue}>{patient.address.city}</Text>
+                      <FontAwesome name="tint" size={14} color={theme.colors.error} style={{ marginRight: 8 }} />
+                      <Text style={styles.infoValue}>{patient.medical_data.bloodType}</Text>
                     </View>
-                  )}
-                  {patient.address.state && (
+                  </View>
+                )}
+
+                {/* Allergies */}
+                {patient.medical_data.allergies && (
+                  <View style={styles.infoSection}>
+                    <Text style={styles.sectionTitle}>Alergias</Text>
                     <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>Estado:</Text>
-                      <Text style={styles.infoValue}>{patient.address.state}</Text>
+                      <FontAwesome name="warning" size={14} color={theme.colors.error} style={{ marginRight: 8 }} />
+                      <Text style={styles.infoValue}>{patient.medical_data.allergies}</Text>
                     </View>
-                  )}
-                </>
-              ) : (
-                <Text style={styles.emptyMessage}>Endereço não cadastrado</Text>
-              )}
-            </View>
+                  </View>
+                )}
 
-            <View style={styles.infoSection}>
-              <Text style={styles.sectionTitle}>Contato de Emergência</Text>
-              {patient.emergencyContact ? (
-                <>
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Nome:</Text>
-                    <Text style={styles.infoValue}>{patient.emergencyContact.name}</Text>
+                {/* Chronic Conditions */}
+                {patient.medical_data.chronicConditions && (
+                  <View style={styles.infoSection}>
+                    <Text style={styles.sectionTitle}>Condições Crônicas</Text>
+                    <View style={styles.infoRow}>
+                      <FontAwesome name="heartbeat" size={14} color={theme.colors.primary} style={{ marginRight: 8 }} />
+                      <Text style={styles.infoValue}>{patient.medical_data.chronicConditions}</Text>
+                    </View>
                   </View>
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Parentesco:</Text>
-                    <Text style={styles.infoValue}>{patient.emergencyContact.relationship}</Text>
-                  </View>
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Telefone:</Text>
-                    <Text style={styles.infoValue}>{patient.emergencyContact.phone}</Text>
-                  </View>
-                </>
-              ) : (
-                <Text style={styles.emptyMessage}>Contato de emergência não cadastrado</Text>
-              )}
-            </View>
+                )}
 
-            <View style={styles.infoSection}>
-              <Text style={styles.sectionTitle}>Plano de Saúde</Text>
-              {patient.healthInsurance ? (
-                <>
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Operadora:</Text>
-                    <Text style={styles.infoValue}>{patient.healthInsurance.provider}</Text>
+                {/* Continuous Medications */}
+                {patient.medical_data.continuousMedications && (
+                  <View style={styles.infoSection}>
+                    <Text style={styles.sectionTitle}>Medicamentos Contínuos</Text>
+                    <View style={styles.infoRow}>
+                      <FontAwesome name="medkit" size={14} color={theme.colors.success} style={{ marginRight: 8 }} />
+                      <Text style={styles.infoValue}>{patient.medical_data.continuousMedications}</Text>
+                    </View>
                   </View>
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Número:</Text>
-                    <Text style={styles.infoValue}>{patient.healthInsurance.number}</Text>
+                )}
+
+                {/* Surgical History */}
+                {patient.medical_data.surgicalHistory && (
+                  <View style={styles.infoSection}>
+                    <Text style={styles.sectionTitle}>Histórico Cirúrgico</Text>
+                    <View style={styles.infoRow}>
+                      <FontAwesome name="cut" size={14} color={theme.colors.info} style={{ marginRight: 8 }} />
+                      <Text style={styles.infoValue}>{patient.medical_data.surgicalHistory}</Text>
+                    </View>
                   </View>
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Validade:</Text>
-                    <Text style={styles.infoValue}>{formatDate(patient.healthInsurance.validity)}</Text>
+                )}
+
+                {/* Hereditary Conditions */}
+                {patient.medical_data.hereditaryConditions && (
+                  <View style={styles.infoSection}>
+                    <Text style={styles.sectionTitle}>Condições Hereditárias</Text>
+                    <View style={styles.infoRow}>
+                      <FontAwesome name="users" size={14} color={theme.colors.warning} style={{ marginRight: 8 }} />
+                      <Text style={styles.infoValue}>{patient.medical_data.hereditaryConditions}</Text>
+                    </View>
                   </View>
-                </>
-              ) : (
-                <Text style={styles.emptyMessage}>Plano de saúde não cadastrado</Text>
-              )}
-            </View>
+                )}
+
+                {/* Vaccination Status */}
+                {patient.medical_data.vaccinationStatus && (
+                  <View style={styles.infoSection}>
+                    <Text style={styles.sectionTitle}>Status de Vacinação</Text>
+                    <View style={styles.infoRow}>
+                      <FontAwesome name="shield" size={14} color={theme.colors.success} style={{ marginRight: 8 }} />
+                      <Text style={styles.infoValue}>{patient.medical_data.vaccinationStatus}</Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Lifestyle Habits */}
+                {patient.medical_data.lifestyleHabits && (
+                  <View style={styles.infoSection}>
+                    <Text style={styles.sectionTitle}>Hábitos de Vida</Text>
+                    <View style={styles.infoRow}>
+                      <FontAwesome name="life-ring" size={14} color={theme.colors.info} style={{ marginRight: 8 }} />
+                      <Text style={styles.infoValue}>{patient.medical_data.lifestyleHabits}</Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Implanted Devices */}
+                {patient.medical_data.implantedDevices && (
+                  <View style={styles.infoSection}>
+                    <Text style={styles.sectionTitle}>Dispositivos Implantados</Text>
+                    <View style={styles.infoRow}>
+                      <FontAwesome name="microchip" size={14} color={theme.colors.textSecondary} style={{ marginRight: 8 }} />
+                      <Text style={styles.infoValue}>{patient.medical_data.implantedDevices}</Text>
+                    </View>
+                  </View>
+                )}
+              </>
+            ) : (
+              <View style={styles.infoSection}>
+                <Text style={styles.emptyMessage}>Nenhuma informação médica registrada</Text>
+              </View>
+            )}
           </View>
         )}
       </View>

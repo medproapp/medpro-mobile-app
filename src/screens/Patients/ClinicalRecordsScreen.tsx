@@ -12,12 +12,16 @@ import {
   Platform,
   FlatList,
   Image,
+  Linking,
 } from 'react-native';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
 import { api } from '@services/api';
 import { PatientsStackParamList } from '@/types/navigation';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as IntentLauncher from 'expo-intent-launcher';
+import * as Sharing from 'expo-sharing';
 
 type ClinicalRecordsRouteProp = RouteProp<PatientsStackParamList, 'ClinicalRecords'>;
 
@@ -37,6 +41,8 @@ interface ClinicalRecord {
 const HEADER_TOP_PADDING = Platform.OS === 'android'
   ? (StatusBar.currentHeight || 44)
   : 52;
+
+const ANDROID_READ_PERMISSION_FLAG = 0x00000001; // FLAG_GRANT_READ_URI_PERMISSION
 
 const RECORD_TYPES = [
   { key: 'all', label: 'Todos', icon: 'list' },
@@ -58,6 +64,8 @@ export const ClinicalRecordsScreen: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const [totalRecords, setTotalRecords] = useState(0);
   const [selectedType, setSelectedType] = useState<string>('all');
+  const [attachmentsMap, setAttachmentsMap] = useState<Record<string, any[]>>({});
+  const [loadingAttachments, setLoadingAttachments] = useState<Record<string, boolean>>({});
 
   const loadClinicalRecords = async (pageNum: number = 1, append: boolean = false, type?: string) => {
     try {
@@ -142,6 +150,97 @@ export const ClinicalRecordsScreen: React.FC = () => {
     setLoading(true);
     await loadClinicalRecords(1, false, type);
     setLoading(false);
+  };
+
+  const loadAttachments = async (clinicalId: string) => {
+    if (loadingAttachments[clinicalId] || attachmentsMap[clinicalId]) {
+      return; // Already loading or loaded
+    }
+
+    setLoadingAttachments(prev => ({ ...prev, [clinicalId]: true }));
+    try {
+      const response = await api.getClinicalRecordAttachments(clinicalId);
+      console.log('[ClinicalRecords] Attachments API response:', JSON.stringify(response, null, 2));
+      const payload = response?.attachments ?? response?.data?.attachments ?? [];
+      const normalized = Array.isArray(payload) ? payload : [];
+
+      console.log('[ClinicalRecords] Normalized attachments count:', normalized.length);
+      normalized.forEach((att, idx) => {
+        console.log(`[ClinicalRecords] Attachment ${idx} fields:`, Object.keys(att));
+        console.log(`[ClinicalRecords] Attachment ${idx} full object:`, JSON.stringify(att, null, 2));
+      });
+
+      setAttachmentsMap(prev => ({ ...prev, [clinicalId]: normalized }));
+    } catch (error) {
+      console.error('[ClinicalRecords] Error loading attachments:', error);
+      setAttachmentsMap(prev => ({ ...prev, [clinicalId]: [] }));
+    } finally {
+      setLoadingAttachments(prev => ({ ...prev, [clinicalId]: false }));
+    }
+  };
+
+  const handleAttachmentPress = async (attachment: any) => {
+    console.log('[ClinicalRecords] Attachment pressed:', {
+      identifier: attachment?.identifier,
+      hasExternalLink: !!attachment?.externallink,
+      externalLink: attachment?.externallink,
+      hasBlob: !!attachment?.blob,
+      contentType: attachment?.contentType,
+    });
+
+    try {
+      // Handle external links
+      if (attachment?.externallink) {
+        console.log('[ClinicalRecords] Opening external link:', attachment.externallink);
+        await Linking.openURL(attachment.externallink);
+        return;
+      }
+
+      // Handle blob attachments
+      if (attachment?.blob && attachment?.contentType) {
+        console.log('[ClinicalRecords] Processing blob attachment');
+
+        const base64Data = attachment.blob;
+        const filename = attachment.suggestedFilename || attachment.blobname || attachment.identifier || 'attachment';
+        const fileUri = `${FileSystem.documentDirectory}${filename}`;
+
+        console.log('[ClinicalRecords] Writing file to:', fileUri);
+        await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        console.log('[ClinicalRecords] File written successfully');
+
+        if (Platform.OS === 'android') {
+          console.log('[ClinicalRecords] Opening file on Android');
+          const contentUri = await FileSystem.getContentUriAsync(fileUri);
+          console.log('[ClinicalRecords] Content URI:', contentUri);
+
+          await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+            data: contentUri,
+            flags: ANDROID_READ_PERMISSION_FLAG,
+            type: attachment.contentType,
+          });
+          console.log('[ClinicalRecords] File opened successfully on Android');
+        } else {
+          console.log('[ClinicalRecords] Opening file on iOS');
+          const isAvailable = await Sharing.isAvailableAsync();
+          if (isAvailable) {
+            await Sharing.shareAsync(fileUri, {
+              mimeType: attachment.contentType,
+              dialogTitle: filename,
+            });
+            console.log('[ClinicalRecords] File shared successfully on iOS');
+          } else {
+            Alert.alert('Erro', 'Compartilhamento não disponível neste dispositivo');
+          }
+        }
+      } else {
+        Alert.alert('Erro', 'Anexo não disponível ou inválido');
+      }
+    } catch (error) {
+      console.error('[ClinicalRecords] Error opening attachment:', error);
+      Alert.alert('Erro', 'Não foi possível abrir o anexo');
+    }
   };
 
   useEffect(() => {
@@ -308,6 +407,61 @@ export const ClinicalRecordsScreen: React.FC = () => {
             </Text>
           </View>
         )}
+
+        {/* Attachments Section */}
+        <View style={styles.attachmentsSection}>
+          {!attachmentsMap[record.clinicalId] && !loadingAttachments[record.clinicalId] ? (
+            <TouchableOpacity
+              style={styles.loadAttachmentsButton}
+              onPress={() => loadAttachments(record.clinicalId)}
+            >
+              <FontAwesome name="paperclip" size={14} color={theme.colors.primary} style={{ marginRight: 6 }} />
+              <Text style={styles.loadAttachmentsText}>Ver Anexos</Text>
+            </TouchableOpacity>
+          ) : loadingAttachments[record.clinicalId] ? (
+            <View style={styles.attachmentsLoading}>
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+              <Text style={styles.attachmentsLoadingText}>Carregando anexos...</Text>
+            </View>
+          ) : attachmentsMap[record.clinicalId]?.length > 0 ? (
+            <View style={styles.attachmentsList}>
+              <View style={styles.attachmentsHeader}>
+                <FontAwesome name="paperclip" size={14} color={theme.colors.textSecondary} style={{ marginRight: 6 }} />
+                <Text style={styles.attachmentsHeaderText}>
+                  Anexos ({attachmentsMap[record.clinicalId].length})
+                </Text>
+              </View>
+              {attachmentsMap[record.clinicalId].map((attachment, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.attachmentItem}
+                  onPress={() => handleAttachmentPress(attachment)}
+                >
+                  <View style={styles.attachmentIconContainer}>
+                    <FontAwesome
+                      name={attachment.externallink ? 'link' : 'file-text-o'}
+                      size={16}
+                      color={theme.colors.primary}
+                    />
+                  </View>
+                  <View style={styles.attachmentInfo}>
+                    <Text style={styles.attachmentName} numberOfLines={1}>
+                      {attachment.suggestedFilename || attachment.blobname || attachment.identifier || record.clinicalId}
+                    </Text>
+                    {attachment.contentType && (
+                      <Text style={styles.attachmentType}>{attachment.contentType}</Text>
+                    )}
+                  </View>
+                  <FontAwesome name="chevron-right" size={14} color={theme.colors.textSecondary} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.noAttachments}>
+              <Text style={styles.noAttachmentsText}>Nenhum anexo disponível</Text>
+            </View>
+          )}
+        </View>
       </View>
     );
   };
@@ -714,5 +868,92 @@ const styles = StyleSheet.create({
   footerLoaderText: {
     fontSize: 14,
     color: theme.colors.textSecondary,
+  },
+  attachmentsSection: {
+    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    paddingTop: 12,
+  },
+  loadAttachmentsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  loadAttachmentsText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  attachmentsLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+  },
+  attachmentsLoadingText: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    marginLeft: 8,
+  },
+  attachmentsList: {
+    gap: 8,
+  },
+  attachmentsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  attachmentsHeaderText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.colors.textSecondary,
+  },
+  attachmentItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  attachmentIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.primaryLight + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  attachmentInfo: {
+    flex: 1,
+    marginRight: 8,
+  },
+  attachmentName: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: theme.colors.text,
+    marginBottom: 2,
+  },
+  attachmentType: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+  },
+  noAttachments: {
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  noAttachmentsText: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    fontStyle: 'italic',
   },
 });
