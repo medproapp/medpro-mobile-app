@@ -27,6 +27,9 @@ import { PatientHistoryScreen } from '@screens/Patients/PatientHistoryScreen';
 import { ClinicalRecordsScreen } from '@screens/Patients/ClinicalRecordsScreen';
 import { PrescriptionsScreen } from '@screens/Patients/PrescriptionsScreen';
 import { DiagnosticsScreen } from '@screens/Patients/DiagnosticsScreen';
+import { ImagesScreen } from '@screens/Patients/ImagesScreen';
+import { AttachmentsScreen } from '@screens/Patients/AttachmentsScreen';
+import { RecordingsScreen } from '@screens/Patients/RecordingsScreen';
 import { EncounterDetailsScreen } from '@screens/Patients/EncounterDetailsScreen';
 import { ClinicalRecordDetailsScreen } from '@screens/Patients/ClinicalRecordDetailsScreen';
 import { MoreScreen, MyProfileScreen, AboutScreen, HelpSupportScreen } from '@screens/More';
@@ -70,7 +73,7 @@ const getDashboardTabBarStyle = (route: RouteProp<MainTabParamList, 'Dashboard'>
 
 const getPatientsTabBarStyle = (route: RouteProp<MainTabParamList, 'Patients'>): typeof TAB_BAR_BASE_STYLE & { display?: 'none' } => {
   const routeName = getFocusedRouteNameFromRoute(route) ?? 'PatientsList';
-  if (routeName === 'PatientDashboard' || routeName === 'PatientHistory' || routeName === 'ClinicalRecords' || routeName === 'Prescriptions' || routeName === 'Diagnostics' || routeName === 'EncounterDetails' || routeName === 'ClinicalRecordDetails') {
+  if (routeName === 'PatientDashboard' || routeName === 'PatientHistory' || routeName === 'ClinicalRecords' || routeName === 'Prescriptions' || routeName === 'Diagnostics' || routeName === 'Images' || routeName === 'Attachments' || routeName === 'Recordings' || routeName === 'EncounterDetails' || routeName === 'ClinicalRecordDetails') {
     return { ...TAB_BAR_BASE_STYLE, display: 'none' };
   }
   return TAB_BAR_BASE_STYLE;
@@ -267,6 +270,9 @@ const PatientsStackNavigator: React.FC = () => {
       <PatientsStack.Screen name="ClinicalRecords" component={ClinicalRecordsScreen} />
       <PatientsStack.Screen name="Prescriptions" component={PrescriptionsScreen} />
       <PatientsStack.Screen name="Diagnostics" component={DiagnosticsScreen} />
+      <PatientsStack.Screen name="Images" component={ImagesScreen} />
+      <PatientsStack.Screen name="Attachments" component={AttachmentsScreen} />
+      <PatientsStack.Screen name="Recordings" component={RecordingsScreen} />
       <PatientsStack.Screen name="EncounterDetails" component={EncounterDetailsScreen} />
       <PatientsStack.Screen name="ClinicalRecordDetails" component={ClinicalRecordDetailsScreen} />
     </PatientsStack.Navigator>

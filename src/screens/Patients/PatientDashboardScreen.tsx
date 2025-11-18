@@ -90,6 +90,9 @@ export const PatientDashboardScreen: React.FC = () => {
   const [clinicalRecordsCount, setClinicalRecordsCount] = useState<number | null>(null);
   const [prescriptionsCount, setPrescriptionsCount] = useState<number | null>(null);
   const [diagnosticsCount, setDiagnosticsCount] = useState<number | null>(null);
+  const [imagesCount, setImagesCount] = useState<number | null>(null);
+  const [attachmentsCount, setAttachmentsCount] = useState<number | null>(null);
+  const [recordingsCount, setRecordingsCount] = useState<number | null>(null);
 
   // Request deduplication - prevent concurrent loadData calls
   const loadingRef = useRef(false);
@@ -226,6 +229,51 @@ export const PatientDashboardScreen: React.FC = () => {
     }
   };
 
+  const loadImagesCount = async () => {
+    try {
+      const response = await api.getPatientImageRecords(patientCpf, { page: 1, limit: 1 });
+      const count = response?.total || 0;
+      if (mountedRef.current) {
+        setImagesCount(count);
+      }
+    } catch (error) {
+      console.error('[PatientDashboard] Error loading images count:', error);
+      if (mountedRef.current) {
+        setImagesCount(null);
+      }
+    }
+  };
+
+  const loadAttachmentsCount = async () => {
+    try {
+      const response = await api.getPatientAttachments(patientCpf, { page: 1, limit: 1 });
+      const count = response?.total || 0;
+      if (mountedRef.current) {
+        setAttachmentsCount(count);
+      }
+    } catch (error) {
+      console.error('[PatientDashboard] Error loading attachments count:', error);
+      if (mountedRef.current) {
+        setAttachmentsCount(null);
+      }
+    }
+  };
+
+  const loadRecordingsCount = async () => {
+    try {
+      const response = await api.getPatientRecordings(patientCpf, { page: 1, limit: 1 });
+      const count = response?.total || 0;
+      if (mountedRef.current) {
+        setRecordingsCount(count);
+      }
+    } catch (error) {
+      console.error('[PatientDashboard] Error loading recordings count:', error);
+      if (mountedRef.current) {
+        setRecordingsCount(null);
+      }
+    }
+  };
+
   const loadData = async () => {
     // Prevent concurrent load requests
     if (loadingRef.current) {
@@ -245,12 +293,15 @@ export const PatientDashboardScreen: React.FC = () => {
         loadClinicalRecordsCount(),
         loadPrescriptionsCount(),
         loadDiagnosticsCount(),
+        loadImagesCount(),
+        loadAttachmentsCount(),
+        loadRecordingsCount(),
       ]);
 
       // Log any failures (for debugging)
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
-          const names = ['PatientData', 'Appointments', 'ClinicalRecords', 'Prescriptions', 'Diagnostics'];
+          const names = ['PatientData', 'Appointments', 'ClinicalRecords', 'Prescriptions', 'Diagnostics', 'Images', 'Attachments', 'Recordings'];
           console.warn(`[PatientDashboard] ${names[index]} failed:`, result.reason);
         }
       });
@@ -440,35 +491,44 @@ export const PatientDashboardScreen: React.FC = () => {
           </TouchableOpacity>
 
           {/* Images Card */}
-          <TouchableOpacity style={styles.smallCard}>
+          <TouchableOpacity
+            style={styles.smallCard}
+            onPress={() => navigation.navigate('Images', { patientCpf, patientName })}
+          >
             <View style={styles.smallCardIconContainer}>
               <FontAwesome name="image" size={10} color={theme.colors.info} />
             </View>
             <Text style={styles.smallCardTitle}>Imagens</Text>
             <Text style={styles.smallCardValue}>
-              0
+              {imagesCount === null ? '-' : imagesCount}
             </Text>
           </TouchableOpacity>
 
           {/* Attachments Card */}
-          <TouchableOpacity style={styles.smallCard}>
+          <TouchableOpacity
+            style={styles.smallCard}
+            onPress={() => navigation.navigate('Attachments', { patientCpf, patientName })}
+          >
             <View style={styles.smallCardIconContainer}>
               <FontAwesome name="paperclip" size={10} color={theme.colors.warning} />
             </View>
             <Text style={styles.smallCardTitle}>Anexos</Text>
             <Text style={styles.smallCardValue}>
-              0
+              {attachmentsCount === null ? '-' : attachmentsCount}
             </Text>
           </TouchableOpacity>
 
           {/* Recordings Card */}
-          <TouchableOpacity style={styles.smallCard}>
+          <TouchableOpacity
+            style={styles.smallCard}
+            onPress={() => navigation.navigate('Recordings', { patientCpf, patientName })}
+          >
             <View style={styles.smallCardIconContainer}>
               <FontAwesome name="microphone" size={10} color={theme.colors.error} />
             </View>
             <Text style={styles.smallCardTitle}>Gravações</Text>
             <Text style={styles.smallCardValue}>
-              0
+              {recordingsCount === null ? '-' : recordingsCount}
             </Text>
           </TouchableOpacity>
         </ScrollView>
