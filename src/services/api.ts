@@ -679,6 +679,57 @@ class ApiService {
     }
   }
 
+  /**
+   * Download image blob data from Azure storage
+   * @param blobname The blob filename (from the 'file' field in image records)
+   * @returns Base64 data URI for React Native Image component, or null on error
+   */
+  async downloadImageBlob(blobname: string): Promise<string | null> {
+    if (__DEV__) {
+      console.log('[API] downloadImageBlob called with:', blobname);
+    }
+
+    try {
+      const url = `${API_BASE_URL}/images/getfromazure/${encodeURIComponent(blobname)}`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          ...this.getAuthHeaders(),
+          ...this.getOrgHeaders(),
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to download image: ${response.statusText}`);
+      }
+
+      // Get content type from response headers
+      const contentType = response.headers.get('content-type') || 'image/jpeg';
+
+      // Convert blob response to base64
+      const blob = await response.blob();
+      return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64data = reader.result as string;
+          // The result is already a data URI (data:image/jpeg;base64,...)
+          if (__DEV__) {
+            console.log('[API] downloadImageBlob success, size:', base64data.length);
+          }
+          resolve(base64data);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      if (__DEV__) {
+        console.error('[API] downloadImageBlob error:', error);
+      }
+      return null;
+    }
+  }
+
   async getPatientAttachments(patientId: string, options: { page?: number; limit?: number } = {}) {
     const params = new URLSearchParams({
       page: (options.page || 1).toString(),

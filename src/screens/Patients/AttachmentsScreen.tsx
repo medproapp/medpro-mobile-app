@@ -12,9 +12,12 @@ import {
   Platform,
   FlatList,
   Image,
+  Linking,
 } from 'react-native';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as IntentLauncher from 'expo-intent-launcher';
 import { theme } from '@theme/index';
 import { api } from '@services/api';
 import { PatientsStackParamList } from '@/types/navigation';
@@ -38,15 +41,40 @@ const HEADER_TOP_PADDING = Platform.OS === 'android'
   ? (StatusBar.currentHeight || 44)
   : 52;
 
-const ATTACHMENT_TYPES = [
+// Filter categories (only base types for UI filters)
+const ATTACHMENT_FILTER_CATEGORIES = [
   { key: 'all', label: 'Todos', icon: 'list' },
-  { key: 'REQUEST', label: 'Pedidos', icon: 'file-text-o' },
-  { key: 'REFERRAL', label: 'Encaminhamentos', icon: 'share' },
-  { key: 'ATESTADO', label: 'Atestados', icon: 'certificate' },
-  { key: 'MEDREQUEST', label: 'Med. Request', icon: 'medkit' },
+  { key: 'MEDREQUEST', label: 'Prescrição', icon: 'medkit' },
+  { key: 'REQUEST', label: 'Solicitação', icon: 'file-text-o' },
+  { key: 'REFERRAL', label: 'Encaminhamento', icon: 'share' },
+  { key: 'ATESTADO', label: 'Atestado', icon: 'certificate' },
+  { key: 'EXAM_RESULT', label: 'Resultado de Exame', icon: 'flask' },
+  { key: 'LAB-RESULT', label: 'Resultado Lab', icon: 'flask' },
+  { key: 'EXAM-REPORT', label: 'Relatório', icon: 'file-text-o' },
+  { key: 'MEDICAL-CERTIFICATE', label: 'Atestado Médico', icon: 'certificate' },
+  { key: 'EVB-JPG', label: 'Imagem', icon: 'image' },
+  { key: 'EVB-PDF', label: 'PDF Externo', icon: 'file-pdf-o' },
   { key: 'MANUAL', label: 'Manual', icon: 'hand-o-up' },
-  { key: 'EVB-PDF', label: 'EVB PDF', icon: 'file-pdf-o' },
 ];
+
+// All attachment types including -SIGNED variants (for label lookups)
+const ALL_ATTACHMENT_TYPES: { [key: string]: string } = {
+  'MEDREQUEST': 'Prescrição',
+  'MEDREQUEST-SIGNED': 'Prescrição',
+  'REQUEST': 'Solicitação',
+  'REQUEST-SIGNED': 'Solicitação',
+  'REFERRAL': 'Encaminhamento',
+  'REFERRAL-SIGNED': 'Encaminhamento',
+  'ATESTADO': 'Atestado',
+  'ATESTADO-SIGNED': 'Atestado',
+  'EXAM_RESULT': 'Resultado de Exame',
+  'LAB-RESULT': 'Resultado Lab',
+  'EXAM-REPORT': 'Relatório',
+  'MEDICAL-CERTIFICATE': 'Atestado Médico',
+  'EVB-JPG': 'Imagem',
+  'EVB-PDF': 'PDF Externo',
+  'MANUAL': 'Manual',
+};
 
 export const AttachmentsScreen: React.FC = () => {
   const route = useRoute<AttachmentsRouteProp>();
@@ -61,6 +89,9 @@ export const AttachmentsScreen: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const [totalRecords, setTotalRecords] = useState(0);
   const [selectedType, setSelectedType] = useState<string>('all');
+  const [downloadingAttachment, setDownloadingAttachment] = useState<{ [key: string]: boolean }>({});
+
+  const ANDROID_READ_PERMISSION_FLAG = 1;
 
   const loadAttachments = async (pageNum: number = 1, append: boolean = false, type?: string) => {
     try {
@@ -80,10 +111,13 @@ export const AttachmentsScreen: React.FC = () => {
         return;
       }
 
-      // Filter by type if specified
+      // Filter by type if specified (include both base and -SIGNED variants)
       let filteredRecords = response.data;
       if (type && type !== 'all') {
-        filteredRecords = response.data.filter((record: AttachmentRecord) => record.type === type);
+        filteredRecords = response.data.filter((record: AttachmentRecord) => {
+          // Match exact type or the signed variant
+          return record.type === type || record.type === `${type}-SIGNED`;
+        });
       }
 
       // Sort records by date (most recent first)
@@ -148,6 +182,71 @@ export const AttachmentsScreen: React.FC = () => {
     setLoading(false);
   };
 
+  const handleAttachmentPress = async (attachment: AttachmentRecord) => {
+    const attachmentId = attachment.identifier || attachment.blobname || `${Date.now()}`;
+
+    try {
+      // Handle external links
+      if (attachment?.externallink) {
+        await Linking.openURL(attachment.externallink);
+        return;
+      }
+
+      // Download and open blob files
+      if (attachment?.blobname && attachment?.filetype) {
+        // Set loading state
+        setDownloadingAttachment(prev => ({ ...prev, [attachmentId]: true }));
+
+        // Fetch the blob from the API
+        const blobData = await api.downloadAttachmentBlob({
+          blobname: attachment.blobname,
+          type: attachment.type,
+          filetype: attachment.filetype,
+        });
+
+        if (!blobData) {
+          Alert.alert('Erro', 'Não foi possível baixar o anexo');
+          setDownloadingAttachment(prev => ({ ...prev, [attachmentId]: false }));
+          return;
+        }
+
+        // Save the file locally
+        const filename = attachment.blobname || attachment.identifier || `attachment-${Date.now()}.pdf`;
+        const fileUri = `${FileSystem.documentDirectory}${filename}`;
+
+        await FileSystem.writeAsStringAsync(fileUri, blobData, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+
+        // Clear loading state before navigation
+        setDownloadingAttachment(prev => ({ ...prev, [attachmentId]: false }));
+
+        // Open the file based on platform
+        if (Platform.OS === 'android') {
+          const contentUri = await FileSystem.getContentUriAsync(fileUri);
+          await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+            data: contentUri,
+            flags: ANDROID_READ_PERMISSION_FLAG,
+            type: attachment.filetype,
+          });
+        } else {
+          // iOS: Navigate to PDF viewer screen
+          navigation.navigate('PdfViewer' as any, {
+            fileUri,
+            fileName: filename,
+            title: 'Anexo',
+          });
+        }
+      } else {
+        Alert.alert('Erro', 'Informações do anexo incompletas');
+      }
+    } catch (error) {
+      console.error('[Attachments] Error opening attachment:', error);
+      setDownloadingAttachment(prev => ({ ...prev, [attachmentId]: false }));
+      Alert.alert('Erro', 'Não foi possível abrir o anexo');
+    }
+  };
+
   useEffect(() => {
     loadData();
   }, [patientCpf]);
@@ -170,46 +269,242 @@ export const AttachmentsScreen: React.FC = () => {
     });
   };
 
-  const getFileIcon = (filetype: string): string => {
+  const getFileIcon = (filetype: string | null): string => {
     if (!filetype) return 'file-o';
-    if (filetype.includes('pdf')) return 'file-pdf-o';
-    if (filetype.includes('image')) return 'file-image-o';
-    if (filetype.includes('word') || filetype.includes('document')) return 'file-word-o';
-    if (filetype.includes('excel') || filetype.includes('spreadsheet')) return 'file-excel-o';
+
+    const type = filetype.toLowerCase();
+
+    // PDF
+    if (type.includes('pdf')) return 'file-pdf-o';
+
+    // Images
+    if (type.includes('image') || type.includes('jpg') || type.includes('jpeg') ||
+        type.includes('png') || type.includes('gif') || type.includes('bmp') ||
+        type.includes('webp') || type.includes('tiff')) {
+      return 'file-image-o';
+    }
+
+    // Documents
+    if (type.includes('word') || type.includes('document') || type.includes('doc')) {
+      return 'file-word-o';
+    }
+
+    // Spreadsheets
+    if (type.includes('excel') || type.includes('spreadsheet') || type.includes('xls')) {
+      return 'file-excel-o';
+    }
+
+    // Text files
+    if (type.includes('text') || type.includes('txt') || type.includes('plain')) {
+      return 'file-text-o';
+    }
+
+    // Videos
+    if (type.includes('video') || type.includes('mp4') || type.includes('avi') ||
+        type.includes('mov') || type.includes('wmv')) {
+      return 'file-video-o';
+    }
+
+    // Audio
+    if (type.includes('audio') || type.includes('mp3') || type.includes('wav') ||
+        type.includes('ogg') || type.includes('flac')) {
+      return 'file-audio-o';
+    }
+
+    // Archives
+    if (type.includes('zip') || type.includes('rar') || type.includes('7z') ||
+        type.includes('tar') || type.includes('gz')) {
+      return 'file-archive-o';
+    }
+
+    // Code files
+    if (type.includes('html') || type.includes('xml') || type.includes('json') ||
+        type.includes('javascript') || type.includes('css')) {
+      return 'file-code-o';
+    }
+
+    // URL/Links
+    if (type.includes('url') || type === 'url') {
+      return 'link';
+    }
+
     return 'file-o';
+  };
+
+  const getFileTypeColor = (filetype: string | null): string => {
+    if (!filetype) return theme.colors.textSecondary;
+
+    const type = filetype.toLowerCase();
+
+    // PDF - Red
+    if (type.includes('pdf')) return '#dc3545'; // danger/red
+
+    // Images - Cyan/Blue
+    if (type.includes('image') || type.includes('jpg') || type.includes('jpeg') ||
+        type.includes('png') || type.includes('gif') || type.includes('bmp') ||
+        type.includes('webp') || type.includes('tiff')) {
+      return '#17a2b8'; // info/cyan
+    }
+
+    // Documents - Blue
+    if (type.includes('word') || type.includes('document') || type.includes('doc')) {
+      return '#007bff'; // primary/blue
+    }
+
+    // Spreadsheets - Green
+    if (type.includes('excel') || type.includes('spreadsheet') || type.includes('xls')) {
+      return '#28a745'; // success/green
+    }
+
+    // Text files - Gray
+    if (type.includes('text') || type.includes('txt') || type.includes('plain')) {
+      return '#6c757d'; // secondary/gray
+    }
+
+    // Videos - Purple
+    if (type.includes('video') || type.includes('mp4') || type.includes('avi') ||
+        type.includes('mov') || type.includes('wmv')) {
+      return '#6f42c1'; // purple
+    }
+
+    // Audio - Orange
+    if (type.includes('audio') || type.includes('mp3') || type.includes('wav') ||
+        type.includes('ogg') || type.includes('flac')) {
+      return '#fd7e14'; // orange
+    }
+
+    // Archives - Dark Gray
+    if (type.includes('zip') || type.includes('rar') || type.includes('7z') ||
+        type.includes('tar') || type.includes('gz')) {
+      return '#495057'; // dark gray
+    }
+
+    // Code files - Teal
+    if (type.includes('html') || type.includes('xml') || type.includes('json') ||
+        type.includes('javascript') || type.includes('css')) {
+      return '#20c997'; // teal
+    }
+
+    // URL/Links - Primary Blue
+    if (type.includes('url') || type === 'url') {
+      return theme.colors.primary;
+    }
+
+    return theme.colors.textSecondary;
   };
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case 'REQUEST': return theme.colors.primary;
-      case 'REFERRAL': return theme.colors.info;
-      case 'ATESTADO': return theme.colors.success;
-      case 'MEDREQUEST': return theme.colors.warning;
-      case 'MANUAL': return theme.colors.textSecondary;
-      case 'EVB-PDF': return theme.colors.error;
-      default: return theme.colors.textSecondary;
+      case 'MEDREQUEST':
+      case 'MEDREQUEST-SIGNED':
+        return theme.colors.primary;
+      case 'REQUEST':
+      case 'REQUEST-SIGNED':
+      case 'EXAM-REPORT':
+        return theme.colors.warning;
+      case 'REFERRAL':
+      case 'REFERRAL-SIGNED':
+      case 'EVB-JPG':
+        return theme.colors.info;
+      case 'ATESTADO':
+      case 'ATESTADO-SIGNED':
+      case 'MEDICAL-CERTIFICATE':
+        return theme.colors.textSecondary;
+      case 'EXAM_RESULT':
+      case 'LAB-RESULT':
+        return theme.colors.success;
+      case 'EVB-PDF':
+        return theme.colors.error;
+      case 'MANUAL':
+        return theme.colors.textSecondary;
+      default:
+        return theme.colors.textSecondary;
     }
   };
 
   const getTypeLabel = (type: string): string => {
-    const typeObj = ATTACHMENT_TYPES.find(t => t.key === type);
-    return typeObj?.label || type;
+    return ALL_ATTACHMENT_TYPES[type] || type;
+  };
+
+  const getFileTypeLabel = (filetype: string | null): string => {
+    if (!filetype) return 'Tipo desconhecido';
+
+    // Parse MIME types (e.g., "application/pdf" → "PDF")
+    let normalizedType = filetype.toUpperCase();
+    if (filetype.includes('/')) {
+      // It's a MIME type
+      const parts = filetype.split('/');
+      const subtype = parts[1] || parts[0];
+      normalizedType = subtype.toUpperCase();
+
+      // Handle special cases
+      if (normalizedType === 'MSWORD' || normalizedType.includes('WORDPROCESSINGML')) {
+        return 'Documento Word';
+      } else if (normalizedType === 'VND.MS-EXCEL' || normalizedType.includes('SPREADSHEETML')) {
+        return 'Planilha Excel';
+      } else if (normalizedType === 'OCTET-STREAM') {
+        return 'Arquivo binário';
+      } else if (normalizedType.includes('VND.') || normalizedType.includes('X-')) {
+        // Clean up vendor-specific prefixes
+        normalizedType = normalizedType.replace(/^(VND\.|X-)/, '');
+      }
+    }
+
+    // Translate common formats to Portuguese
+    const translations: { [key: string]: string } = {
+      'PDF': 'PDF',
+      'JPG': 'Imagem JPG',
+      'JPEG': 'Imagem JPEG',
+      'PNG': 'Imagem PNG',
+      'GIF': 'Imagem GIF',
+      'BMP': 'Imagem BMP',
+      'WEBP': 'Imagem WEBP',
+      'TIFF': 'Imagem TIFF',
+      'TXT': 'Texto',
+      'TEXT': 'Texto',
+      'PLAIN': 'Texto',
+      'HTML': 'HTML',
+      'XML': 'XML',
+      'JSON': 'JSON',
+      'DOC': 'Documento Word',
+      'DOCX': 'Documento Word',
+      'XLS': 'Planilha Excel',
+      'XLSX': 'Planilha Excel',
+      'URL': 'Link externo',
+      'ZIP': 'Arquivo ZIP',
+      'RAR': 'Arquivo RAR',
+      'MP4': 'Vídeo MP4',
+      'AVI': 'Vídeo AVI',
+      'MOV': 'Vídeo MOV',
+      'MP3': 'Áudio MP3',
+      'WAV': 'Áudio WAV',
+    };
+
+    return translations[normalizedType] || normalizedType;
   };
 
   const renderAttachmentCard = ({ item: record }: { item: AttachmentRecord }) => {
     const fileIcon = getFileIcon(record.filetype);
+    const fileTypeColor = getFileTypeColor(record.filetype);
     const typeColor = getTypeColor(record.type);
+    const attachmentId = record.identifier || record.blobname || '';
+    const isDownloading = downloadingAttachment[attachmentId] || false;
 
     return (
-      <View style={styles.recordCard}>
+      <TouchableOpacity
+        style={styles.recordCard}
+        onPress={() => handleAttachmentPress(record)}
+        disabled={isDownloading}
+        activeOpacity={0.7}
+      >
         {/* Record Header */}
         <View style={styles.recordHeader}>
           <View style={styles.recordHeaderLeft}>
-            <View style={[styles.recordIconContainer, { backgroundColor: typeColor }]}>
+            <View style={[styles.recordIconContainer, { backgroundColor: fileTypeColor }]}>
               <FontAwesome name={fileIcon} size={16} color={theme.colors.white} />
             </View>
             <View style={styles.recordMainInfo}>
-              <Text style={styles.recordTitle}>Anexo #{record.identifier}</Text>
+              <Text style={styles.recordTitle}>{record.identifier}</Text>
             </View>
           </View>
 
@@ -226,8 +521,8 @@ export const AttachmentsScreen: React.FC = () => {
           </View>
 
           <View style={styles.recordDetailRow}>
-            <FontAwesome name="file" size={12} color={theme.colors.textSecondary} style={{ marginRight: 8 }} />
-            <Text style={styles.recordDetailText}>{record.filetype || 'Tipo desconhecido'}</Text>
+            <FontAwesome name={getFileIcon(record.filetype)} size={12} color={theme.colors.textSecondary} style={{ marginRight: 8 }} />
+            <Text style={styles.recordDetailText}>{getFileTypeLabel(record.filetype)}</Text>
           </View>
 
           {record.encounter && (
@@ -243,17 +538,16 @@ export const AttachmentsScreen: React.FC = () => {
               <Text style={styles.recordDetailText}>Contexto: {record.context}</Text>
             </View>
           )}
-
-          {record.externallink && (
-            <View style={styles.recordDetailRow}>
-              <FontAwesome name="link" size={12} color={theme.colors.primary} style={{ marginRight: 8 }} />
-              <Text style={[styles.recordDetailText, { color: theme.colors.primary }]} numberOfLines={1}>
-                {record.externallink}
-              </Text>
-            </View>
-          )}
         </View>
-      </View>
+
+        {/* Loading Indicator */}
+        {isDownloading && (
+          <View style={styles.downloadingOverlay}>
+            <ActivityIndicator size="small" color={theme.colors.primary} />
+            <Text style={styles.downloadingText}>Baixando...</Text>
+          </View>
+        )}
+      </TouchableOpacity>
     );
   };
 
@@ -264,11 +558,17 @@ export const AttachmentsScreen: React.FC = () => {
     let description = 'Não há anexos disponíveis para este paciente.';
 
     switch (selectedType) {
+      case 'MEDREQUEST':
+        icon = 'medkit';
+        iconColor = theme.colors.primary;
+        title = 'Nenhuma Prescrição';
+        description = 'Este paciente não possui prescrições anexadas.';
+        break;
       case 'REQUEST':
         icon = 'file-text-o';
-        iconColor = theme.colors.primary;
-        title = 'Nenhum Pedido';
-        description = 'Este paciente não possui pedidos anexados.';
+        iconColor = theme.colors.warning;
+        title = 'Nenhuma Solicitação';
+        description = 'Este paciente não possui solicitações anexadas.';
         break;
       case 'REFERRAL':
         icon = 'share';
@@ -278,27 +578,51 @@ export const AttachmentsScreen: React.FC = () => {
         break;
       case 'ATESTADO':
         icon = 'certificate';
-        iconColor = theme.colors.success;
+        iconColor = theme.colors.textSecondary;
         title = 'Nenhum Atestado';
         description = 'Este paciente não possui atestados anexados.';
         break;
-      case 'MEDREQUEST':
-        icon = 'medkit';
+      case 'EXAM_RESULT':
+        icon = 'flask';
+        iconColor = theme.colors.success;
+        title = 'Nenhum Resultado de Exame';
+        description = 'Não há resultados de exames anexados.';
+        break;
+      case 'LAB-RESULT':
+        icon = 'flask';
+        iconColor = theme.colors.success;
+        title = 'Nenhum Resultado Lab';
+        description = 'Não há resultados laboratoriais anexados.';
+        break;
+      case 'EXAM-REPORT':
+        icon = 'file-text-o';
         iconColor = theme.colors.warning;
-        title = 'Nenhuma Med. Request';
-        description = 'Não há solicitações médicas anexadas.';
+        title = 'Nenhum Relatório';
+        description = 'Não há relatórios anexados.';
+        break;
+      case 'MEDICAL-CERTIFICATE':
+        icon = 'certificate';
+        iconColor = theme.colors.textSecondary;
+        title = 'Nenhum Atestado Médico';
+        description = 'Não há atestados médicos anexados.';
+        break;
+      case 'EVB-JPG':
+        icon = 'image';
+        iconColor = theme.colors.info;
+        title = 'Nenhuma Imagem';
+        description = 'Não há imagens anexadas.';
+        break;
+      case 'EVB-PDF':
+        icon = 'file-pdf-o';
+        iconColor = theme.colors.error;
+        title = 'Nenhum PDF Externo';
+        description = 'Não há arquivos PDF externos anexados.';
         break;
       case 'MANUAL':
         icon = 'hand-o-up';
         iconColor = theme.colors.textSecondary;
         title = 'Nenhum Anexo Manual';
         description = 'Não há anexos manuais registrados.';
-        break;
-      case 'EVB-PDF':
-        icon = 'file-pdf-o';
-        iconColor = theme.colors.error;
-        title = 'Nenhum EVB PDF';
-        description = 'Não há arquivos EVB PDF anexados.';
         break;
     }
 
@@ -377,7 +701,7 @@ export const AttachmentsScreen: React.FC = () => {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.filterContent}
           >
-            {ATTACHMENT_TYPES.map((type) => (
+            {ATTACHMENT_FILTER_CATEGORIES.map((type) => (
               <TouchableOpacity
                 key={type.key}
                 style={[
@@ -657,5 +981,23 @@ const styles = StyleSheet.create({
   footerLoaderText: {
     fontSize: 14,
     color: theme.colors.textSecondary,
+  },
+  downloadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 12,
+    flexDirection: 'row',
+  },
+  downloadingText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: theme.colors.primary,
+    fontWeight: '600',
   },
 });

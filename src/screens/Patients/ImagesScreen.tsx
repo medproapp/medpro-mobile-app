@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
+import ImageViewing from 'react-native-image-viewing';
 import { theme } from '@theme/index';
 import { api } from '@services/api';
 import { PatientsStackParamList } from '@/types/navigation';
@@ -22,13 +23,15 @@ import { PatientsStackParamList } from '@/types/navigation';
 type ImagesRouteProp = RouteProp<PatientsStackParamList, 'Images'>;
 
 interface ImageRecord {
-  identifier: string;
+  Identifier: string;
+  img_seq: number;
   subject: string;
   enc_id?: string;
   date: string;
   title: string;
   description?: string;
   Practitioner?: string;
+  file: string; // Blobname for the image file
 }
 
 const HEADER_TOP_PADDING = Platform.OS === 'android'
@@ -47,6 +50,9 @@ export const ImagesScreen: React.FC = () => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [totalRecords, setTotalRecords] = useState(0);
+  const [imageCache, setImageCache] = useState<{ [key: number]: string | null }>({});
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewerImageIndex, setViewerImageIndex] = useState(0);
 
   const loadImageRecords = async (pageNum: number = 1, append: boolean = false) => {
     try {
@@ -120,6 +126,34 @@ export const ImagesScreen: React.FC = () => {
     }
   };
 
+  const downloadImage = async (record: ImageRecord) => {
+    // Skip if already cached (including null = failed)
+    if (imageCache[record.img_seq] !== undefined) {
+      return;
+    }
+
+    // Skip if no file/blobname
+    if (!record.file) {
+      setImageCache(prev => ({ ...prev, [record.img_seq]: null }));
+      return;
+    }
+
+    try {
+      const imageUri = await api.downloadImageBlob(record.file);
+      setImageCache(prev => ({ ...prev, [record.img_seq]: imageUri }));
+    } catch (error) {
+      console.error('[Images] Error downloading image:', record.file, error);
+      setImageCache(prev => ({ ...prev, [record.img_seq]: null }));
+    }
+  };
+
+  // Download images for visible records
+  useEffect(() => {
+    records.forEach(record => {
+      downloadImage(record);
+    });
+  }, [records]);
+
   useEffect(() => {
     loadData();
   }, [patientCpf]);
@@ -142,9 +176,48 @@ export const ImagesScreen: React.FC = () => {
     });
   };
 
-  const renderImageCard = ({ item: record }: { item: ImageRecord }) => {
+  const renderImageCard = ({ item: record, index }: { item: ImageRecord; index: number }) => {
+    const imageUri = imageCache[record.img_seq];
+    const isLoading = imageUri === undefined;
+    const hasFailed = imageUri === null;
+
     return (
-      <View style={styles.recordCard}>
+      <TouchableOpacity
+        style={styles.recordCard}
+        onPress={() => {
+          if (imageUri && imageUri !== null) {
+            setViewerImageIndex(index);
+            setViewerVisible(true);
+          }
+        }}
+        activeOpacity={0.7}
+        disabled={!imageUri || imageUri === null}
+      >
+        {/* Image Preview */}
+        <View style={styles.imagePreviewContainer}>
+          {isLoading && (
+            <View style={styles.imageLoadingContainer}>
+              <ActivityIndicator size="large" color={theme.colors.primary} />
+              <Text style={styles.imageLoadingText}>Carregando imagem...</Text>
+            </View>
+          )}
+
+          {hasFailed && (
+            <View style={styles.imageErrorContainer}>
+              <FontAwesome name="image" size={48} color={theme.colors.textSecondary} />
+              <Text style={styles.imageErrorText}>Imagem não disponível</Text>
+            </View>
+          )}
+
+          {imageUri && imageUri !== null && (
+            <Image
+              source={{ uri: imageUri }}
+              style={styles.imagePreview}
+              resizeMode="cover"
+            />
+          )}
+        </View>
+
         {/* Record Header */}
         <View style={styles.recordHeader}>
           <View style={styles.recordHeaderLeft}>
@@ -153,7 +226,7 @@ export const ImagesScreen: React.FC = () => {
             </View>
             <View style={styles.recordMainInfo}>
               <Text style={styles.recordTitle} numberOfLines={2}>{record.title || 'Imagem'}</Text>
-              <Text style={styles.recordId}>#{record.identifier}</Text>
+              <Text style={styles.recordId}>#{record.Identifier}</Text>
             </View>
           </View>
         </View>
@@ -187,7 +260,7 @@ export const ImagesScreen: React.FC = () => {
             <Text style={styles.descriptionText}>{record.description}</Text>
           </View>
         )}
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -257,7 +330,7 @@ export const ImagesScreen: React.FC = () => {
         <FlatList
           data={records}
           renderItem={renderImageCard}
-          keyExtractor={(item) => item.identifier}
+          keyExtractor={(item) => item.img_seq.toString()}
           contentContainerStyle={styles.listContainer}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -268,6 +341,31 @@ export const ImagesScreen: React.FC = () => {
           ListEmptyComponent={renderEmptyState}
         />
       </View>
+
+      {/* Full-Size Image Viewer with Zoom */}
+      <ImageViewing
+        images={records
+          .map(record => {
+            const uri = imageCache[record.img_seq];
+            return uri && uri !== null ? { uri } : null;
+          })
+          .filter((img): img is { uri: string } => img !== null)}
+        imageIndex={viewerImageIndex}
+        visible={viewerVisible}
+        onRequestClose={() => setViewerVisible(false)}
+        FooterComponent={({ imageIndex }) => {
+          const record = records[imageIndex];
+          return record ? (
+            <View style={styles.viewerFooter}>
+              <Text style={styles.viewerTitle}>{record.title || 'Imagem'}</Text>
+              {record.description && (
+                <Text style={styles.viewerDescription}>{record.description}</Text>
+              )}
+              <Text style={styles.viewerDate}>{formatDateTime(record.date)}</Text>
+            </View>
+          ) : null;
+        }}
+      />
     </>
   );
 };
@@ -400,6 +498,42 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.textSecondary,
   },
+  imagePreviewContainer: {
+    width: '100%',
+    height: 200,
+    backgroundColor: theme.colors.background,
+    borderRadius: 8,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  imagePreview: {
+    width: '100%',
+    height: '100%',
+  },
+  imageLoadingContainer: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.background,
+  },
+  imageLoadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+  },
+  imageErrorContainer: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.background,
+  },
+  imageErrorText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+  },
   recordDetails: {
     marginTop: 8,
   },
@@ -467,5 +601,27 @@ const styles = StyleSheet.create({
   footerLoaderText: {
     fontSize: 14,
     color: theme.colors.textSecondary,
+  },
+  viewerFooter: {
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    paddingBottom: Platform.OS === 'ios' ? 32 : 16,
+  },
+  viewerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.white,
+    marginBottom: 8,
+  },
+  viewerDescription: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  viewerDate: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.6)',
   },
 });
