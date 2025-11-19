@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,11 @@ import { theme } from '@theme/index';
 import { apiService, API_BASE_URL } from '@services/api';
 import { useAuthStore } from '@store/authStore';
 import { PractitionerProfile, PractitionerProfileField } from '@/types/practitioner';
+import { SelectionModal, SelectionOption } from '@/components/SelectionModal';
+import { MaskedInput } from '@/components/MaskedInput';
+import { DatePickerInput } from '@/components/DatePickerInput';
+import { validateCPF, validatePhone } from '@/utils/validation';
+import { convertIsoToDisplayDate, convertDisplayDateToIso } from '@/utils/dateHelpers';
 
 const TEXT_INPUT_HEIGHT = Platform.select({ ios: 46, android: 48, default: 46 });
 
@@ -33,6 +38,26 @@ export const MyProfileScreen: React.FC = () => {
   const [photoAvailable, setPhotoAvailable] = useState(true);
   const [photoVersion, setPhotoVersion] = useState(0);
   const [formValues, setFormValues] = useState<Partial<PractitionerProfile>>({});
+
+  // Selection modals state
+  const [showGenderModal, setShowGenderModal] = useState(false);
+  const [showStateModal, setShowStateModal] = useState(false);
+  const [showCityModal, setShowCityModal] = useState(false);
+
+  // Location data
+  const [states, setStates] = useState<Array<{ id: number; sigla: string; nome: string }>>([]);
+  const [cities, setCities] = useState<Array<{ id: number; nome: string }>>([]);
+  const [loadingCities, setLoadingCities] = useState(false);
+
+  // CEP lookup state
+  const [cepLoading, setCepLoading] = useState(false);
+  const [cepSuccess, setCepSuccess] = useState(false);
+  const [cepError, setCepError] = useState<string | undefined>();
+
+  // Validation errors
+  const [cpfError, setCpfError] = useState<string | undefined>();
+  const [phoneError, setPhoneError] = useState<string | undefined>();
+  const [birthDateError, setBirthDateError] = useState<string | undefined>();
 
   const userTypeLabel = useMemo(() => {
     const roleSource = user?.userRole || user?.role;
@@ -59,6 +84,96 @@ export const MyProfileScreen: React.FC = () => {
     return `${API_BASE_URL}/pract/getmyphoto?email=${encodeURIComponent(email)}&t=${photoVersion}`;
   }, [email, photoVersion, token]);
 
+  // Gender options (matching web app)
+  const genderOptions: SelectionOption[] = [
+    { label: 'Prefiro não informar', value: '' },
+    { label: 'Masculino', value: 'male' },
+    { label: 'Feminino', value: 'female' },
+    { label: 'Outro', value: 'other' },
+  ];
+
+  // Convert states to selection options
+  const stateOptions: SelectionOption[] = useMemo(
+    () => states.map(s => ({ label: `${s.nome} (${s.sigla})`, value: s.sigla })),
+    [states]
+  );
+
+  // Convert cities to selection options
+  const cityOptions: SelectionOption[] = useMemo(
+    () => cities.map(c => ({ label: c.nome, value: String(c.id) })),
+    [cities]
+  );
+
+  // Load states on mount
+  useEffect(() => {
+    const loadStates = async () => {
+      try {
+        const statesData = await apiService.getStates();
+        setStates(statesData);
+      } catch (error) {
+        console.error('[MyProfileScreen] Failed to load states:', error);
+      }
+    };
+    loadStates();
+  }, []);
+
+  // Load cities when state changes
+  const loadCities = useCallback(async (stateCode: string) => {
+    if (!stateCode) {
+      setCities([]);
+      return;
+    }
+
+    try {
+      setLoadingCities(true);
+      const citiesData = await apiService.getCities(stateCode);
+      setCities(citiesData);
+    } catch (error) {
+      console.error('[MyProfileScreen] Failed to load cities:', error);
+      Alert.alert('Erro', 'Não foi possível carregar as cidades.');
+    } finally {
+      setLoadingCities(false);
+    }
+  }, []);
+
+  // Handle CEP auto-lookup
+  const handleCEPChange = useCallback(async (cep: string) => {
+    setFormValues(prev => ({ ...prev, cep }));
+    setCepError(undefined);
+    setCepSuccess(false);
+
+    // Remove formatting
+    const cleanCEP = cep.replace(/\D/g, '');
+    if (cleanCEP.length !== 8) {
+      return;
+    }
+
+    try {
+      setCepLoading(true);
+      const result = await apiService.lookupCEP(cep);
+
+      // Auto-fill fields
+      setFormValues(prev => ({
+        ...prev,
+        state: result.uf,
+        cityname: result.localidade,
+        address: result.logradouro
+          ? `${result.logradouro}${result.bairro ? `, ${result.bairro}` : ''}${result.complemento ? `, ${result.complemento}` : ''}`
+          : prev.address,
+      }));
+
+      // Load cities for the state
+      await loadCities(result.uf);
+
+      setCepSuccess(true);
+      setTimeout(() => setCepSuccess(false), 3000);
+    } catch (error: any) {
+      setCepError(error.message || 'Erro ao consultar CEP');
+    } finally {
+      setCepLoading(false);
+    }
+  }, [loadCities]);
+
   const loadProfile = useCallback(async () => {
     if (!email) {
       return;
@@ -75,7 +190,7 @@ export const MyProfileScreen: React.FC = () => {
         cpf: profile.cpf || '',
         phone: profile.phone || '',
         gender: profile.gender || '',
-        birthDate: profile.birthDate || '',
+        birthDate: profile.birthDate ? convertIsoToDisplayDate(profile.birthDate) : '',
         crm: profile.crm || '',
         cnpj: profile.cnpj || '',
         qualification: profile.qualification || profile.category || '',
@@ -88,6 +203,12 @@ export const MyProfileScreen: React.FC = () => {
         state: profile.state || '',
         bio: profile.bio || '',
       });
+
+      // Load cities if state is set
+      if (profile.state) {
+        await loadCities(profile.state);
+      }
+
       setPhotoAvailable(true);
     } catch (error) {
       console.error('[MyProfileScreen] Failed to load profile. Raw error:', error);
@@ -95,7 +216,7 @@ export const MyProfileScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [email, user?.name]);
+  }, [email, user?.name, loadCities]);
 
   useFocusEffect(
     useCallback(() => {
@@ -137,7 +258,13 @@ export const MyProfileScreen: React.FC = () => {
 
     (Object.entries(formValues) as [PractitionerProfileField, unknown][]).forEach(([key, value]) => {
       if (typeof value !== 'undefined') {
-        updatedFields[key] = value;
+        // Convert birthDate from DD/MM/YYYY to ISO format for API
+        if (key === 'birthDate' && typeof value === 'string' && value) {
+          // Convert date format for API (keep camelCase to match API response)
+          updatedFields['birthDate'] = convertDisplayDateToIso(value);
+        } else {
+          updatedFields[key] = value;
+        }
       }
     });
 
@@ -145,6 +272,10 @@ export const MyProfileScreen: React.FC = () => {
       console.log('[MyProfileScreen] Saving profile with payload:', updatedFields);
       setSaving(true);
       await apiService.saveMyPractitionerProfile(updatedFields);
+
+      // Reload profile to confirm data was saved
+      await loadProfile();
+
       Alert.alert('Sucesso', 'Suas informações foram atualizadas.');
     } catch (error) {
       console.error('[MyProfileScreen] Failed to save profile. Raw error:', error);
@@ -214,6 +345,122 @@ export const MyProfileScreen: React.FC = () => {
     }
   };
 
+  // Selection handlers
+  const handleGenderSelect = (value: string) => {
+    setFormValues(prev => ({ ...prev, gender: value }));
+  };
+
+  const handleStateSelect = async (value: string) => {
+    setFormValues(prev => ({ ...prev, state: value, cityname: '' })); // Reset city when state changes
+    await loadCities(value);
+  };
+
+  const handleCitySelect = (value: string) => {
+    // Find city name from ID
+    const city = cities.find(c => String(c.id) === value);
+    setFormValues(prev => ({ ...prev, cityname: city?.nome || value }));
+  };
+
+  // Validation handlers
+  const handleCPFChange = (text: string) => {
+    setFormValues(prev => ({ ...prev, cpf: text }));
+    setCpfError(undefined);
+
+    const cleanCPF = text.replace(/\D/g, '');
+    if (cleanCPF.length === 11) {
+      if (!validateCPF(text)) {
+        setCpfError('CPF inválido');
+      }
+    }
+  };
+
+  const handlePhoneChange = (text: string) => {
+    setFormValues(prev => ({ ...prev, phone: text }));
+    setPhoneError(undefined);
+
+    const cleanPhone = text.replace(/\D/g, '');
+    if (cleanPhone.length === 10 || cleanPhone.length === 11) {
+      if (!validatePhone(text)) {
+        setPhoneError('Telefone inválido');
+      }
+    }
+  };
+
+  const handleBirthDateChange = (dateString: string) => {
+    setFormValues(prev => ({ ...prev, birthDate: dateString }));
+    setBirthDateError(undefined);
+
+    // Validate date format DD/MM/YYYY
+    if (dateString && dateString.length === 10) {
+      try {
+        const [day, month, year] = dateString.split('/').map(s => parseInt(s, 10));
+
+        // Basic validation
+        if (isNaN(day) || isNaN(month) || isNaN(year)) {
+          setBirthDateError('Data inválida');
+          return;
+        }
+
+        // Create date at noon to avoid timezone issues
+        const selectedDate = new Date(year, month - 1, day, 12, 0, 0, 0);
+        const today = new Date();
+        const minDate = new Date();
+        minDate.setFullYear(today.getFullYear() - 120); // Max 120 years old
+
+        // Check if date is in the future
+        if (selectedDate > today) {
+          setBirthDateError('Data não pode ser futura');
+          return;
+        }
+
+        // Check if date is too old
+        if (selectedDate < minDate) {
+          setBirthDateError('Data muito antiga');
+          return;
+        }
+
+        // Calculate age
+        const age = today.getFullYear() - year;
+        if (age < 0) {
+          setBirthDateError('Data inválida');
+          return;
+        }
+
+      } catch (error) {
+        setBirthDateError('Data inválida');
+      }
+    }
+  };
+
+  // Render a selection input field
+  const renderSelectionInput = (
+    label: string,
+    value: string | undefined,
+    placeholder: string,
+    onPress: () => void,
+    disabled: boolean = false
+  ) => {
+    const displayValue = value || placeholder;
+    const hasValue = Boolean(value);
+
+    return (
+      <View style={styles.fieldContainer}>
+        <Text style={styles.fieldLabel}>{label}</Text>
+        <TouchableOpacity
+          style={[styles.selectionButton, disabled && styles.selectionButtonDisabled]}
+          onPress={onPress}
+          disabled={disabled}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.selectionButtonText, !hasValue && styles.selectionButtonPlaceholder]}>
+            {displayValue}
+          </Text>
+          <FontAwesome name="chevron-down" size={14} color={theme.colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
   const renderInput = (
     label: string,
     field: PractitionerProfileField,
@@ -242,6 +489,7 @@ export const MyProfileScreen: React.FC = () => {
           numberOfLines={multiline ? 4 : 1}
           maxLength={maxLength}
           textAlignVertical={multiline ? 'top' : 'center'}
+          scrollEnabled={multiline}
         />
       </View>
     );
@@ -349,7 +597,12 @@ export const MyProfileScreen: React.FC = () => {
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Foto e identificação</Text>
+              <View style={styles.cardHeader}>
+                <View style={styles.cardIconWrapper}>
+                  <FontAwesome name="user-circle" size={20} color={theme.colors.primary} />
+                </View>
+                <Text style={styles.sectionTitle}>Foto e identificação</Text>
+              </View>
               <View style={styles.photoRow}>
                 <View style={styles.photoWrapper}>
                   {photoUri && photoAvailable ? (
@@ -392,66 +645,103 @@ export const MyProfileScreen: React.FC = () => {
               {renderInput('Nome completo', 'name', {
                 placeholder: 'Como deseja ser chamado(a)',
               })}
-              {renderInput('CPF', 'cpf', {
-                placeholder: '000.000.000-00',
-                keyboardType: 'numeric',
-                maxLength: 14,
-              })}
-              {renderInput('Telefone', 'phone', {
-                placeholder: '+55 11 99999-0000',
-                keyboardType: 'phone-pad',
-              })}
-              {renderInput('Gênero', 'gender', {
-                placeholder: 'Masculino, Feminino, Outro',
-              })}
-              {renderInput('Data de nascimento', 'birthDate', {
-                placeholder: 'DD/MM/AAAA',
-              })}
+
+              <MaskedInput
+                label="CPF"
+                value={formValues.cpf || ''}
+                onChangeText={handleCPFChange}
+                maskType="cpf"
+                placeholder="000.000.000-00"
+                error={cpfError}
+              />
+
+              <MaskedInput
+                label="Telefone"
+                value={formValues.phone || ''}
+                onChangeText={handlePhoneChange}
+                maskType="phone"
+                placeholder="(00) 00000-0000"
+                error={phoneError}
+              />
+
+              {renderSelectionInput(
+                'Gênero',
+                genderOptions.find(g => g.value === formValues.gender)?.label,
+                'Selecione o gênero',
+                () => setShowGenderModal(true)
+              )}
+
+              <DatePickerInput
+                label="Data de nascimento"
+                value={formValues.birthDate || ''}
+                onChangeDate={handleBirthDateChange}
+                placeholder="DD/MM/AAAA"
+                error={birthDateError}
+              />
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Endereço</Text>
-              {renderInput('CEP', 'cep', {
-                placeholder: '00000-000',
-                keyboardType: 'numeric',
-                maxLength: 9,
-              })}
-              {renderInput('Estado', 'state', {
-                placeholder: 'UF',
-                maxLength: 2,
-              })}
-              {renderInput('Cidade', 'cityname', {
-                placeholder: 'Cidade',
-              })}
+              <View style={styles.cardHeader}>
+                <View style={styles.cardIconWrapper}>
+                  <FontAwesome name="map-marker" size={20} color={theme.colors.primary} />
+                </View>
+                <Text style={styles.sectionTitle}>Endereço</Text>
+              </View>
+
+              <MaskedInput
+                label="CEP"
+                value={formValues.cep || ''}
+                onChangeText={handleCEPChange}
+                maskType="cep"
+                placeholder="00000-000"
+                loading={cepLoading}
+                success={cepSuccess}
+                error={cepError}
+              />
+
+              {renderSelectionInput(
+                'Estado',
+                formValues.state ? stateOptions.find(s => s.value === formValues.state)?.label : undefined,
+                'Selecione o estado',
+                () => setShowStateModal(true)
+              )}
+
+              {renderSelectionInput(
+                'Cidade',
+                formValues.cityname,
+                loadingCities ? 'Carregando cidades...' : 'Selecione a cidade',
+                () => setShowCityModal(true),
+                !formValues.state || loadingCities
+              )}
+
               {renderInput('Endereço completo', 'address', {
                 placeholder: 'Rua, número e complemento',
               })}
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Informações profissionais</Text>
+              <View style={styles.cardHeader}>
+                <View style={styles.cardIconWrapper}>
+                  <FontAwesome name="user-md" size={20} color={theme.colors.primary} />
+                </View>
+                <Text style={styles.sectionTitle}>Dados profissionais</Text>
+              </View>
               {renderInput('CRM', 'crm', {
                 placeholder: 'Número do CRM',
               })}
-              {renderInput('CNPJ', 'cnpj', {
-                placeholder: '00.000.000/0000-00',
-                keyboardType: 'numeric',
-              })}
-              {renderInput('Especialidade médica', 'qualification', {
-                placeholder: 'Selecione sua especialidade',
-              })}
-              {renderInput('Qualificações', 'qualifications', {
-                placeholder: 'Formações, cursos e experiências relevantes',
-                multiline: true,
-              })}
-              {renderInput('Certificações', 'certifications', {
-                placeholder: 'Certificações profissionais',
+              {renderInput('Qualificações e Certificações', 'qualifications', {
+                placeholder: 'Descreva suas qualificações, certificações e especializações...',
                 multiline: true,
               })}
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Presença online</Text>
+              <View style={styles.cardHeader}>
+                <View style={styles.cardIconWrapper}>
+                  <FontAwesome name="globe" size={20} color={theme.colors.primary} />
+                </View>
+                <Text style={styles.sectionTitle}>Presença online</Text>
+              </View>
               {renderInput('Site profissional', 'medsite', {
                 placeholder: 'https://',
                 keyboardType: 'url',
@@ -479,6 +769,34 @@ export const MyProfileScreen: React.FC = () => {
             </TouchableOpacity>
           </ScrollView>
         )}
+
+        {/* Selection Modals */}
+        <SelectionModal
+          visible={showGenderModal}
+          title="Selecione o gênero"
+          options={genderOptions}
+          selectedValue={formValues.gender}
+          onSelect={handleGenderSelect}
+          onClose={() => setShowGenderModal(false)}
+        />
+
+        <SelectionModal
+          visible={showStateModal}
+          title="Selecione o estado"
+          options={stateOptions}
+          selectedValue={formValues.state}
+          onSelect={handleStateSelect}
+          onClose={() => setShowStateModal(false)}
+        />
+
+        <SelectionModal
+          visible={showCityModal}
+          title="Selecione a cidade"
+          options={cityOptions}
+          selectedValue={cities.find(c => c.nome === formValues.cityname)?.id.toString()}
+          onSelect={handleCitySelect}
+          onClose={() => setShowCityModal(false)}
+        />
       </View>
     </>
   );
@@ -569,18 +887,33 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     ...theme.shadows.small,
+    overflow: 'hidden',
   },
   readOnlyCard: {
     backgroundColor: theme.colors.primary + '08',
     borderColor: theme.colors.primary + '30',
     padding: theme.spacing.md,
   },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  cardIconWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: theme.spacing.md,
+  },
   sectionTitle: {
     ...theme.typography.h3,
     fontSize: 16,
     fontWeight: '700',
     color: theme.colors.text,
-    marginBottom: theme.spacing.md,
+    flex: 1,
   },
   readOnlyHeader: {
     flexDirection: 'row',
@@ -684,6 +1017,7 @@ const styles = StyleSheet.create({
   readOnlyValue: {
     ...theme.typography.bodySmall,
     color: theme.colors.text,
+    flexWrap: 'wrap',
   },
   badgeRow: {
     flexDirection: 'row',
@@ -714,6 +1048,7 @@ const styles = StyleSheet.create({
   },
   fieldContainer: {
     marginBottom: theme.spacing.md,
+    width: '100%',
   },
   fieldLabel: {
     ...theme.typography.caption,
@@ -730,10 +1065,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     backgroundColor: theme.colors.background,
     color: theme.colors.text,
+    width: '100%',
   },
   textArea: {
+    height: undefined, // Remove fixed height for multiline
     minHeight: 120,
+    maxHeight: 200,
     paddingTop: theme.spacing.md,
+    paddingBottom: theme.spacing.md,
+    width: '100%',
+  },
+  selectionButton: {
+    height: TEXT_INPUT_HEIGHT,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 12,
+    paddingHorizontal: theme.spacing.md,
+    backgroundColor: theme.colors.background,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  selectionButtonDisabled: {
+    opacity: 0.5,
+  },
+  selectionButtonText: {
+    ...theme.typography.body,
+    color: theme.colors.text,
+    flex: 1,
+    marginRight: theme.spacing.sm,
+  },
+  selectionButtonPlaceholder: {
+    color: theme.colors.textSecondary,
   },
   cardDivider: {
     height: 1,
