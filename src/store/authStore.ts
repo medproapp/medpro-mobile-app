@@ -11,7 +11,7 @@ import {
 } from '../types/auth';
 import { Organization } from '../types/api';
 import { secureStorage } from '../utils/secureStorage';
-import { logger } from '../utils/logger';
+import { logger } from '@/utils/logger';
 
 const AUTH_API_BASE_URL = API_BASE_URL;
 
@@ -169,7 +169,6 @@ export const useAuthStore = create<AuthStore>()(
               try {
                 const orgData = await api.getUserToOrg(credentials.email);
                 if (orgData && orgData.length > 0) {
-                  logger.debug('Organization data received');
                   const org = orgData.find((o: Organization) => o?.groupStatus === 'active') || orgData[0];
                   user.organization =
                     (typeof org.org_name === 'string' && org.org_name.trim().length > 0 && org.org_name.trim()) ||

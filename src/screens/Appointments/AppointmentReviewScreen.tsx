@@ -18,6 +18,7 @@ import { useAppointmentStore } from '@store/appointmentStore';
 import { useAuthStore } from '@store/authStore';
 import api from '@services/api';
 import { DashboardStackParamList } from '@/types/navigation';
+import { logger } from '@/utils/logger';
 
 type ReviewNavigationProp = StackNavigationProp<DashboardStackParamList, 'AppointmentReview'>;
 
@@ -80,13 +81,11 @@ export const AppointmentReviewScreen: React.FC<Props> = ({ navigation }) => {
         servicesCoverageStatus: appointmentData.servicesCoverageStatus,
       };
 
-      console.log('[AppointmentReview] Submitting appointment:', submitData);
-      console.log('[AppointmentReview] Payload size:', JSON.stringify(submitData).length);
-      console.log('[AppointmentReview] Selected services structure:', JSON.stringify(submitData.selected_services, null, 2));
+      logger.debug('[AppointmentReview] Submitting appointment:', submitData);
       
       const result = await api.createAppointment(submitData);
       
-      console.log('[AppointmentReview] Appointment created successfully:', result);
+      logger.debug('[AppointmentReview] Appointment created successfully:', result);
       
       Alert.alert(
         'Sucesso!',
@@ -102,7 +101,7 @@ export const AppointmentReviewScreen: React.FC<Props> = ({ navigation }) => {
         ]
       );
     } catch (error: any) {
-      console.error('[AppointmentReview] Error creating appointment:', error);
+      logger.error('[AppointmentReview] Error creating appointment:', error);
       Alert.alert(
         'Erro',
         error.message || 'Não foi possível criar o agendamento. Tente novamente.',
@@ -187,7 +186,7 @@ export const AppointmentReviewScreen: React.FC<Props> = ({ navigation }) => {
           }
         }
       } catch (error) {
-        console.error('[AppointmentReview] Error loading display names:', error);
+        logger.error('[AppointmentReview] Error loading display names:', error);
       }
     };
 

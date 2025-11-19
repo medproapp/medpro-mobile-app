@@ -11,6 +11,7 @@
 
 import * as SecureStore from 'expo-secure-store';
 import { StateStorage } from 'zustand/middleware';
+import { logger } from '@/utils/logger';
 
 /**
  * Secure storage adapter that implements Zustand's StateStorage interface
@@ -24,7 +25,7 @@ export const secureStorage: StateStorage = {
     } catch (error) {
       // Only log in development mode - avoid exposing errors in production
       if (__DEV__) {
-        console.error('[SecureStorage] Error reading from secure storage:', error);
+        logger.error('[SecureStorage] Error reading from secure storage:', error);
       }
       return null;
     }
@@ -36,7 +37,7 @@ export const secureStorage: StateStorage = {
     } catch (error) {
       // Only log in development mode
       if (__DEV__) {
-        console.error('[SecureStorage] Error writing to secure storage:', error);
+        logger.error('[SecureStorage] Error writing to secure storage:', error);
       }
       throw error;
     }
@@ -48,7 +49,7 @@ export const secureStorage: StateStorage = {
     } catch (error) {
       // Only log in development mode
       if (__DEV__) {
-        console.error('[SecureStorage] Error removing from secure storage:', error);
+        logger.error('[SecureStorage] Error removing from secure storage:', error);
       }
       throw error;
     }

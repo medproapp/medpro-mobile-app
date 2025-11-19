@@ -19,6 +19,7 @@ import { apiService, API_BASE_URL } from '@services/api';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { DashboardStackParamList } from '@/types/navigation';
+import { logger } from '@/utils/logger';
 
 // Configure Portuguese locale for calendar
 LocaleConfig.locales['pt-br'] = {
@@ -251,7 +252,7 @@ export function AppointmentCalendarScreen() {
       setAppointments(transformedAppointments);
       setMarkedDates(marked);
     } catch (error) {
-      console.error('Error loading appointments:', error);
+      logger.error('Error loading appointments:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);

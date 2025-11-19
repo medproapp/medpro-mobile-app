@@ -15,6 +15,7 @@ import { Card, Loading } from '@components/common';
 import { theme } from '@theme/index';
 import { useAuthStore } from '@store/authStore';
 import { apiService } from '@services/api';
+import { logger } from '@/utils/logger';
 
 interface Encounter {
   Identifier: string;
@@ -71,7 +72,7 @@ export const EncounterListScreen: React.FC<EncounterListProps> = ({ route }) => 
               patientName: patientData.data?.name || 'Paciente Desconhecido'
             };
           } catch (error) {
-            console.error('Error fetching patient name:', error);
+            logger.error('Error fetching patient name:', error);
             return {
               ...encounter,
               patientName: 'Paciente Desconhecido'
@@ -82,7 +83,7 @@ export const EncounterListScreen: React.FC<EncounterListProps> = ({ route }) => 
 
       setEncounters(encountersWithPatients);
     } catch (error) {
-      console.error('Error fetching encounters:', error);
+      logger.error('Error fetching encounters:', error);
       setEncounters([]);
     } finally {
       setLoading(false);
@@ -149,12 +150,12 @@ export const EncounterListScreen: React.FC<EncounterListProps> = ({ route }) => 
 
   const handleEncounterPress = (encounter: Encounter) => {
     // TODO: Navigate to encounter details
-    console.log('Navigate to encounter details:', encounter.Identifier);
+    logger.debug('Navigate to encounter details:', encounter.Identifier);
   };
 
   const handleOpenEncounter = (encounter: Encounter) => {
     // Navigate to encounter view
-    console.log('Open encounter:', encounter.Identifier);
+    logger.debug('Open encounter:', encounter.Identifier);
     (navigation as any).navigate('EncounterView', {
       encounterId: encounter.Identifier,
       patientName: encounter.patientName || 'Paciente Desconhecido',

@@ -18,6 +18,7 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
 import { useMessagingStore } from '@store/messagingStore';
 import { Contact } from '@/types/messaging';
+import { logger } from '@/utils/logger';
 
 interface ContactItemProps {
   contact: Contact;
@@ -152,7 +153,7 @@ export const NewMessageScreen: React.FC = () => {
         ]
       );
     } catch (error) {
-      console.error('[NewMessageScreen] Error sending message:', error);
+      logger.error('[NewMessageScreen] Error sending message:', error);
       Alert.alert('Erro', 'Não foi possível enviar a mensagem. Tente novamente.');
     } finally {
       setIsSending(false);

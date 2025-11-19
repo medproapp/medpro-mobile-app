@@ -15,6 +15,7 @@ import {
   ACTION_TYPES,
   ACTION_STYLES,
 } from '../types/assistant';
+import { logger } from '@/utils/logger';
 
 type RequestOptions = Omit<RequestInit, 'body'> & { body?: unknown };
 
@@ -72,7 +73,7 @@ class AssistantApiService {
           ? JSON.stringify(body)
           : undefined;
 
-    console.log('[AssistantAPI] Request:', {
+    logger.debug('[AssistantAPI] Request:', {
       method,
       url,
       headers: {
@@ -88,11 +89,11 @@ class AssistantApiService {
         body: serializedBody,
       });
 
-      console.log('[AssistantAPI] Response status:', response.status);
+      logger.debug('[AssistantAPI] Response status:', response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('[AssistantAPI] Error response:', errorText);
+        logger.error('[AssistantAPI] Error response:', errorText);
         
         const error: ApiError = {
           status: response.status,
@@ -104,10 +105,9 @@ class AssistantApiService {
       }
 
       const data = await response.json();
-      console.log('[AssistantAPI] Success response:', data);
       return data;
     } catch (error) {
-      console.error('[AssistantAPI] Request failed:', error);
+      logger.error('[AssistantAPI] Request failed:', error);
       throw error;
     }
   }
@@ -158,11 +158,9 @@ class AssistantApiService {
     );
 
     // Debug log to see actual response structure
-    console.log('[AssistantAPI] getPatientDetails raw response:', JSON.stringify(response, null, 2));
     
     // Handle response structure: { success: true, data: patient }
     const patientData = (response as any).data || response;
-    console.log('[AssistantAPI] patientData after extraction:', JSON.stringify(patientData, null, 2));
 
     return {
       id: patientData.id || patientData.cpf || patientId,
@@ -215,7 +213,7 @@ class AssistantApiService {
     audioUri: string,
     context?: { patientId?: string; encounterId?: string }
   ): Promise<{ text: string; confidence: number; duration: number }> {
-    console.log('[AssistantAPI] Transcribing audio:', audioUri);
+    logger.debug('[AssistantAPI] Transcribing audio:', audioUri);
 
     const formData = new FormData();
     formData.append('audio', {
@@ -252,7 +250,7 @@ class AssistantApiService {
       }
 
       const result = await response.json();
-      console.log('[AssistantAPI] Transcription result:', result);
+      logger.debug('[AssistantAPI] Transcription result:', result);
 
       return {
         text: result.text || '',
@@ -261,7 +259,7 @@ class AssistantApiService {
       };
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[AssistantAPI] Transcription error:', errorMessage);
+      logger.error('[AssistantAPI] Transcription error:', errorMessage);
 
       // Re-throw the error instead of using fallback
       throw new Error(`Audio transcription failed: ${errorMessage}`);
@@ -283,7 +281,7 @@ class AssistantApiService {
         style: ACTION_STYLES.PRIMARY,
         onPress: () => {
           // Will be implemented by the store
-          console.log('Prescription sign action triggered');
+          logger.debug('Prescription sign action triggered');
         },
       });
 
@@ -294,7 +292,7 @@ class AssistantApiService {
         style: ACTION_STYLES.SECONDARY,
         onPress: () => {
           // Will be implemented by the store
-          console.log('Prescription send action triggered');
+          logger.debug('Prescription send action triggered');
         },
       });
     }
@@ -307,7 +305,7 @@ class AssistantApiService {
         style: ACTION_STYLES.OUTLINE,
         onPress: () => {
           // Will be implemented by the store
-          console.log('Navigate to patient action triggered');
+          logger.debug('Navigate to patient action triggered');
         },
       });
     }
@@ -320,7 +318,7 @@ class AssistantApiService {
         style: ACTION_STYLES.OUTLINE,
         onPress: () => {
           // Will be implemented by the store
-          console.log('Navigate to encounter action triggered');
+          logger.debug('Navigate to encounter action triggered');
         },
       });
     }
@@ -385,7 +383,7 @@ class AssistantApiService {
       const response = await fetch(`${API_BASE_URL}/health`);
       return response.ok;
     } catch (error) {
-      console.error('[AssistantAPI] Connection test failed:', error);
+      logger.error('[AssistantAPI] Connection test failed:', error);
       return false;
     }
   }

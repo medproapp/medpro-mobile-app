@@ -10,6 +10,7 @@ import {
   ContactsFilter,
   MessagingApiResponse 
 } from '../types/messaging';
+import { logger } from '@/utils/logger';
 
 /**
  * MessagingService - High-level service for internal communication
@@ -45,11 +46,11 @@ class MessagingService {
    */
   async loadThreads(params: ThreadsFilter & PaginationParams = {}, forceRefresh = false): Promise<MessageThread[]> {
     try {
-      //console.log('[MessagingService] Loading threads with params:', params);
+      //logger.debug('[MessagingService] Loading threads with params:', params);
       
       // Use cache if available and not forcing refresh
       if (!forceRefresh && !this.shouldRefreshCache() && this.cache.threads.length > 0 && !params.filter && !params.search) {
-        //console.log('[MessagingService] Using cached threads');
+        //logger.debug('[MessagingService] Using cached threads');
         return this.cache.threads;
       }
 
@@ -62,13 +63,13 @@ class MessagingService {
           this.updateCacheTimestamp();
         }
         
-        //console.log('[MessagingService] Loaded threads:', response.data.length);
+        //logger.debug('[MessagingService] Loaded threads:', response.data.length);
         return response.data;
       }
       
       throw new Error(response.error || 'Failed to load threads');
     } catch (error) {
-      console.error('[MessagingService] Error loading threads:', error);
+      logger.error('[MessagingService] Error loading threads:', error);
       throw error;
     }
   }
@@ -78,12 +79,12 @@ class MessagingService {
    */
   async loadMessages(threadId: string, params: PaginationParams = {}, forceRefresh = false): Promise<{ messages: Message[]; thread_info: MessageThread }> {
     try {
-      //console.log('[MessagingService] Loading messages for thread:', threadId);
+      //logger.debug('[MessagingService] Loading messages for thread:', threadId);
       
       // Use cache if available and not forcing refresh
       const cachedMessages = this.cache.messages[threadId];
       if (!forceRefresh && cachedMessages && (!params.offset || params.offset === 0)) {
-        //console.log('[MessagingService] Using cached messages for thread:', threadId);
+        //logger.debug('[MessagingService] Using cached messages for thread:', threadId);
         // Find thread info from cached threads
         const threadInfo = this.cache.threads.find(t => t.thread_id === threadId);
         if (threadInfo) {
@@ -91,14 +92,14 @@ class MessagingService {
         }
       }
 
-      console.log('[MessagingService] loadMessages -> calling API', {
+      logger.debug('[MessagingService] loadMessages -> calling API', {
         threadId,
         params,
       });
 
       const response = await api.getThreadMessages(threadId, params);
 
-      console.log('[MessagingService] loadMessages <- API response', {
+      logger.debug('[MessagingService] loadMessages <- API response', {
         hasData: !!response?.data,
         messageCount: response?.data?.messages?.length,
         hasThreadInfo: !!response?.data?.thread_info,
@@ -119,31 +120,31 @@ class MessagingService {
           this.cache.messages[threadId] = mappedData.messages;
         }
         
-        //console.log('[MessagingService] Loaded messages:', mappedData.messages.length);
+        //logger.debug('[MessagingService] Loaded messages:', mappedData.messages.length);
         return mappedData;
       }
       
       throw new Error(response.error || 'Failed to load messages');
     } catch (error) {
-      console.error('[MessagingService] Error loading messages:', error);
+      logger.error('[MessagingService] Error loading messages:', error);
       throw error;
     }
   }
 
   async loadThreadParticipants(threadId: string): Promise<Array<{ email: string; name: string; participantType: string; photo?: string | null }>> {
     if (!threadId) {
-      console.warn('[MessagingService] loadThreadParticipants called without threadId');
+      logger.warn('[MessagingService] loadThreadParticipants called without threadId');
       return [];
     }
 
     try {
-      console.log('[MessagingService] loadThreadParticipants -> calling API', { threadId });
+      logger.debug('[MessagingService] loadThreadParticipants -> calling API', { threadId });
       const response = await api.getThreadParticipants(threadId);
       const data = Array.isArray(response?.data) ? response.data : [];
-      console.log('[MessagingService] loadThreadParticipants <- API response', { count: data.length });
+      logger.debug('[MessagingService] loadThreadParticipants <- API response', { count: data.length });
       return data;
     } catch (error) {
-      console.error('[MessagingService] Error loading thread participants:', { threadId, error });
+      logger.error('[MessagingService] Error loading thread participants:', { threadId, error });
       return [];
     }
   }
@@ -153,19 +154,19 @@ class MessagingService {
    */
   async loadContacts(params: ContactsFilter & PaginationParams = {}, forceRefresh = false): Promise<Contact[]> {
     try {
-      //console.log('[MessagingService] Loading contacts with params:', params);
+      //logger.debug('[MessagingService] Loading contacts with params:', params);
       
       // Use cache if available and not forcing refresh
       if (!forceRefresh && !this.shouldRefreshCache() && this.cache.contacts.length > 0 && !params.search) {
-        //console.log('[MessagingService] Using cached contacts');
+        //logger.debug('[MessagingService] Using cached contacts');
         return this.cache.contacts;
       }
 
-      console.log('[MessagingService] loadContacts -> calling API', { params });
+      logger.debug('[MessagingService] loadContacts -> calling API', { params });
 
       const response = await api.getContacts(params);
 
-      console.log('[MessagingService] loadContacts <- API response', {
+      logger.debug('[MessagingService] loadContacts <- API response', {
         hasData: !!response?.data,
         count: response?.data?.length,
       });
@@ -177,13 +178,13 @@ class MessagingService {
           this.updateCacheTimestamp();
         }
         
-        //console.log('[MessagingService] Loaded contacts:', response.data.length);
+        //logger.debug('[MessagingService] Loaded contacts:', response.data.length);
         return response.data;
       }
       
       throw new Error(response.error || 'Failed to load contacts');
     } catch (error) {
-      console.error('[MessagingService] Error loading contacts:', error);
+      logger.error('[MessagingService] Error loading contacts:', error);
       throw error;
     }
   }
@@ -193,11 +194,11 @@ class MessagingService {
    */
   async loadStats(forceRefresh = false): Promise<MessageStats> {
     try {
-      //console.log('[MessagingService] Loading messaging stats');
+      //logger.debug('[MessagingService] Loading messaging stats');
       
       // Use cache if available and not forcing refresh
       if (!forceRefresh && !this.shouldRefreshCache() && this.cache.stats) {
-        //console.log('[MessagingService] Using cached stats');
+        //logger.debug('[MessagingService] Using cached stats');
         return this.cache.stats;
       }
 
@@ -207,13 +208,13 @@ class MessagingService {
         this.cache.stats = response.data;
         this.updateCacheTimestamp();
         
-        //console.log('[MessagingService] Loaded stats:', response.data);
+        //logger.debug('[MessagingService] Loaded stats:', response.data);
         return response.data;
       }
       
       throw new Error(response.error || 'Failed to load stats');
     } catch (error) {
-      console.error('[MessagingService] Error loading stats:', error);
+      logger.error('[MessagingService] Error loading stats:', error);
       throw error;
     }
   }
@@ -223,7 +224,7 @@ class MessagingService {
    */
   async sendMessage(data: NewMessageData): Promise<{ message_id: string; thread_id: string }> {
     try {
-      // console.log('[MessagingService] Sending message:', { 
+      // logger.debug('[MessagingService] Sending message:', { 
       //   recipients: data.recipients, 
       //   subject: data.subject,
       //   hasContent: !!data.content,
@@ -236,13 +237,13 @@ class MessagingService {
         // Invalidate relevant caches after sending
         this.invalidateCache(['threads', 'messages']);
         
-        //console.log('[MessagingService] Message sent successfully:', response.data);
+        //logger.debug('[MessagingService] Message sent successfully:', response.data);
         return response.data;
       }
       
       throw new Error(response.error || 'Failed to send message');
     } catch (error) {
-      console.error('[MessagingService] Error sending message:', error);
+      logger.error('[MessagingService] Error sending message:', error);
       throw error;
     }
   }
@@ -252,12 +253,12 @@ class MessagingService {
    */
   async markAsRead(messageId: string): Promise<void> {
     if (!messageId) {
-      console.warn('[MessagingService] Cannot mark message as read: messageId is undefined or empty');
+      logger.warn('[MessagingService] Cannot mark message as read: messageId is undefined or empty');
       return;
     }
 
     try {
-      //console.log('[MessagingService] Marking message as read:', messageId);
+      //logger.debug('[MessagingService] Marking message as read:', messageId);
 
       const response = await api.markMessageAsRead(messageId);
       
@@ -265,13 +266,13 @@ class MessagingService {
         // Update cache to reflect read status
         this.updateMessageReadStatus(messageId, true);
         
-        //console.log('[MessagingService] Message marked as read');
+        //logger.debug('[MessagingService] Message marked as read');
         return;
       }
       
       throw new Error(response.error || 'Failed to mark message as read');
     } catch (error) {
-      console.error('[MessagingService] Error marking message as read:', error);
+      logger.error('[MessagingService] Error marking message as read:', error);
       throw error;
     }
   }
@@ -281,18 +282,18 @@ class MessagingService {
    */
   async search(query: string, type: 'all' | 'messages' | 'users' = 'all', limit = 20): Promise<any[]> {
     try {
-      //console.log('[MessagingService] Searching:', { query, type, limit });
+      //logger.debug('[MessagingService] Searching:', { query, type, limit });
 
       const response = await api.searchMessages(query, type, limit);
       
       if (response.data) {
-        //console.log('[MessagingService] Search results:', response.data.length);
+        //logger.debug('[MessagingService] Search results:', response.data.length);
         return response.data;
       }
       
       throw new Error(response.error || 'Search failed');
     } catch (error) {
-      console.error('[MessagingService] Error searching:', error);
+      logger.error('[MessagingService] Error searching:', error);
       throw error;
     }
   }
@@ -302,18 +303,18 @@ class MessagingService {
    */
   async uploadAttachment(file: FormData): Promise<{ attachment_id: string; attachment_url: string }> {
     try {
-      //console.log('[MessagingService] Uploading attachment');
+      //logger.debug('[MessagingService] Uploading attachment');
 
       const response = await api.uploadMessageAttachment(file);
       
       if (response.data) {
-        //console.log('[MessagingService] Attachment uploaded:', response.data.attachment_id);
+        //logger.debug('[MessagingService] Attachment uploaded:', response.data.attachment_id);
         return response.data;
       }
       
       throw new Error(response.error || 'Failed to upload attachment');
     } catch (error) {
-      console.error('[MessagingService] Error uploading attachment:', error);
+      logger.error('[MessagingService] Error uploading attachment:', error);
       throw error;
     }
   }
@@ -323,7 +324,7 @@ class MessagingService {
    */
   async deleteMessage(messageId: string): Promise<void> {
     try {
-      //console.log('[MessagingService] Deleting message:', messageId);
+      //logger.debug('[MessagingService] Deleting message:', messageId);
 
       const response = await api.deleteMessage(messageId);
       
@@ -331,13 +332,13 @@ class MessagingService {
         // Invalidate caches after deletion
         this.invalidateCache(['threads', 'messages']);
         
-        //console.log('[MessagingService] Message deleted');
+        //logger.debug('[MessagingService] Message deleted');
         return;
       }
       
       throw new Error(response.error || 'Failed to delete message');
     } catch (error) {
-      console.error('[MessagingService] Error deleting message:', error);
+      logger.error('[MessagingService] Error deleting message:', error);
       throw error;
     }
   }
@@ -359,7 +360,7 @@ class MessagingService {
    */
   async refresh(): Promise<void> {
     try {
-      //console.log('[MessagingService] Refreshing all data');
+      //logger.debug('[MessagingService] Refreshing all data');
       
       this.invalidateCache();
       
@@ -370,9 +371,9 @@ class MessagingService {
         this.loadStats(true),
       ]);
       
-      //console.log('[MessagingService] Refresh completed');
+      //logger.debug('[MessagingService] Refresh completed');
     } catch (error) {
-      console.error('[MessagingService] Error during refresh:', error);
+      logger.error('[MessagingService] Error during refresh:', error);
       throw error;
     }
   }

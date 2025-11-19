@@ -21,6 +21,7 @@ import { MessageThreadItem, type MessageThreadViewModel } from './MessageThreadI
 import { useAuthStore } from '@store/authStore';
 import type { MessageThread as ApiMessageThread } from '../../types/messaging';
 import type { MessagesStackParamList } from '@/types/navigation';
+import { logger } from '@/utils/logger';
 
 type ThreadFilter = 'all' | 'unread' | 'shared' | 'patients' | 'requests';
 
@@ -102,7 +103,7 @@ export const MessagesListScreen: React.FC = () => {
       setRawThreads(apiThreads);
       setThreads(apiThreads.map(thread => mapThreadToViewModel(thread, threadPhotos[getThreadId(thread)])));
     } catch (error) {
-      console.error('Error loading threads:', error);
+      logger.error('Error loading threads:', error);
     }
   };
 
@@ -112,7 +113,7 @@ export const MessagesListScreen: React.FC = () => {
       const response = await api.getMessagingStats();
       setStats(response.data);
     } catch (error) {
-      console.error('Error loading stats:', error);
+      logger.error('Error loading stats:', error);
     }
   };
 
@@ -218,7 +219,7 @@ export const MessagesListScreen: React.FC = () => {
           });
         })
         .catch(error => {
-          console.error('[MessagesListScreen] Failed to load thread participants photo', { threadId, error });
+          logger.error('[MessagesListScreen] Failed to load thread participants photo', { threadId, error });
           setThreadPhotos(prev => ({
             ...prev,
             [threadId]: null,
@@ -239,9 +240,9 @@ export const MessagesListScreen: React.FC = () => {
 
   // Handle thread press
   const handleThreadPress = (threadId: string) => {
-    console.log('Thread pressed:', threadId);
+    logger.debug('Thread pressed:', threadId);
     if (!threadId) {
-      console.warn('[MessagesListScreen] Ignoring thread press: missing thread id');
+      logger.warn('[MessagesListScreen] Ignoring thread press: missing thread id');
       return;
     }
     const thread = threads.find(t => t.identifier === threadId);

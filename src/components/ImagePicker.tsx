@@ -13,6 +13,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
+import { logger } from '@/utils/logger';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -89,7 +90,7 @@ export const ImagePickerComponent: React.FC<ImagePickerProps> = ({
         });
       }
     } catch (error) {
-      console.error('Error taking photo:', error);
+      logger.error('Error taking photo:', error);
       Alert.alert('Erro', 'Não foi possível capturar a foto.');
     }
   };
@@ -125,7 +126,7 @@ export const ImagePickerComponent: React.FC<ImagePickerProps> = ({
         });
       }
     } catch (error) {
-      console.error('Error picking image:', error);
+      logger.error('Error picking image:', error);
       Alert.alert('Erro', 'Não foi possível selecionar a imagem.');
     }
   };
@@ -164,7 +165,7 @@ export const ImagePickerComponent: React.FC<ImagePickerProps> = ({
       // Don't show success alert here - let the parent handle it after real API upload
       onClose();
     } catch (error) {
-      console.error('Error uploading image:', error);
+      logger.error('Error uploading image:', error);
       setIsUploading(false);
       onUploadComplete?.(false);
       Alert.alert('Erro', 'Não foi possível enviar a imagem.');

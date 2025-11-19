@@ -2,6 +2,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import api from './api';
 import { useAuthStore } from '@store/authStore';
+import { logger } from '@/utils/logger';
 
 // Configure how notifications are handled when app is in foreground
 Notifications.setNotificationHandler({
@@ -50,7 +51,7 @@ class NotificationService {
         granted: finalStatus === 'granted',
       };
     } catch (error) {
-      console.error('[NotificationService] Error requesting permissions:', error);
+      logger.error('[NotificationService] Error requesting permissions:', error);
       return {
         status: 'denied' as Notifications.PermissionStatus,
         canAskAgain: false,
@@ -71,7 +72,7 @@ class NotificationService {
       // Check permissions first
       const permissions = await this.requestPermissions();
       if (!permissions.granted) {
-        console.warn('[NotificationService] Push notifications permission denied');
+        logger.warn('[NotificationService] Push notifications permission denied');
         return null;
       }
 
@@ -79,10 +80,10 @@ class NotificationService {
       const tokenData = await Notifications.getExpoPushTokenAsync();
       this.pushToken = tokenData.data;
 
-      console.log('[NotificationService] Push token obtained:', this.pushToken.substring(0, 20) + '...');
+      logger.debug('[NotificationService] Push token obtained:', this.pushToken.substring(0, 20) + '...');
       return this.pushToken;
     } catch (error) {
-      console.error('[NotificationService] Error getting push token:', error);
+      logger.error('[NotificationService] Error getting push token:', error);
       return null;
     }
   }
@@ -94,13 +95,13 @@ class NotificationService {
     try {
       const token = await this.getPushToken();
       if (!token) {
-        console.warn('[NotificationService] No push token available for registration');
+        logger.warn('[NotificationService] No push token available for registration');
         return false;
       }
 
       const { user } = useAuthStore.getState();
       if (!user?.email) {
-        console.warn('[NotificationService] No user email available for token registration');
+        logger.warn('[NotificationService] No user email available for token registration');
         return false;
       }
 
@@ -112,10 +113,10 @@ class NotificationService {
         device_name: Platform.OS === 'ios' ? 'iPhone' : 'Android Device',
       });
 
-      console.log('[NotificationService] Device token registered successfully');
+      logger.debug('[NotificationService] Device token registered successfully');
       return true;
     } catch (error) {
-      console.error('[NotificationService] Error registering device token:', error);
+      logger.error('[NotificationService] Error registering device token:', error);
       return false;
     }
   }
@@ -140,11 +141,11 @@ class NotificationService {
         app: 'practitioner',
       });
 
-      console.log('[NotificationService] Device token unregistered successfully');
+      logger.debug('[NotificationService] Device token unregistered successfully');
       this.pushToken = null;
       return true;
     } catch (error) {
-      console.error('[NotificationService] Error unregistering device token:', error);
+      logger.error('[NotificationService] Error unregistering device token:', error);
       return false;
     }
   }
@@ -176,17 +177,17 @@ class NotificationService {
    */
   private scheduleReconnect(): void {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.warn('[NotificationService] Max reconnect attempts reached');
+      logger.warn('[NotificationService] Max reconnect attempts reached');
       return;
     }
 
     const delay = Math.pow(2, this.reconnectAttempts) * 1000; // Exponential backoff
     this.reconnectAttempts++;
 
-    console.log(`[NotificationService] Scheduling reconnect attempt ${this.reconnectAttempts} in ${delay}ms`);
+    logger.debug(`[NotificationService] Scheduling reconnect attempt ${this.reconnectAttempts} in ${delay}ms`);
 
     this.reconnectTimeout = setTimeout(() => {
-      console.log(`[NotificationService] Reconnect attempt ${this.reconnectAttempts}`);
+      logger.debug(`[NotificationService] Reconnect attempt ${this.reconnectAttempts}`);
       this.startRealTimeConnection();
     }, delay);
   }
@@ -195,7 +196,7 @@ class NotificationService {
    * Handle real-time messages from backend
    */
   private handleRealTimeMessage(data: any): void {
-    console.log('[NotificationService] Received real-time message:', data);
+    logger.debug('[NotificationService] Received real-time message:', data);
 
     switch (data.type) {
       case 'new_message':
@@ -208,7 +209,7 @@ class NotificationService {
         this.handleThreadUpdateNotification(data);
         break;
       default:
-        console.log('[NotificationService] Unknown real-time message type:', data.type);
+        logger.debug('[NotificationService] Unknown real-time message type:', data.type);
     }
   }
 
@@ -264,7 +265,7 @@ class NotificationService {
         trigger: null, // Show immediately
       });
     } catch (error) {
-      console.error('[NotificationService] Error showing local notification:', error);
+      logger.error('[NotificationService] Error showing local notification:', error);
     }
   }
 
@@ -273,7 +274,7 @@ class NotificationService {
    */
   handleNotificationResponse(response: Notifications.NotificationResponse): void {
     const data = response.notification.request.content.data;
-    console.log('[NotificationService] Notification tapped:', data);
+    logger.debug('[NotificationService] Notification tapped:', data);
 
     if (data?.type === 'internal_message' && data.thread_id) {
       // Navigate to conversation screen (will be implemented with navigation integration)
@@ -286,7 +287,7 @@ class NotificationService {
    */
   private navigateToConversation(threadId: string, subject?: string): void {
     // This will be implemented when integrating with navigation
-    console.log('[NotificationService] Should navigate to conversation:', threadId, subject);
+    logger.debug('[NotificationService] Should navigate to conversation:', threadId, subject);
   }
 
   /**
@@ -301,10 +302,10 @@ class NotificationService {
       if (store.handleRealtimeUpdate) {
         store.handleRealtimeUpdate(type, data);
       } else {
-        console.warn('[NotificationService] Message store handleRealtimeUpdate not available');
+        logger.warn('[NotificationService] Message store handleRealtimeUpdate not available');
       }
     } catch (error) {
-      console.error('[NotificationService] Error notifying message store:', error);
+      logger.error('[NotificationService] Error notifying message store:', error);
     }
   }
 
@@ -313,21 +314,21 @@ class NotificationService {
    */
   async initialize(): Promise<boolean> {
     try {
-      console.log('[NotificationService] Initializing...');
+      logger.debug('[NotificationService] Initializing...');
 
       // Register device token
       const registered = await this.registerDeviceToken();
       if (!registered) {
-        console.warn('[NotificationService] Failed to register device token');
+        logger.warn('[NotificationService] Failed to register device token');
       }
 
       // Start real-time connection
       this.startRealTimeConnection();
 
-      console.log('[NotificationService] Initialized successfully');
+      logger.debug('[NotificationService] Initialized successfully');
       return true;
     } catch (error) {
-      console.error('[NotificationService] Initialization failed:', error);
+      logger.error('[NotificationService] Initialization failed:', error);
       return false;
     }
   }
@@ -336,7 +337,7 @@ class NotificationService {
    * Cleanup notification service
    */
   cleanup(): void {
-    console.log('[NotificationService] Cleaning up...');
+    logger.debug('[NotificationService] Cleaning up...');
     this.stopRealTimeConnection();
     this.unregisterDeviceToken();
   }

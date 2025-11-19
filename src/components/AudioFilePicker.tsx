@@ -11,6 +11,7 @@ import {
 import * as DocumentPicker from 'expo-document-picker';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
+import { logger } from '@/utils/logger';
 
 interface AudioFilePickerProps {
   visible: boolean;
@@ -65,7 +66,7 @@ export const AudioFilePicker: React.FC<AudioFilePickerProps> = ({
         });
       }
     } catch (error) {
-      console.error('Error picking audio file:', error);
+      logger.error('Error picking audio file:', error);
       Alert.alert('Erro', 'Não foi possível selecionar o arquivo de áudio.');
     }
   };
@@ -97,7 +98,7 @@ export const AudioFilePicker: React.FC<AudioFilePickerProps> = ({
       // Call the parent component's callback - parent will handle upload and show success/error
       onAudioFileSelected(selectedFile.uri, selectedFile.name, selectedFile.type);
     } catch (error) {
-      console.error('Error selecting audio file:', error);
+      logger.error('Error selecting audio file:', error);
       setIsUploading(false);
       onUploadComplete?.(false);
       Alert.alert('Erro', 'Não foi possível processar o arquivo de áudio.');

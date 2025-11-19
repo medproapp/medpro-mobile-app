@@ -23,6 +23,7 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import * as FileSystem from 'expo-file-system/legacy';
 import { theme } from '@theme/index';
 import { apiService } from '@services/api';
+import { logger } from '@/utils/logger';
 
 interface AudioRecorderProps {
   visible: boolean;
@@ -62,7 +63,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
     RecordingPresets.HIGH_QUALITY,
     (status) => {
       // Recording status updates
-      console.log('Recording status:', status);
+      logger.debug('Recording status:', status);
     }
   );
 
@@ -110,23 +111,23 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
         setHasPermission(true);
       }
     } catch (error) {
-      console.error('Error checking permissions:', error);
+      logger.error('Error checking permissions:', error);
       setHasPermission(false);
     }
   };
 
   const startRecording = async () => {
     if (!hasPermission) {
-      console.log('[START] No permission, checking...');
+      logger.debug('[START] No permission, checking...');
       await checkPermissions();
       return;
     }
 
     try {
-      console.log('[START] ========== STARTING RECORDING ==========');
-      console.log('[START] Recorder object:', recorder);
+      logger.debug('[START] ========== STARTING RECORDING ==========');
+      logger.debug('[START] Recorder object:', recorder);
 
-      console.log('[START] Configuring audio mode for recording...');
+      logger.debug('[START] Configuring audio mode for recording...');
       await setAudioModeAsync({
         playsInSilentMode: true,
         interruptionMode: 'duckOthers',
@@ -135,21 +136,21 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
         shouldPlayInBackground: false,
         shouldRouteThroughEarpiece: false,
       });
-      console.log('[START] Audio mode configured');
+      logger.debug('[START] Audio mode configured');
 
-      console.log('[START] Preparing recorder...');
+      logger.debug('[START] Preparing recorder...');
       await recorder.prepareToRecordAsync();
-      console.log('[START] Recorder prepared');
+      logger.debug('[START] Recorder prepared');
 
       // Reset state
-      console.log('[START] Resetting state...');
+      logger.debug('[START] Resetting state...');
       setRecordingDuration(0);
       setRecordingUri(null);
 
       // Start recording
-      console.log('[START] Calling recorder.record()...');
+      logger.debug('[START] Calling recorder.record()...');
       await recorder.record();
-      console.log('[START] recorder.record() completed');
+      logger.debug('[START] recorder.record() completed');
 
       setIsRecording(true);
 
@@ -159,10 +160,10 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
       }, 1000);
       setDurationInterval(interval);
 
-      console.log('[START] Recording started successfully');
+      logger.debug('[START] Recording started successfully');
     } catch (error) {
-      console.error('[START] ERROR starting recording:', error);
-      console.error('[START] Error details:', JSON.stringify(error, null, 2));
+      logger.error('[START] ERROR starting recording:', error);
+      logger.error('[START] Error details:', JSON.stringify(error, null, 2));
       Alert.alert('Erro', 'Não foi possível iniciar a gravação.');
     }
   };
@@ -171,7 +172,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
     if (!recorder) return;
 
     try {
-      console.log('[STOP] Stopping recording...');
+      logger.debug('[STOP] Stopping recording...');
 
       // Stop duration timer
       if (durationInterval) {
@@ -180,16 +181,16 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
       }
 
       // Stop recording
-      console.log('[STOP] Calling recorder.stop()...');
+      logger.debug('[STOP] Calling recorder.stop()...');
       await recorder.stop();
-      console.log('[STOP] recorder.stop() completed');
+      logger.debug('[STOP] recorder.stop() completed');
 
     // Get URI from recorder object
     const uri = recorder.uri;
-    console.log('[STOP] Got URI from recorder:', uri);
+    logger.debug('[STOP] Got URI from recorder:', uri);
 
     if (!uri) {
-      console.error('[STOP] ERROR: No URI received from recorder');
+      logger.error('[STOP] ERROR: No URI received from recorder');
       Alert.alert('Erro', 'Nenhum arquivo de gravação');
       return;
     }
@@ -198,87 +199,87 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
     try {
       const fileInfo: any = await FileSystem.getInfoAsync(uri);
       const fileSize = typeof fileInfo?.size === 'number' ? fileInfo.size : 0;
-      console.log('[STOP] File info:', {
+      logger.debug('[STOP] File info:', {
         exists: fileInfo.exists,
         size: fileSize,
         uri,
       });
 
       if (!fileInfo.exists) {
-        console.error('[STOP] ERROR: File does not exist');
+        logger.error('[STOP] ERROR: File does not exist');
         Alert.alert('Erro', 'Arquivo de gravação não foi criado');
         return;
       }
 
       if (!fileSize) {
-        console.error('[STOP] ERROR: File is empty (0 bytes)');
+        logger.error('[STOP] ERROR: File is empty (0 bytes)');
         Alert.alert('Erro', 'Gravação está vazia');
         return;
       }
 
-      console.log('[STOP] File verified OK - size(bytes):', fileSize);
+      logger.debug('[STOP] File verified OK - size(bytes):', fileSize);
     } catch (fileError) {
-      console.error('[STOP] ERROR reading file info:', fileError);
+      logger.error('[STOP] ERROR reading file info:', fileError);
     }
 
       setIsRecording(false);
       setRecordingUri(uri);
 
       // Apply preferred playback route after recording stops
-      console.log('[STOP] Applying playback route after recording (speaker)');
+      logger.debug('[STOP] Applying playback route after recording (speaker)');
       await configurePlaybackRoute();
 
-      console.log('[STOP] Recording stopped successfully, URI:', uri);
+      logger.debug('[STOP] Recording stopped successfully, URI:', uri);
     } catch (error) {
-      console.error('[STOP] ERROR stopping recording:', error);
+      logger.error('[STOP] ERROR stopping recording:', error);
       Alert.alert('Erro', 'Não foi possível parar a gravação.');
     }
   };
 
   const playRecording = async () => {
     if (!recordingUri) {
-      console.error('[PLAY] ERROR: No recording URI');
+      logger.error('[PLAY] ERROR: No recording URI');
       return;
     }
 
     try {
-      console.log('[PLAY] ========== STARTING PLAYBACK ==========');
-      console.log('[PLAY] Recording URI:', recordingUri);
+      logger.debug('[PLAY] ========== STARTING PLAYBACK ==========');
+      logger.debug('[PLAY] Recording URI:', recordingUri);
 
       try {
         const fileInfo: any = await FileSystem.getInfoAsync(recordingUri);
         const fileSize = typeof fileInfo?.size === 'number' ? fileInfo.size : 0;
-        console.log('[PLAY] File check before playback:', {
+        logger.debug('[PLAY] File check before playback:', {
           exists: fileInfo.exists,
           size: fileSize,
           uri: recordingUri,
         });
 
         if (!fileInfo.exists || !fileSize) {
-          console.error('[PLAY] ERROR: File missing or empty');
+          logger.error('[PLAY] ERROR: File missing or empty');
           Alert.alert('Erro', 'Arquivo de gravação não encontrado');
           return;
         }
       } catch (fileError) {
-        console.error('[PLAY] ERROR reading file info before playback:', fileError);
+        logger.error('[PLAY] ERROR reading file info before playback:', fileError);
       }
 
-      console.log('[PLAY] Configuring audio route (speaker)');
+      logger.debug('[PLAY] Configuring audio route (speaker)');
       await configurePlaybackRoute();
-      console.log('[PLAY] Audio route configured');
+      logger.debug('[PLAY] Audio route configured');
 
       const currentPlayer = playerRef.current;
       if (!currentPlayer) {
-        console.error('[PLAY] ERROR: No player instance available');
+        logger.error('[PLAY] ERROR: No player instance available');
         return;
       }
 
       await currentPlayer.seekTo(0);
       currentPlayer.play();
-      console.log('[PLAY] Player started');
+      logger.debug('[PLAY] Player started');
     } catch (error) {
-      console.error('[PLAY] ERROR playing recording:', error);
-      console.error('[PLAY] Error details:', JSON.stringify(error, null, 2));
+      logger.error('[PLAY] ERROR playing recording:', error);
+      logger.error('[PLAY] Error details:', JSON.stringify(error, null, 2));
       Alert.alert('Erro', `Não foi possível reproduzir a gravação: ${error}`);
     }
   };
@@ -290,7 +291,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
         await playerRef.current.seekTo(0);
       }
     } catch (error) {
-      console.error('Error stopping playback:', error);
+      logger.error('Error stopping playback:', error);
     }
   };
 
@@ -305,7 +306,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
         playerRef.current.seekTo(0);
         playerRef.current.remove();
       } catch (error) {
-        console.warn('[PLAY] Error cleaning up player:', error);
+        logger.warn('[PLAY] Error cleaning up player:', error);
       }
       playerRef.current = null;
     }
@@ -319,14 +320,14 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
     }
 
     cleanupPlayer();
-    console.log('[PLAY] Initializing new player for URI:', recordingUri);
+    logger.debug('[PLAY] Initializing new player for URI:', recordingUri);
     const newPlayer = createAudioPlayer({ uri: recordingUri });
     playerRef.current = newPlayer;
     setPlaybackStatus(null);
 
     playerStatusSubscription.current = newPlayer.addListener('playbackStatusUpdate', (status) => {
       setPlaybackStatus(status ?? null);
-      console.log('[PLAY][STATUS]', {
+      logger.debug('[PLAY][STATUS]', {
         id: status?.id,
         playing: status?.playing,
         duration: status?.duration,
@@ -353,11 +354,11 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
 
   const configurePlaybackRoute = async () => {
     try {
-      console.log('[PLAY][ROUTE] Configuring route for speaker playback');
+      logger.debug('[PLAY][ROUTE] Configuring route for speaker playback');
       await setAudioModeAsync(buildAudioModeConfig());
-      console.log('[PLAY][ROUTE] Audio mode applied');
+      logger.debug('[PLAY][ROUTE] Audio mode applied');
     } catch (error) {
-      console.error('[PLAY][ROUTE] Failed to configure audio route:', error);
+      logger.error('[PLAY][ROUTE] Failed to configure audio route:', error);
     }
   };
 
@@ -398,8 +399,8 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
 
       if (hasEncounterDetails) {
         // Use simple direct upload (same as file upload)
-        console.log('[AudioRecorder] Starting audio upload...');
-        console.log('[AudioRecorder] Upload params:', {
+        logger.debug('[AudioRecorder] Starting audio upload...');
+        logger.debug('[AudioRecorder] Upload params:', {
           audioPath: recordingUri,
           encounterId,
           patientCpf,
@@ -415,7 +416,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
           sequence || 1
         );
 
-        console.log('[AudioRecorder] Upload completed:', response);
+        logger.debug('[AudioRecorder] Upload completed:', response);
 
         setIsUploading(false);
         onUploadComplete?.(true);
@@ -427,7 +428,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
         );
       } else {
         // Legacy: Just call the callback (parent handles upload)
-        console.log('[AudioRecorder] Using legacy upload callback...');
+        logger.debug('[AudioRecorder] Using legacy upload callback...');
         onRecordingComplete(recordingUri);
 
         setIsUploading(false);
@@ -440,7 +441,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
         );
       }
     } catch (error: any) {
-      console.error('[AudioRecorder] Error saving recording:', error);
+      logger.error('[AudioRecorder] Error saving recording:', error);
       setIsUploading(false);
       onUploadComplete?.(false);
       Alert.alert(

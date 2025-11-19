@@ -18,6 +18,7 @@ import { theme } from '@theme/index';
 import { useAuthStore } from '@store/authStore';
 import { apiService, API_BASE_URL } from '@services/api';
 import { DashboardStackParamList } from '@/types/navigation';
+import { logger } from '@/utils/logger';
 
 type AppointmentListNavigationProp = StackNavigationProp<DashboardStackParamList, 'AppointmentList'>;
 
@@ -194,7 +195,7 @@ export const AppointmentListScreen: React.FC = () => {
 
   const loadAppointments = useCallback(async (silent: boolean = false) => {
     if (!user?.email) {
-      console.warn('[AppointmentList] User email not available, skipping fetch');
+      logger.warn('[AppointmentList] User email not available, skipping fetch');
       setAppointments([]);
       setLoading(false);
       setRefreshing(false);
@@ -235,7 +236,7 @@ export const AppointmentListScreen: React.FC = () => {
 
         // Safety break to avoid infinite loops in unexpected responses
         if (currentPage > 10) {
-          console.warn('[AppointmentList] Reached page limit while fetching appointments');
+          logger.warn('[AppointmentList] Reached page limit while fetching appointments');
           break;
         }
       } while (true);
@@ -287,7 +288,7 @@ export const AppointmentListScreen: React.FC = () => {
       setTotalRecords(total || sortedItems.length);
       setHasLoadedOnce(true);
     } catch (error) {
-      console.error('[AppointmentList] Error loading appointments:', error);
+      logger.error('[AppointmentList] Error loading appointments:', error);
       setAppointments([]);
       setTotalRecords(0);
       setHasLoadedOnce(true);

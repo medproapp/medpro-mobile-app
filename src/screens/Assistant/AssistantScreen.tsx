@@ -21,6 +21,7 @@ import { theme } from '../../theme';
 import { useAssistantStore } from '../../store/assistantStore';
 import { AssistantMessage, ActionButton } from '../../types/assistant';
 import { AssistantAudioRecorder } from './components/AssistantAudioRecorder';
+import { logger } from '@/utils/logger';
 
 // Markdown styles function
 const getMarkdownStyles = (isError: boolean = false) => ({
@@ -232,17 +233,17 @@ export const AssistantScreen: React.FC = () => {
         break;
 
       default:
-        console.log('Unknown action type:', action.type);
+        logger.debug('Unknown action type:', action.type);
     }
   };
 
   const handleAudioRecorded = (audioUri: string) => {
-    console.log('[AssistantScreen] Audio recorded:', audioUri);
+    logger.debug('[AssistantScreen] Audio recorded:', audioUri);
     // Audio URI is stored for later use
   };
 
   const handleTranscriptionComplete = async (text: string) => {
-    console.log('[AssistantScreen] Transcription completed:', text);
+    logger.debug('[AssistantScreen] Transcription completed:', text);
     // Set the transcribed text in the input
     setInputText(text);
   };
@@ -253,7 +254,7 @@ export const AssistantScreen: React.FC = () => {
       await sendAudioMessage(audioUri);
       setInputText(''); // Clear input after sending
     } catch (error) {
-      console.error('[AssistantScreen] Error sending audio message:', error);
+      logger.error('[AssistantScreen] Error sending audio message:', error);
     }
   };
 

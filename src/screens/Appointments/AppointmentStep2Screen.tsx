@@ -20,6 +20,7 @@ import { useAppointmentStore } from '@store/appointmentStore';
 import { useAuthStore } from '@store/authStore';
 import { api } from '@services/api';
 import { DashboardStackParamList } from '@/types/navigation';
+import { logger } from '@/utils/logger';
 
 type Step2NavigationProp = StackNavigationProp<DashboardStackParamList, 'AppointmentStep2'>;
 
@@ -65,12 +66,12 @@ export const AppointmentStep2Screen: React.FC = () => {
 
     setLoading(true);
     try {
-      console.log('[AppointmentStep2] Loading all services');
+      logger.debug('[AppointmentStep2] Loading all services');
       
       const results = await api.getOfferings('SERVICE', true);
-      console.log('[AppointmentStep2] Services results:', results);
-      console.log('[AppointmentStep2] Results type:', typeof results);
-      console.log('[AppointmentStep2] Results direct array check:', Array.isArray(results));
+      logger.debug('[AppointmentStep2] Services results:', results);
+      logger.debug('[AppointmentStep2] Results type:', typeof results);
+      logger.debug('[AppointmentStep2] Results direct array check:', Array.isArray(results));
       
       if (Array.isArray(results)) {
         // Transform the API data to match our interface
@@ -78,14 +79,14 @@ export const AppointmentStep2Screen: React.FC = () => {
           ...service,
           price: parseFloat(service.price) || 0, // Convert string price to number
         }));
-        console.log('[AppointmentStep2] Transformed services:', transformedServices);
+        logger.debug('[AppointmentStep2] Transformed services:', transformedServices);
         setAllServices(transformedServices);
         setServicesLoaded(true);
       } else {
-        console.log('[AppointmentStep2] Results is not an array:', results);
+        logger.debug('[AppointmentStep2] Results is not an array:', results);
       }
     } catch (error) {
-      console.error('[AppointmentStep2] Error loading services:', error);
+      logger.error('[AppointmentStep2] Error loading services:', error);
       Alert.alert('Erro', 'Não foi possível carregar os serviços');
     } finally {
       setLoading(false);
@@ -102,7 +103,7 @@ export const AppointmentStep2Screen: React.FC = () => {
 
     setLoading(true);
     try {
-      console.log('[AppointmentStep2] Searching for:', term);
+      logger.debug('[AppointmentStep2] Searching for:', term);
       
       // Load all services first if not loaded
       if (allServices.length === 0 && !servicesLoaded) {
@@ -134,9 +135,9 @@ export const AppointmentStep2Screen: React.FC = () => {
       }
       
       setHasSearched(true);
-      console.log('[AppointmentStep2] Search results:', searchResults.length);
+      logger.debug('[AppointmentStep2] Search results:', searchResults.length);
     } catch (error) {
-      console.error('[AppointmentStep2] Search error:', error);
+      logger.error('[AppointmentStep2] Search error:', error);
       Alert.alert('Erro', 'Não foi possível buscar os serviços');
       setSearchResults([]);
     } finally {

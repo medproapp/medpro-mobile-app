@@ -13,6 +13,7 @@ import {
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
+import { logger } from '@/utils/logger';
 
 interface FAQItem {
   id: string;
@@ -102,7 +103,7 @@ export const HelpSupportScreen: React.FC = () => {
         Alert.alert('Erro', 'Não foi possível abrir o link.');
       }
     } catch (error) {
-      console.error('Error opening link:', error);
+      logger.error('Error opening link:', error);
       Alert.alert('Erro', 'Não foi possível abrir o link.');
     }
   };

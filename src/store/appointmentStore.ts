@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Service, ServiceCoverageStatus, RecentPatient } from '../types/api';
+import { logger } from '@/utils/logger';
 
 export interface AppointmentData {
   // Patient info
@@ -295,7 +296,7 @@ export const useAppointmentStore = create<AppointmentStore>((set, get) => ({
       set({ recentPatients: updatedRecent });
       await AsyncStorage.setItem('recentPatients', JSON.stringify(updatedRecent));
     } catch (error) {
-      console.error('Error saving recent patient:', error);
+      logger.error('Error saving recent patient:', error);
     }
   },
 
@@ -308,7 +309,7 @@ export const useAppointmentStore = create<AppointmentStore>((set, get) => ({
         set({ recentPatients: patients });
       }
     } catch (error) {
-      console.error('Error loading recent patients:', error);
+      logger.error('Error loading recent patients:', error);
     }
   },
 

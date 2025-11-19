@@ -1,5 +1,6 @@
 import { API_BASE_URL } from './api';
 import { useAuthStore } from '@store/authStore';
+import { logger } from '@/utils/logger';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
@@ -23,7 +24,7 @@ const jsonFetch = async <T>(endpoint: string, options: RequestOptions = {}): Pro
   const { method = 'GET', body, headers, rawResponse } = options;
 
   try {
-    console.log('🔄 [OnboardingService] Request →', {
+    logger.debug('🔄 [OnboardingService] Request →', {
       url: `${API_BASE_URL}${endpoint}`,
       endpoint,
       method,
@@ -36,7 +37,7 @@ const jsonFetch = async <T>(endpoint: string, options: RequestOptions = {}): Pro
       body: body ? JSON.stringify(body) : undefined,
     });
 
-    console.log('🔄 [OnboardingService] Response ←', {
+    logger.debug('🔄 [OnboardingService] Response ←', {
       endpoint,
       status: response.status,
       ok: response.ok,
@@ -44,7 +45,7 @@ const jsonFetch = async <T>(endpoint: string, options: RequestOptions = {}): Pro
 
     if (!response.ok) {
       const text = await response.text();
-      console.error('⛔ [OnboardingService] Error payload', { endpoint, status: response.status, text });
+      logger.error('⛔ [OnboardingService] Error payload', { endpoint, status: response.status, text });
       throw new Error(`Request failed [${response.status}]: ${text}`);
     }
 
@@ -53,15 +54,15 @@ const jsonFetch = async <T>(endpoint: string, options: RequestOptions = {}): Pro
     }
 
     if (response.status === 204) {
-      console.log('✅ [OnboardingService] Parsed data', { endpoint, data: {} });
+      logger.debug('✅ [OnboardingService] Parsed data', { endpoint, data: {} });
       return {} as T;
     }
 
     const data = (await response.json()) as T;
-    console.log('✅ [OnboardingService] Parsed data', { endpoint, data });
+    logger.debug('✅ [OnboardingService] Parsed data', { endpoint, data });
     return data;
   } catch (error) {
-    console.error('💥 [OnboardingService] Request failed fatally', { endpoint, error });
+    logger.error('💥 [OnboardingService] Request failed fatally', { endpoint, error });
     throw error;
   }
 };
@@ -98,24 +99,23 @@ export const onboardingService = {
   },
   getServiceCategories() {
     return jsonFetch('/pract/getservicecategory').then(result => {
-      console.log('[OnboardingService] RAW /pract/getservicecategory:', result);
+      logger.debug('[OnboardingService] RAW /pract/getservicecategory:', result);
       return result;
     });
   },
   getServiceTypes() {
     return jsonFetch('/pract/getservicetypes').then(result => {
-      console.log('[OnboardingService] RAW /pract/getservicetypes:', result);
+      logger.debug('[OnboardingService] RAW /pract/getservicetypes:', result);
       return result;
     });
   },
   savePractitionerProfile(payload: Record<string, unknown>) {
-    console.log('💾 [OnboardingService] Saving practitioner profile with payload:', payload);
+    logger.debug('💾 [OnboardingService] Saving practitioner profile with payload:', payload);
     const returnValue =
       jsonFetch('/pract/savemydata', {
         method: 'POST',
         body: payload,
       });
-    console.log('💾 [OnboardingService] Save practitioner profile response:', returnValue);
     return returnValue;
   },
   savePractitionerServiceCategories(payload: Record<string, unknown>) {
@@ -184,22 +184,22 @@ export const onboardingService = {
 
       if (response.status === 404) {
         if (__DEV__) {
-          console.warn('[OnboardingService] Practitioner not found, returning empty profile');
+          logger.warn('[OnboardingService] Practitioner not found, returning empty profile');
         }
         return {} as Record<string, unknown>;
       }
 
       if (!response.ok) {
         const text = await response.text();
-        console.error('⛔ [OnboardingService] Error payload', { endpoint, status: response.status, text });
+        logger.error('⛔ [OnboardingService] Error payload', { endpoint, status: response.status, text });
         throw new Error(`Request failed [${response.status}]: ${text}`);
       }
 
       const data = (await response.json()) as Record<string, unknown>;
-      console.log('✅ [OnboardingService] Parsed data', { endpoint, data });
+      logger.debug('✅ [OnboardingService] Parsed data', { endpoint, data });
       return data;
     } catch (error) {
-      console.error('💥 [OnboardingService] Request failed fatally', { endpoint, error });
+      logger.error('💥 [OnboardingService] Request failed fatally', { endpoint, error });
       throw error;
     }
   },

@@ -23,6 +23,7 @@ import { api } from '@services/api';
 import { useAuthStore } from '@store/authStore';
 import { API_BASE_URL } from '@config/environment';
 import { PatientsStackParamList } from '@/types/navigation';
+import { logger } from '@/utils/logger';
 
 type RecordingsRouteProp = RouteProp<PatientsStackParamList, 'Recordings'>;
 
@@ -124,7 +125,7 @@ export const RecordingsScreen: React.FC = () => {
       setPage(pageNum);
 
     } catch (error) {
-      console.error('[Recordings] Error loading recordings:', error);
+      logger.error('[Recordings] Error loading recordings:', error);
 
       // Stop pagination on error to prevent infinite loops
       setHasMore(false);
@@ -184,7 +185,7 @@ export const RecordingsScreen: React.FC = () => {
       const fileInfo = await FileSystem.getInfoAsync(fileUri);
 
       if (!fileInfo.exists || currentAudioUrl !== audioUrl) {
-        console.log('[Recordings] Downloading audio from:', audioUrl);
+        logger.debug('[Recordings] Downloading audio from:', audioUrl);
 
         // Download with auth headers
         const downloadResult = await FileSystem.downloadAsync(
@@ -197,14 +198,14 @@ export const RecordingsScreen: React.FC = () => {
           }
         );
 
-        console.log('[Recordings] Download complete:', downloadResult.uri);
+        logger.debug('[Recordings] Download complete:', downloadResult.uri);
 
         // Load the downloaded file into the player
         audioPlayer.replace(downloadResult.uri);
         setCurrentAudioUrl(audioUrl);
       } else if (currentAudioUrl !== audioUrl) {
         // File exists in cache, use it
-        console.log('[Recordings] Using cached audio file:', fileUri);
+        logger.debug('[Recordings] Using cached audio file:', fileUri);
         audioPlayer.replace(fileUri);
         setCurrentAudioUrl(audioUrl);
       }
@@ -214,7 +215,7 @@ export const RecordingsScreen: React.FC = () => {
       setPlayingRecordingId(recording.recordingId);
       setIsLoadingAudio(null);
     } catch (error) {
-      console.error('[Recordings] Error playing audio:', error);
+      logger.error('[Recordings] Error playing audio:', error);
       Alert.alert('Erro', 'Não foi possível reproduzir a gravação');
       setIsLoadingAudio(null);
     }

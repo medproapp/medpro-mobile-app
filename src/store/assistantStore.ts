@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from './authStore';
 import { assistantApi } from '../services/assistantApi';
 import { secureStorage } from '../utils/secureStorage';
+import { logger } from '@/utils/logger';
 import { AssistantContext } from '../types/api';
 import {
   AssistantState,
@@ -145,7 +146,7 @@ export const useAssistantStore = create<AssistantStore>()(
           set({ retryCount: 0 });
 
         } catch (error) {
-          console.error('[AssistantStore] Error sending message:', error);
+          logger.error('[AssistantStore] Error sending message:', error);
           
           const errorMessage = assistantApi.handleApiError(error);
           setError(errorMessage);
@@ -270,7 +271,7 @@ export const useAssistantStore = create<AssistantStore>()(
             get().setPatientContext(patient);
             updated = true;
           } catch (error) {
-            console.error('[AssistantStore] Error fetching patient details:', error);
+            logger.error('[AssistantStore] Error fetching patient details:', error);
           }
         }
 
@@ -321,7 +322,7 @@ export const useAssistantStore = create<AssistantStore>()(
         try {
           // TODO: Implement prescription signing
           // This would integrate with the digital signature service
-          console.log('[AssistantStore] Prescription signing not yet implemented');
+          logger.debug('[AssistantStore] Prescription signing not yet implemented');
           
           // For now, just show success message
           const successMessage: AssistantMessage = {
@@ -335,7 +336,7 @@ export const useAssistantStore = create<AssistantStore>()(
           get().addMessage(successMessage);
           
         } catch (error) {
-          console.error('[AssistantStore] Error signing prescription:', error);
+          logger.error('[AssistantStore] Error signing prescription:', error);
           get().setError('Erro ao assinar prescrição');
         } finally {
           set({ isLoading: false });
@@ -347,7 +348,7 @@ export const useAssistantStore = create<AssistantStore>()(
         
         try {
           // TODO: Implement prescription sending
-          console.log('[AssistantStore] Prescription sending not yet implemented');
+          logger.debug('[AssistantStore] Prescription sending not yet implemented');
           
           const successMessage: AssistantMessage = {
             id: generateId(),
@@ -360,7 +361,7 @@ export const useAssistantStore = create<AssistantStore>()(
           get().addMessage(successMessage);
           
         } catch (error) {
-          console.error('[AssistantStore] Error sending prescription:', error);
+          logger.error('[AssistantStore] Error sending prescription:', error);
           get().setError('Erro ao enviar prescrição');
         } finally {
           set({ isLoading: false });
@@ -390,7 +391,7 @@ export const useAssistantStore = create<AssistantStore>()(
           get().addMessage(analysisMessage);
           
         } catch (error) {
-          console.error('[AssistantStore] Error analyzing document:', error);
+          logger.error('[AssistantStore] Error analyzing document:', error);
           get().setError('Erro ao analisar documento');
         } finally {
           set({ isLoading: false });
@@ -399,13 +400,13 @@ export const useAssistantStore = create<AssistantStore>()(
 
       navigateToPatient: (patientId: string) => {
         // TODO: Implement navigation to patient screen
-        console.log('[AssistantStore] Navigate to patient:', patientId);
+        logger.debug('[AssistantStore] Navigate to patient:', patientId);
         // This will be implemented when we integrate with the navigation system
       },
 
       navigateToEncounter: (encounterId: string) => {
         // TODO: Implement navigation to encounter screen
-        console.log('[AssistantStore] Navigate to encounter:', encounterId);
+        logger.debug('[AssistantStore] Navigate to encounter:', encounterId);
         // This will be implemented when we integrate with the navigation system
       },
 
@@ -425,7 +426,7 @@ export const useAssistantStore = create<AssistantStore>()(
           setTranscribing(false);
           return result.text;
         } catch (error) {
-          console.error('[AssistantStore] Error transcribing audio:', error);
+          logger.error('[AssistantStore] Error transcribing audio:', error);
           setTranscribing(false);
           setError('Erro ao transcrever áudio');
           throw error;
@@ -498,7 +499,7 @@ export const useAssistantStore = create<AssistantStore>()(
           }
 
         } catch (error) {
-          console.error('[AssistantStore] Error sending audio message:', error);
+          logger.error('[AssistantStore] Error sending audio message:', error);
           
           const errorMessage = assistantApi.handleApiError(error);
           setError(errorMessage);

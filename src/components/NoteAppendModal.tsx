@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
+import { logger } from '@/utils/logger';
 
 interface NoteAppendModalProps {
   visible: boolean;
@@ -44,7 +45,7 @@ export const NoteAppendModal: React.FC<NoteAppendModalProps> = ({
       setIsSaving(false);
       onClose();
     } catch (error) {
-      console.error('[NoteAppendModal] Error saving note:', error);
+      logger.error('[NoteAppendModal] Error saving note:', error);
       setIsSaving(false);
       // Don't close modal on error - let user try again
       Alert.alert('Erro', 'Não foi possível salvar a nota. Tente novamente.');

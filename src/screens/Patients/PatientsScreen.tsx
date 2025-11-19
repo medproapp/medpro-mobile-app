@@ -21,6 +21,7 @@ import { useAuthStore } from '@store/authStore';
 import { apiService } from '@services/api';
 import { API_BASE_URL } from '@services/api';
 import { PatientsStackParamList } from '@/types/navigation';
+import { logger } from '@/utils/logger';
 
 type PatientsNavigationProp = StackNavigationProp<PatientsStackParamList, 'PatientsList'>;
 
@@ -56,7 +57,7 @@ export const PatientsScreen: React.FC = () => {
         throw new Error('User email not available');
       }
 
-      console.log('[PatientsScreen] Fetching patients for page:', pageNum, 'search:', search);
+      logger.debug('[PatientsScreen] Fetching patients for page:', pageNum, 'search:', search);
       const response = await apiService.getPatients(user.email, pageNum, 20, search);
       
       // Transform API response to match our interface
@@ -69,7 +70,6 @@ export const PatientsScreen: React.FC = () => {
       }));
 
       if (__DEV__) {
-        console.log('[PatientsScreen] Fetched', patients.length, 'patients');
       }
 
       // Photos will be loaded automatically by CachedImage with caching
@@ -80,7 +80,7 @@ export const PatientsScreen: React.FC = () => {
         pages: Math.ceil(response.data.total / 20),
       });
     } catch (error) {
-      console.error('Error fetching patients:', error);
+      logger.error('Error fetching patients:', error);
       setData({
         patients: [],
         total: 0,

@@ -12,6 +12,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
+import { logger } from '@/utils/logger';
 
 interface AttachmentPickerProps {
   visible: boolean;
@@ -66,7 +67,7 @@ export const AttachmentPicker: React.FC<AttachmentPickerProps> = ({
         });
       }
     } catch (error) {
-      console.error('Error picking document:', error);
+      logger.error('Error picking document:', error);
       Alert.alert('Erro', 'Não foi possível selecionar o arquivo.');
     }
   };
@@ -105,7 +106,7 @@ export const AttachmentPicker: React.FC<AttachmentPickerProps> = ({
       // Don't show success alert here - let the parent handle it after real API upload
       onClose();
     } catch (error) {
-      console.error('Error uploading file:', error);
+      logger.error('Error uploading file:', error);
       setIsUploading(false);
       onUploadComplete?.(false);
       Alert.alert('Erro', 'Não foi possível enviar o arquivo.');

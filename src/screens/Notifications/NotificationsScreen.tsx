@@ -19,6 +19,7 @@ import { useNotificationStore } from '@store/notificationStore';
 import type { NotificationItem, NotificationStatus } from '@/types/notifications';
 import type { DashboardStackParamList } from '@/types/navigation';
 import { resolveNotificationNavigation } from '@utils/notificationNavigation';
+import { logger } from '@/utils/logger';
 
 const formatDate = (value?: string | null): string => {
   if (!value) {
@@ -104,7 +105,7 @@ export const NotificationsScreen: React.FC = () => {
 
       if (isUnread(item)) {
         markAsRead(item.id).catch(error => {
-          console.error('[NotificationsScreen] Failed to mark as read', error);
+          logger.error('[NotificationsScreen] Failed to mark as read', error);
         });
       }
 

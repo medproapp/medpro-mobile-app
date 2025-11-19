@@ -16,6 +16,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { DashboardStackParamList } from '@/types/navigation';
 import { FormResponse, FormSection, FormField, FormStatus } from '@/types/preAppointment';
+import { logger } from '@/utils/logger';
 
 type FormResponseScreenProps = RouteProp<DashboardStackParamList, 'FormResponse'>;
 type FormResponseNavigationProp = StackNavigationProp<DashboardStackParamList, 'FormResponse'>;
@@ -217,10 +218,9 @@ export const FormResponseScreen: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      console.log('Fetching form details for tracking ID:', trackingId);
+      logger.debug('Fetching form details for tracking ID:', trackingId);
 
       const response = await apiService.getPreAppointmentFormDetails(trackingId);
-      console.log('Form details response:', response);
 
       if (response.success && response.data) {
         // Transform API response to match FormResponse type
@@ -383,13 +383,13 @@ export const FormResponseScreen: React.FC = () => {
           metadata: apiData.tracking?.metadata,
         };
 
-        console.log('Transformed form data:', transformedData);
+        logger.debug('Transformed form data:', transformedData);
         setFormData(transformedData);
       } else {
         setError('Não foi possível carregar os dados do formulário');
       }
     } catch (err) {
-      console.error('Error fetching form details:', err);
+      logger.error('Error fetching form details:', err);
       setError('Erro ao carregar o formulário');
     } finally {
       setLoading(false);

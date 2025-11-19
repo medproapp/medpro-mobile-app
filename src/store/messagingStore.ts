@@ -12,6 +12,7 @@ import {
   MessagingState
 } from '../types/messaging';
 import { RealtimeUpdate } from '../types/api';
+import { logger } from '@/utils/logger';
 
 /**
  * Zustand store for messaging state management
@@ -53,7 +54,7 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
     });
 
     try {
-      console.log('[MessagingStore] Loading threads with params:', params);
+      logger.debug('[MessagingStore] Loading threads with params:', params);
       
       const threads = await messagingService.loadThreads(params);
 
@@ -65,10 +66,10 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
         error: null,
       }));
       
-      console.log('[MessagingStore] Threads loaded successfully:', threads.length);
+      logger.debug('[MessagingStore] Threads loaded successfully:', threads.length);
 
     } catch (error) {
-      console.error('[MessagingStore] Error loading threads:', error);
+      logger.error('[MessagingStore] Error loading threads:', error);
       set({ 
         isLoading: false, 
         error: error instanceof Error ? error.message : 'Failed to load threads' 
@@ -86,11 +87,11 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
     });
 
     try {
-      console.log('[MessagingStore] Loading messages for thread:', threadId, 'with params:', params);
+      logger.debug('[MessagingStore] Loading messages for thread:', threadId, 'with params:', params);
 
       const { messages: newMessages, thread_info } = await messagingService.loadMessages(threadId, params);
 
-      console.log('[MessagingStore] Loaded messages response meta:', {
+      logger.debug('[MessagingStore] Loaded messages response meta:', {
         threadId,
         messagesCount: newMessages.length,
         hasThreadInfo: !!thread_info,
@@ -109,9 +110,9 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
         error: null,
       }));
       
-      console.log('[MessagingStore] Messages loaded successfully:', newMessages.length);
+      logger.debug('[MessagingStore] Messages loaded successfully:', newMessages.length);
     } catch (error) {
-      console.error('[MessagingStore] Error loading messages:', {
+      logger.error('[MessagingStore] Error loading messages:', {
         threadId,
         params,
         error,
@@ -133,7 +134,7 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
     });
 
     try {
-      console.log('[MessagingStore] Loading contacts with params:', params);
+      logger.debug('[MessagingStore] Loading contacts with params:', params);
       
       const contacts = await messagingService.loadContacts(params);
       
@@ -145,9 +146,9 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
         error: null,
       }));
       
-      console.log('[MessagingStore] Contacts loaded successfully:', contacts.length);
+      logger.debug('[MessagingStore] Contacts loaded successfully:', contacts.length);
     } catch (error) {
-      console.error('[MessagingStore] Error loading contacts:', error);
+      logger.error('[MessagingStore] Error loading contacts:', error);
       set({ 
         isLoadingContacts: false, 
         error: error instanceof Error ? error.message : 'Failed to load contacts' 
@@ -160,7 +161,7 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
    */
   loadStats: async () => {
     try {
-      console.log('[MessagingStore] Loading messaging stats');
+      logger.debug('[MessagingStore] Loading messaging stats');
       
       const stats = await messagingService.loadStats();
       
@@ -169,9 +170,9 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
         error: null 
       });
       
-      console.log('[MessagingStore] Stats loaded successfully:', stats);
+      logger.debug('[MessagingStore] Stats loaded successfully:', stats);
     } catch (error) {
-      console.error('[MessagingStore] Error loading stats:', error);
+      logger.error('[MessagingStore] Error loading stats:', error);
       set({ 
         error: error instanceof Error ? error.message : 'Failed to load stats' 
       });
@@ -188,7 +189,7 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
     });
 
     try {
-      console.log('[MessagingStore] Sending message:', {
+      logger.debug('[MessagingStore] Sending message:', {
         recipients: data.recipients?.length,
         subject: data.subject,
         hasContent: !!data.content,
@@ -215,10 +216,10 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
         error: null 
       });
       
-      console.log('[MessagingStore] Message sent successfully:', result.message_id);
+      logger.debug('[MessagingStore] Message sent successfully:', result.message_id);
       return result;
     } catch (error) {
-      console.error('[MessagingStore] Error sending message:', error);
+      logger.error('[MessagingStore] Error sending message:', error);
       set({ 
         isLoading: false, 
         error: error instanceof Error ? error.message : 'Failed to send message' 
@@ -232,7 +233,7 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
    */
   markAsRead: async (messageId: string) => {
     try {
-      console.log('[MessagingStore] Marking message as read:', messageId);
+      logger.debug('[MessagingStore] Marking message as read:', messageId);
       
       await messagingService.markAsRead(messageId);
       
@@ -275,9 +276,9 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
       const { loadStats } = get();
       await loadStats();
       
-      console.log('[MessagingStore] Message marked as read successfully');
+      logger.debug('[MessagingStore] Message marked as read successfully');
     } catch (error) {
-      console.error('[MessagingStore] Error marking message as read:', error);
+      logger.error('[MessagingStore] Error marking message as read:', error);
       set({ 
         error: error instanceof Error ? error.message : 'Failed to mark message as read' 
       });
@@ -288,7 +289,7 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
    * Select a thread as current
    */
   selectThread: (thread: MessageThread | null) => {
-    console.log('[MessagingStore] Selecting thread:', thread?.thread_id || 'none');
+    logger.debug('[MessagingStore] Selecting thread:', thread?.thread_id || 'none');
     set({ currentThread: thread });
   },
 
@@ -300,11 +301,11 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
       // Check if contact is already selected
       const isAlreadySelected = state.selectedContacts.some(c => c.user_id === contact.user_id);
       if (isAlreadySelected) {
-        console.log('[MessagingStore] Contact already selected:', contact.email);
+        logger.debug('[MessagingStore] Contact already selected:', contact.email);
         return state;
       }
       
-      console.log('[MessagingStore] Adding selected contact:', contact.email);
+      logger.debug('[MessagingStore] Adding selected contact:', contact.email);
       return {
         selectedContacts: [...state.selectedContacts, contact],
       };
@@ -315,7 +316,7 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
    * Remove contact from selected contacts
    */
   removeSelectedContact: (contactId: string) => {
-    console.log('[MessagingStore] Removing selected contact:', contactId);
+    logger.debug('[MessagingStore] Removing selected contact:', contactId);
     set(state => ({
       selectedContacts: state.selectedContacts.filter(c => c.user_id !== contactId),
     }));
@@ -325,7 +326,7 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
    * Clear all selected contacts
    */
   clearSelectedContacts: () => {
-    console.log('[MessagingStore] Clearing selected contacts');
+    logger.debug('[MessagingStore] Clearing selected contacts');
     set({ selectedContacts: [] });
   },
 
@@ -339,7 +340,7 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
     });
 
     try {
-      console.log('[MessagingStore] Starting refresh');
+      logger.debug('[MessagingStore] Starting refresh');
       
       // Clear cache and reload data directly
       await messagingService.refresh();
@@ -359,9 +360,9 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
         error: null 
       });
       
-      console.log('[MessagingStore] Refresh completed successfully');
+      logger.debug('[MessagingStore] Refresh completed successfully');
     } catch (error) {
-      console.error('[MessagingStore] Error during refresh:', error);
+      logger.error('[MessagingStore] Error during refresh:', error);
       set({ 
         isRefreshing: false, 
         error: error instanceof Error ? error.message : 'Refresh failed' 
@@ -373,7 +374,7 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
    * Select a message (for future use in message actions)
    */
   selectMessage: (messageId: string | null) => {
-    console.log('[MessagingStore] Selecting message:', messageId);
+    logger.debug('[MessagingStore] Selecting message:', messageId);
     // For now, just log. Can be extended later for message actions
   },
 
@@ -381,7 +382,7 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
    * Clear error state
    */
   clearError: () => {
-    console.log('[MessagingStore] Clearing error');
+    logger.debug('[MessagingStore] Clearing error');
     set({ error: null });
   },
 
@@ -389,7 +390,7 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
    * Handle real-time notification updates
    */
   handleRealtimeUpdate: (type: string, data: Record<string, unknown>) => {
-    console.log('[MessagingStore] Handling real-time update:', type, data);
+    logger.debug('[MessagingStore] Handling real-time update:', type, data);
     
     switch (type) {
       case 'new_message':
@@ -468,11 +469,11 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
       case 'thread_updated':
         // Refresh thread data
         const { loadThreads } = get();
-        loadThreads().catch(console.error);
+        loadThreads().catch(err => logger.error('Failed to refresh threads:', err));
         break;
 
       default:
-        console.log('[MessagingStore] Unknown real-time update type:', type);
+        logger.debug('[MessagingStore] Unknown real-time update type:', type);
     }
   },
 
@@ -480,7 +481,7 @@ export const useMessagingStore = create<MessagingState>((set, get) => ({
    * Update unread badge count (for external systems)
    */
   updateBadgeCount: (count: number) => {
-    console.log('[MessagingStore] Updating badge count:', count);
+    logger.debug('[MessagingStore] Updating badge count:', count);
     // This can be used by notification service to update app badge
     set(state => ({
       stats: state.stats ? { ...state.stats, unread_count: count } : null

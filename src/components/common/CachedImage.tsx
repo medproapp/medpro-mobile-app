@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
+import { logger } from '@/utils/logger';
 
 interface CachedImageProps extends Omit<ImageProps, 'source'> {
   uri: string | null | undefined;
@@ -62,7 +63,6 @@ export const CachedImage: React.FC<CachedImageProps> = ({
       transition={transition}
       cachePolicy="memory-disk"
       onError={(error) => {
-        console.log('[CachedImage] Failed to load image:', uri, error);
         setImageError(true);
       }}
       {...props}

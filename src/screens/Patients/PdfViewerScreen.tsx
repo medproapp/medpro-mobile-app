@@ -16,6 +16,7 @@ import Pdf from 'react-native-pdf';
 import * as Sharing from 'expo-sharing';
 import { theme } from '@theme/index';
 import { PatientsStackParamList } from '@/types/navigation';
+import { logger } from '@/utils/logger';
 
 type PdfViewerRouteProp = RouteProp<PatientsStackParamList, 'PdfViewer'>;
 
@@ -35,7 +36,7 @@ export const PdfViewerScreen: React.FC = () => {
   const [sharing, setSharing] = useState(false);
 
   const handleLoadComplete = (numberOfPages: number) => {
-    console.log('[PdfViewer] PDF loaded successfully, pages:', numberOfPages);
+    logger.debug('[PdfViewer] PDF loaded successfully, pages:', numberOfPages);
     setNumPages(numberOfPages);
     setLoading(false);
   };
@@ -45,7 +46,7 @@ export const PdfViewerScreen: React.FC = () => {
   };
 
   const handleError = (error: any) => {
-    console.error('[PdfViewer] Error loading PDF:', error);
+    logger.error('[PdfViewer] Error loading PDF:', error);
     setError('Erro ao carregar o PDF');
     setLoading(false);
   };
@@ -68,7 +69,7 @@ export const PdfViewerScreen: React.FC = () => {
 
       setSharing(false);
     } catch (error) {
-      console.error('[PdfViewer] Error sharing PDF:', error);
+      logger.error('[PdfViewer] Error sharing PDF:', error);
       Alert.alert('Erro', 'Não foi possível compartilhar o PDF');
       setSharing(false);
     }

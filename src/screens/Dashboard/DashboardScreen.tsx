@@ -20,6 +20,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { DashboardStackParamList } from '@/types/navigation';
 import { useNotificationStore } from '@store/notificationStore';
+import { logger } from '@/utils/logger';
 
 interface Appointment {
   id: string;
@@ -382,7 +383,7 @@ export const DashboardScreen: React.FC = () => {
         apiService
           .getPractitionerScheduleSummary(user.email, 10)
           .catch(error => {
-            console.error('Error fetching practitioner schedule summary:', error);
+            logger.error('Error fetching practitioner schedule summary:', error);
             return null;
           })
       ]);
@@ -398,7 +399,7 @@ export const DashboardScreen: React.FC = () => {
             // Check if this is a lead appointment or regular patient appointment
             if (isLead && apt.lead_id) {
               // Handle lead appointment
-              console.log('[Dashboard] Processing lead appointment:', apt.lead_id);
+              logger.debug('[Dashboard] Processing lead appointment:', apt.lead_id);
               try {
                 const leadData = await apiService.getLeadDetails(apt.lead_id);
                 // API returns nested structure: { lead: { patient_name: ... }, success: true }
@@ -406,7 +407,7 @@ export const DashboardScreen: React.FC = () => {
                 // Leads don't have photos
               } catch (leadError) {
                 const message = leadError instanceof Error ? leadError.message : 'Unknown error';
-                console.warn('[Dashboard] Error fetching lead details:', message);
+                logger.warn('[Dashboard] Error fetching lead details:', message);
                 patientName = 'Lead';
               }
             } else if (apt.subject && apt.subject_type === 'patient') {
@@ -433,7 +434,7 @@ export const DashboardScreen: React.FC = () => {
               isLead, // Add flag to indicate this is a lead appointment
             };
           } catch (error) {
-            console.error('Error fetching patient details:', error);
+            logger.error('Error fetching patient details:', error);
             // Convert UTC datetime to local for error fallback
             const localDateTime = convertUTCToLocalDate(
               apt.startdate || new Date().toISOString().split('T')[0],
@@ -530,7 +531,7 @@ export const DashboardScreen: React.FC = () => {
 
       setScheduleSummary(processedSchedule);
     } catch (error) {
-      console.error('Error fetching dashboard data:', error);
+      logger.error('Error fetching dashboard data:', error);
       
       // Fallback to mock data if API fails
       setData({

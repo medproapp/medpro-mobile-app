@@ -22,6 +22,7 @@ import { theme } from '@theme/index';
 import { api } from '@services/api';
 import { useAuthStore } from '@store/authStore';
 import { PatientsStackParamList } from '@/types/navigation';
+import { logger } from '@/utils/logger';
 
 type PrescriptionsRouteProp = RouteProp<PatientsStackParamList, 'Prescriptions'>;
 
@@ -117,7 +118,7 @@ export const PrescriptionsScreen: React.FC = () => {
       setPage(pageNum);
 
     } catch (error) {
-      console.error('[Prescriptions] Error loading medication records:', error);
+      logger.error('[Prescriptions] Error loading medication records:', error);
 
       // Stop pagination on error to prevent infinite loops
       setHasMore(false);
@@ -171,7 +172,7 @@ export const PrescriptionsScreen: React.FC = () => {
       const normalized = Array.isArray(response) ? response : [];
       setAttachmentsMap(prev => ({ ...prev, [medId]: normalized }));
     } catch (error) {
-      console.error('[Prescriptions] Error loading attachments:', error);
+      logger.error('[Prescriptions] Error loading attachments:', error);
       setAttachmentsMap(prev => ({ ...prev, [medId]: [] }));
     } finally {
       setLoadingAttachments(prev => ({ ...prev, [medId]: false }));
@@ -193,7 +194,7 @@ export const PrescriptionsScreen: React.FC = () => {
             setRenewingPrescription(prev => ({ ...prev, [record.medId]: true }));
             try {
               // Step 1: Renew prescription (creates DB record)
-              console.log('[Prescriptions] Renewing prescription:', record.medId);
+              logger.debug('[Prescriptions] Renewing prescription:', record.medId);
               const renewResult = await api.renewPrescription(record.medId);
               const renewedPrescription = renewResult.data;
 
@@ -201,11 +202,11 @@ export const PrescriptionsScreen: React.FC = () => {
               const renewedId = renewedPrescription.identifier || renewedPrescription.medId;
               const renewedItems = renewedPrescription.requestitens || renewedPrescription.medRequestItens || [];
 
-              console.log('[Prescriptions] Renewed prescription:', renewedId);
-              console.log('[Prescriptions] Renewed prescription items:', renewedItems.length);
+              logger.debug('[Prescriptions] Renewed prescription:', renewedId);
+              logger.debug('[Prescriptions] Renewed prescription items:', renewedItems.length);
 
               // Step 2: Fetch patient data
-              console.log('[Prescriptions] Fetching patient data for:', record.medPatient);
+              logger.debug('[Prescriptions] Fetching patient data for:', record.medPatient);
               const patientData = await api.getPatientDetails(record.medPatient);
 
               // Step 3: Get practitioner data from auth store
@@ -254,14 +255,14 @@ export const PrescriptionsScreen: React.FC = () => {
                 })),
               };
 
-              console.log('[Prescriptions] PDF params items count:', pdfParams.items.length);
+              logger.debug('[Prescriptions] PDF params items count:', pdfParams.items.length);
 
-              console.log('[Prescriptions] Generating PDF for renewed prescription');
+              logger.debug('[Prescriptions] Generating PDF for renewed prescription');
 
               // Step 5: Generate PDF
               await api.generatePrescriptionPdf(pdfParams);
 
-              console.log('[Prescriptions] PDF generated successfully');
+              logger.debug('[Prescriptions] PDF generated successfully');
 
               // Step 6: Success
               Alert.alert(
@@ -278,7 +279,7 @@ export const PrescriptionsScreen: React.FC = () => {
                 ]
               );
             } catch (error: any) {
-              console.error('[Prescriptions] Error renewing prescription:', error);
+              logger.error('[Prescriptions] Error renewing prescription:', error);
 
               // More specific error messages
               let errorMessage = 'Não foi possível renovar a prescrição. Por favor, tente novamente.';
@@ -321,17 +322,17 @@ export const PrescriptionsScreen: React.FC = () => {
           onPress: async () => {
             setConcludingPrescription(prev => ({ ...prev, [record.medId]: true }));
             try {
-              console.log('[Prescriptions] Concluding prescription without signature:', record.medId);
+              logger.debug('[Prescriptions] Concluding prescription without signature:', record.medId);
 
               // Step 1: Fetch patient data
-              console.log('[Prescriptions] Fetching patient data for:', record.medPatient);
+              logger.debug('[Prescriptions] Fetching patient data for:', record.medPatient);
               const patientData = await api.getPatientDetails(record.medPatient);
 
               // Step 2: Get practitioner data from auth store
               const { user } = useAuthStore.getState();
 
               // Step 3: Prepare prescription data for status update
-              console.log('[Prescriptions] Updating prescription status to completed');
+              logger.debug('[Prescriptions] Updating prescription status to completed');
               const metadata = record.medMetadata || record.metadata || {};
               const requestitens = record.medRequestItens || [];
               const prescriptionUpdateData = {
@@ -347,7 +348,7 @@ export const PrescriptionsScreen: React.FC = () => {
               };
 
               if (__DEV__) {
-                console.log('[Prescriptions] Prescription update payload:', {
+                logger.debug('[Prescriptions] Prescription update payload:', {
                   ...prescriptionUpdateData,
                   metadata: '(stringified)',
                   requestitens: `(stringified - ${requestitens.length} items)`,
@@ -356,7 +357,7 @@ export const PrescriptionsScreen: React.FC = () => {
 
               // Step 4: Update prescription status to "completed"
               await api.updatePrescriptionStatus(prescriptionUpdateData);
-              console.log('[Prescriptions] Prescription status updated to completed');
+              logger.debug('[Prescriptions] Prescription status updated to completed');
 
               // Step 5: Prepare PDF generation payload
               const pdfParams = {
@@ -401,24 +402,24 @@ export const PrescriptionsScreen: React.FC = () => {
                 })),
               };
 
-              console.log('[Prescriptions] Generating PDF for prescription:', record.medId);
-              console.log('[Prescriptions] PDF params items count:', pdfParams.items.length);
+              logger.debug('[Prescriptions] Generating PDF for prescription:', record.medId);
+              logger.debug('[Prescriptions] PDF params items count:', pdfParams.items.length);
 
               // Step 6: Generate PDF as base64
               const pdfData = await api.generatePrescriptionPdfBlob(pdfParams);
-              console.log('[Prescriptions] PDF generated, base64 length:', pdfData.base64.length);
+              logger.debug('[Prescriptions] PDF generated, base64 length:', pdfData.base64.length);
 
               // Step 7: Save PDF to temp file
               const fileUri = `${FileSystem.documentDirectory}${pdfData.fileName}`;
-              console.log('[Prescriptions] Saving PDF to file:', fileUri);
+              logger.debug('[Prescriptions] Saving PDF to file:', fileUri);
 
               await FileSystem.writeAsStringAsync(fileUri, pdfData.base64, {
                 encoding: FileSystem.EncodingType.Base64,
               });
-              console.log('[Prescriptions] PDF saved successfully');
+              logger.debug('[Prescriptions] PDF saved successfully');
 
               // Step 8: Upload PDF to Azure with attachment record
-              console.log('[Prescriptions] Uploading PDF to Azure with type MEDREQUEST and context:', record.medId);
+              logger.debug('[Prescriptions] Uploading PDF to Azure with type MEDREQUEST and context:', record.medId);
               const uploadResult = await api.uploadPrescriptionPdf(
                 fileUri,
                 pdfData.fileName,
@@ -427,8 +428,8 @@ export const PrescriptionsScreen: React.FC = () => {
                 record.medPatient
               );
 
-              console.log('[Prescriptions] PDF uploaded successfully:', uploadResult);
-              console.log('[Prescriptions] Attachment created with ID:', uploadResult.fileid);
+              logger.debug('[Prescriptions] PDF uploaded successfully:', uploadResult);
+              logger.debug('[Prescriptions] Attachment created with ID:', uploadResult.fileid);
 
               // Step 9: Success
               Alert.alert(
@@ -445,7 +446,7 @@ export const PrescriptionsScreen: React.FC = () => {
                 ]
               );
             } catch (error: any) {
-              console.error('[Prescriptions] Error concluding prescription:', error);
+              logger.error('[Prescriptions] Error concluding prescription:', error);
 
               // More specific error messages
               let errorMessage = 'Não foi possível concluir a prescrição. Por favor, tente novamente.';
@@ -531,7 +532,7 @@ export const PrescriptionsScreen: React.FC = () => {
         Alert.alert('Erro', 'Informações do anexo incompletas');
       }
     } catch (error) {
-      console.error('[Prescriptions] Error opening attachment:', error);
+      logger.error('[Prescriptions] Error opening attachment:', error);
       setDownloadingAttachment(prev => ({ ...prev, [attachmentId]: false }));
       Alert.alert('Erro', 'Não foi possível abrir o anexo');
     }

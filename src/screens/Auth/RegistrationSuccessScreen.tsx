@@ -14,6 +14,7 @@ import { theme } from '@theme/index';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { AuthStackParamList } from '../../types/navigation';
+import { logger } from '@/utils/logger';
 
 type SuccessNavigationProp = StackNavigationProp<AuthStackParamList, 'RegistrationSuccess'>;
 type SuccessRouteProp = RouteProp<AuthStackParamList, 'RegistrationSuccess'>;
@@ -36,7 +37,7 @@ export const RegistrationSuccessScreen: React.FC = () => {
   const displayName = name || email;
 
   if (__DEV__) {
-    console.log('🛠️ [RegistrationSuccess] Screen mounted', {
+    logger.debug('🛠️ [RegistrationSuccess] Screen mounted', {
       name,
       email,
     });
@@ -44,7 +45,7 @@ export const RegistrationSuccessScreen: React.FC = () => {
 
   const handleContinue = () => {
     if (__DEV__) {
-      console.log('🛠️ [RegistrationSuccess] Continuar acionado', {
+      logger.debug('🛠️ [RegistrationSuccess] Continuar acionado', {
         displayName,
         email,
       });

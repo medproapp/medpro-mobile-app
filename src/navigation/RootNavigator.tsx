@@ -8,12 +8,13 @@ import { OnboardingNavigator } from './OnboardingNavigator';
 import { Loading } from '@components/common';
 import { useAuthStore } from '@store/authStore';
 import { RootStackParamList } from '../types/navigation';
+import { logger } from '@/utils/logger';
 
 const Stack = createStackNavigator<RootStackParamList, 'RootNavigator'>();
 
 export const RootNavigator: React.FC = () => {
   const { isAuthenticated, isLoading, user } = useAuthStore();
-  // console.log('Auth State:', { isAuthenticated, isLoading, user });
+  // logger.debug('Auth State:', { isAuthenticated, isLoading, user });
   const needsOnboarding = isAuthenticated && user?.role === 'practitioner' && user?.firstLogin;
 
   return (

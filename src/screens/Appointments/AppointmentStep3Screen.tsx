@@ -19,6 +19,7 @@ import { useAppointmentStore } from '@store/appointmentStore';
 import { useAuthStore } from '@store/authStore';
 import { api } from '@services/api';
 import { DashboardStackParamList } from '@/types/navigation';
+import { logger } from '@/utils/logger';
 
 type Step3NavigationProp = StackNavigationProp<DashboardStackParamList, 'AppointmentStep3'>;
 
@@ -59,10 +60,10 @@ export const AppointmentStep3Screen: React.FC = () => {
 
     setLoading(true);
     try {
-      console.log('[AppointmentStep3] Loading care plans for patient:', appointmentData.subject);
+      logger.debug('[AppointmentStep3] Loading care plans for patient:', appointmentData.subject);
       
       const result = await api.getPatientCarePlans(appointmentData.subject, user.email);
-      console.log('[AppointmentStep3] Care plans result:', result);
+      logger.debug('[AppointmentStep3] Care plans result:', result);
       
       if (result?.data && Array.isArray(result.data)) {
         setCarePlans(result.data);
@@ -73,7 +74,7 @@ export const AppointmentStep3Screen: React.FC = () => {
       }
       setCarePlansLoaded(true);
     } catch (error) {
-      console.error('[AppointmentStep3] Error loading care plans:', error);
+      logger.error('[AppointmentStep3] Error loading care plans:', error);
       setCarePlans([]);
       setCarePlansLoaded(true);
     } finally {

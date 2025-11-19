@@ -19,6 +19,7 @@ import ImageViewing from 'react-native-image-viewing';
 import { theme } from '@theme/index';
 import { api } from '@services/api';
 import { PatientsStackParamList } from '@/types/navigation';
+import { logger } from '@/utils/logger';
 
 type ImagesRouteProp = RouteProp<PatientsStackParamList, 'Images'>;
 
@@ -89,7 +90,7 @@ export const ImagesScreen: React.FC = () => {
       setPage(pageNum);
 
     } catch (error) {
-      console.error('[Images] Error loading image records:', error);
+      logger.error('[Images] Error loading image records:', error);
 
       // Stop pagination on error to prevent infinite loops
       setHasMore(false);
@@ -142,7 +143,7 @@ export const ImagesScreen: React.FC = () => {
       const imageUri = await api.downloadImageBlob(record.file);
       setImageCache(prev => ({ ...prev, [record.img_seq]: imageUri }));
     } catch (error) {
-      console.error('[Images] Error downloading image:', record.file, error);
+      logger.error('[Images] Error downloading image:', record.file, error);
       setImageCache(prev => ({ ...prev, [record.img_seq]: null }));
     }
   };

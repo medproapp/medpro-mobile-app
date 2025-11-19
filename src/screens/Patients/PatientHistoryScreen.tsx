@@ -19,6 +19,7 @@ import Markdown from 'react-native-markdown-display';
 import { theme } from '@theme/index';
 import { api } from '@services/api';
 import { PatientsStackParamList } from '@/types/navigation';
+import { logger } from '@/utils/logger';
 
 type PatientHistoryRouteProp = RouteProp<PatientsStackParamList, 'PatientHistory'>;
 
@@ -101,7 +102,7 @@ export const PatientHistoryScreen: React.FC = () => {
       setPage(pageNum);
 
     } catch (error) {
-      console.error('[PatientHistory] Error loading patient history:', error);
+      logger.error('[PatientHistory] Error loading patient history:', error);
       Alert.alert('Erro', 'Não foi possível carregar o histórico do paciente');
     }
   };
@@ -144,7 +145,7 @@ export const PatientHistoryScreen: React.FC = () => {
         attachmentCount: attachments.length,
       }));
     } catch (error) {
-      console.error(`[PatientHistory] Error loading details for encounter ${encounterId}:`, error);
+      logger.error(`[PatientHistory] Error loading details for encounter ${encounterId}:`, error);
     } finally {
       setLoadingDetails(prev => {
         const newSet = new Set(prev);

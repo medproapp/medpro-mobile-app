@@ -12,6 +12,7 @@ import {
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
+import { logger } from '@/utils/logger';
 
 const APP_VERSION = '0.8.1';
 const BUILD_NUMBER = '81';
@@ -43,7 +44,7 @@ export const AboutScreen: React.FC = () => {
         await Linking.openURL(url);
       }
     } catch (error) {
-      console.error('Error opening link:', error);
+      logger.error('Error opening link:', error);
     }
   };
 

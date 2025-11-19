@@ -20,6 +20,7 @@ import { useAppointmentStore } from '@store/appointmentStore';
 import { useAuthStore } from '@store/authStore';
 import { api } from '@services/api';
 import { DashboardStackParamList } from '@/types/navigation';
+import { logger } from '@/utils/logger';
 
 type Step5NavigationProp = StackNavigationProp<DashboardStackParamList, 'AppointmentStep5'>;
 
@@ -60,7 +61,7 @@ export const AppointmentStep5Screen: React.FC = () => {
 
   // Load available times on component mount
   useEffect(() => {
-    console.log('[DEBUG-BUSY] useEffect triggered - calling loadBusySlots directly');
+    logger.debug('[DEBUG-BUSY] useEffect triggered - calling loadBusySlots directly');
     loadBusySlots();
     loadAvailableTimes();
     loadNextFiveSlots();
@@ -68,32 +69,32 @@ export const AppointmentStep5Screen: React.FC = () => {
 
   // Load busy slots from existing appointments
   const loadBusySlots = async () => {
-    console.log('[DEBUG-BUSY] 🚀 loadBusySlots called, user email:', user?.email);
+    logger.debug('[DEBUG-BUSY] 🚀 loadBusySlots called, user email:', user?.email);
     
     if (!user?.email) {
-      console.log('[DEBUG-BUSY] ❌ No user email, exiting');
+      logger.debug('[DEBUG-BUSY] ❌ No user email, exiting');
       return;
     }
 
     try {
-      console.log('[AppointmentStep5] Loading busy slots from existing appointments');
+      logger.debug('[AppointmentStep5] Loading busy slots from existing appointments');
       const result = await api.getPractitionerAppointments(user.email, { future: 'true', limit: 100 });
       
-      console.log('[DEBUG-BUSY] API Response:', result);
+      logger.debug('[DEBUG-BUSY] API Response:', result);
       
       const busy: { date: string; startTime: string; endTime: string }[] = [];
       
       if (result?.data && Array.isArray(result.data)) {
-        console.log('[DEBUG-BUSY] Processing', result.data.length, 'appointments');
+        logger.debug('[DEBUG-BUSY] Processing', result.data.length, 'appointments');
         
         result.data.forEach((appointment: any, index: number) => {
-          console.log(`[DEBUG-BUSY] Appointment ${index}:`, appointment);
+          logger.debug(`[DEBUG-BUSY] Appointment ${index}:`, appointment);
           
           // Only consider appointments with these statuses as "busy" (same as web app)
           const busyStatuses = ['booked', 'confirmed', 'arrived', 'checked-in'];
           const status = appointment.status ? appointment.status.toLowerCase() : '';
           
-          console.log(`[DEBUG-BUSY] Status check: "${status}" in [${busyStatuses.join(', ')}] = ${busyStatuses.includes(status)}`);
+          logger.debug(`[DEBUG-BUSY] Status check: "${status}" in [${busyStatuses.join(', ')}] = ${busyStatuses.includes(status)}`);
           
           if (busyStatuses.includes(status) && appointment.startdate && appointment.starttime && appointment.duration) {
             // Convert UTC appointment times to local for comparison
@@ -134,17 +135,17 @@ export const AppointmentStep5Screen: React.FC = () => {
                 endTime
               });
             } catch (error) {
-              console.warn('[AppointmentStep5] Error processing appointment time:', error, appointment);
+              logger.warn('[AppointmentStep5] Error processing appointment time:', error, appointment);
             }
           }
         });
       }
       
       setBusySlots(busy);
-      console.log('[AppointmentStep5] Loaded busy slots:', busy.length);
-      console.log('[DEBUG-BUSY] Busy slots details:', busy);
+      logger.debug('[AppointmentStep5] Loaded busy slots:', busy.length);
+      logger.debug('[DEBUG-BUSY] Busy slots details:', busy);
     } catch (error) {
-      console.warn('[AppointmentStep5] Could not load busy slots:', error);
+      logger.warn('[AppointmentStep5] Could not load busy slots:', error);
     }
   };
 
@@ -157,7 +158,7 @@ export const AppointmentStep5Screen: React.FC = () => {
 
     setLoading(true);
     try {
-      console.log('[AppointmentStep5] Loading available times');
+      logger.debug('[AppointmentStep5] Loading available times');
       const duration = getTotalDuration();
       
       // Get next 7 days in local timezone
@@ -226,7 +227,7 @@ export const AppointmentStep5Screen: React.FC = () => {
                     });
                   }
                 } catch (error) {
-                  console.warn('[AppointmentStep5] Error converting UTC time:', error, { slot });
+                  logger.warn('[AppointmentStep5] Error converting UTC time:', error, { slot });
                   // Fallback: use the time as-is
                   const duration = getTotalDuration();
                   const isBusy = isSlotBusy(dateString, utcTime, duration);
@@ -253,14 +254,14 @@ export const AppointmentStep5Screen: React.FC = () => {
             });
           }
         } catch (error) {
-          console.warn(`[AppointmentStep5] No slots for ${dateString}:`, error);
+          logger.warn(`[AppointmentStep5] No slots for ${dateString}:`, error);
         }
       }
       
       setAvailableDays(days);
-      console.log('[AppointmentStep5] Loaded available days:', days.length);
+      logger.debug('[AppointmentStep5] Loaded available days:', days.length);
     } catch (error) {
-      console.error('[AppointmentStep5] Error loading available times:', error);
+      logger.error('[AppointmentStep5] Error loading available times:', error);
       Alert.alert('Erro', 'Não foi possível carregar os horários disponíveis');
     } finally {
       setLoading(false);
@@ -272,7 +273,7 @@ export const AppointmentStep5Screen: React.FC = () => {
     if (!user?.email || !appointmentData.locationid) return;
 
     try {
-      console.log('[AppointmentStep5] Loading next five slots');
+      logger.debug('[AppointmentStep5] Loading next five slots');
       const duration = getTotalDuration();
       
       const result = await api.getNextFiveSlots(user.email, appointmentData.locationid, duration);
@@ -313,7 +314,7 @@ export const AppointmentStep5Screen: React.FC = () => {
                 localDateTime, // Keep the full datetime for filtering
               };
             } catch (error) {
-              console.warn('[AppointmentStep5] Error converting UTC time for quick slot:', error, { slot });
+              logger.warn('[AppointmentStep5] Error converting UTC time for quick slot:', error, { slot });
               // Fallback: use the data as-is
               return {
                 date: utcDate,
@@ -330,10 +331,10 @@ export const AppointmentStep5Screen: React.FC = () => {
           .map(({ localDateTime, ...slot }: { localDateTime: Date; [key: string]: any }) => slot); // Remove localDateTime from final result
         
         setNextFiveSlots(slots);
-        console.log('[AppointmentStep5] Loaded next five slots (future only):', slots.length);
+        logger.debug('[AppointmentStep5] Loaded next five slots (future only):', slots.length);
       }
     } catch (error) {
-      console.warn('[AppointmentStep5] Could not load next five slots:', error);
+      logger.warn('[AppointmentStep5] Could not load next five slots:', error);
     }
   };
 
@@ -345,15 +346,15 @@ export const AppointmentStep5Screen: React.FC = () => {
     const slotStart = new Date(dateYear, dateMonth - 1, dateDay, timeHours, timeMinutes, timeSeconds || 0);
     const slotEnd = new Date(slotStart.getTime() + duration * 60 * 1000);
     
-    console.log(`[DEBUG-BUSY] Checking slot ${date} ${time} (duration: ${duration}min)`);
-    console.log(`[DEBUG-BUSY] Slot time range: ${slotStart.toISOString()} - ${slotEnd.toISOString()}`);
-    console.log(`[DEBUG-BUSY] Available busy slots:`, busySlots);
+    logger.debug(`[DEBUG-BUSY] Checking slot ${date} ${time} (duration: ${duration}min)`);
+    logger.debug(`[DEBUG-BUSY] Slot time range: ${slotStart.toISOString()} - ${slotEnd.toISOString()}`);
+    logger.debug(`[DEBUG-BUSY] Available busy slots:`, busySlots);
     
     const conflicts = busySlots.filter(busy => {
-      console.log(`[DEBUG-BUSY] Checking against busy slot: ${busy.date} ${busy.startTime}-${busy.endTime}`);
+      logger.debug(`[DEBUG-BUSY] Checking against busy slot: ${busy.date} ${busy.startTime}-${busy.endTime}`);
       
       if (busy.date !== date) {
-        console.log(`[DEBUG-BUSY] Date mismatch: ${busy.date} !== ${date}`);
+        logger.debug(`[DEBUG-BUSY] Date mismatch: ${busy.date} !== ${date}`);
         return false;
       }
       
@@ -363,25 +364,25 @@ export const AppointmentStep5Screen: React.FC = () => {
       const busyStart = new Date(dateYear, dateMonth - 1, dateDay, busyHours, busyMinutes, busySeconds || 0);
       const busyEnd = new Date(dateYear, dateMonth - 1, dateDay, endHours, endMinutes, endSeconds || 0);
       
-      console.log(`[DEBUG-BUSY] Busy time range: ${busyStart.toISOString()} - ${busyEnd.toISOString()}`);
+      logger.debug(`[DEBUG-BUSY] Busy time range: ${busyStart.toISOString()} - ${busyEnd.toISOString()}`);
       
       // Check if the slot overlaps with the busy time
       const overlaps = slotStart < busyEnd && slotEnd > busyStart;
-      console.log(`[DEBUG-BUSY] Overlap check: ${slotStart.toISOString()} < ${busyEnd.toISOString()} && ${slotEnd.toISOString()} > ${busyStart.toISOString()} = ${overlaps}`);
+      logger.debug(`[DEBUG-BUSY] Overlap check: ${slotStart.toISOString()} < ${busyEnd.toISOString()} && ${slotEnd.toISOString()} > ${busyStart.toISOString()} = ${overlaps}`);
       
       if (overlaps) {
-        console.log(`[DEBUG-BUSY] ❌ CONFLICT with appointment: ${busy.date} ${busy.startTime}-${busy.endTime}`);
+        logger.debug(`[DEBUG-BUSY] ❌ CONFLICT with appointment: ${busy.date} ${busy.startTime}-${busy.endTime}`);
       }
       
       return overlaps;
     });
     
     if (conflicts.length > 0) {
-      console.log(`[DEBUG-BUSY] ❌ Slot ${date} ${time} is BUSY (${conflicts.length} conflicts)`);
+      logger.debug(`[DEBUG-BUSY] ❌ Slot ${date} ${time} is BUSY (${conflicts.length} conflicts)`);
       return true;
     }
     
-    console.log(`[DEBUG-BUSY] ✅ Slot ${date} ${time} is AVAILABLE`);
+    logger.debug(`[DEBUG-BUSY] ✅ Slot ${date} ${time} is AVAILABLE`);
     return false;
   };
 

@@ -21,6 +21,7 @@ import * as Haptics from 'expo-haptics';
 import { Feather } from '@expo/vector-icons';
 import { theme } from '../../../theme';
 import { useAssistantStore } from '../../../store/assistantStore';
+import { logger } from '@/utils/logger';
 
 interface AssistantAudioRecorderProps {
   onAudioRecorded: (audioUri: string) => void;
@@ -107,7 +108,7 @@ export const AssistantAudioRecorder: React.FC<AssistantAudioRecorderProps> = ({
   const recorder = useAudioRecorder(
     RecordingPresets.HIGH_QUALITY,
     (status) => {
-      console.log('[AssistantAudioRecorder] Recording status:', status);
+      logger.debug('[AssistantAudioRecorder] Recording status:', status);
     }
   );
 
@@ -133,14 +134,14 @@ export const AssistantAudioRecorder: React.FC<AssistantAudioRecorderProps> = ({
         playsInSilentMode: true,
       });
     } catch (error) {
-      console.error('[AssistantAudioRecorder] Error setting audio mode:', error);
+      logger.error('[AssistantAudioRecorder] Error setting audio mode:', error);
     }
   };
 
   // Audio and haptic feedback functions
   const playStartFeedback = async () => {
     try {
-      console.log('[AssistantAudioRecorder] Playing start feedback');
+      logger.debug('[AssistantAudioRecorder] Playing start feedback');
 
       // Audio feedback - high pitched beep using expo-audio
       startSoundPlayer.play();
@@ -152,13 +153,13 @@ export const AssistantAudioRecorder: React.FC<AssistantAudioRecorderProps> = ({
       }, 100);
 
     } catch (error) {
-      console.error('[AssistantAudioRecorder] Error playing start feedback:', error);
+      logger.error('[AssistantAudioRecorder] Error playing start feedback:', error);
     }
   };
 
   const playStopFeedback = async () => {
     try {
-      console.log('[AssistantAudioRecorder] Playing stop feedback');
+      logger.debug('[AssistantAudioRecorder] Playing stop feedback');
 
       // Audio feedback - low pitched beep using expo-audio
       stopSoundPlayer.play();
@@ -167,7 +168,7 @@ export const AssistantAudioRecorder: React.FC<AssistantAudioRecorderProps> = ({
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
     } catch (error) {
-      console.error('[AssistantAudioRecorder] Error playing stop feedback:', error);
+      logger.error('[AssistantAudioRecorder] Error playing stop feedback:', error);
     }
   };
 
@@ -215,7 +216,7 @@ export const AssistantAudioRecorder: React.FC<AssistantAudioRecorderProps> = ({
         setHasPermission(true);
       }
     } catch (error) {
-      console.error('[AssistantAudioRecorder] Error checking permissions:', error);
+      logger.error('[AssistantAudioRecorder] Error checking permissions:', error);
       setHasPermission(false);
     }
   };
@@ -229,7 +230,7 @@ export const AssistantAudioRecorder: React.FC<AssistantAudioRecorderProps> = ({
     if (disabled) return;
 
     try {
-      console.log('[AssistantAudioRecorder] Starting recording...');
+      logger.debug('[AssistantAudioRecorder] Starting recording...');
       
       // Reset state
       setRecordingDuration(0);
@@ -256,9 +257,9 @@ export const AssistantAudioRecorder: React.FC<AssistantAudioRecorderProps> = ({
         useNativeDriver: true,
       }).start();
 
-      console.log('[AssistantAudioRecorder] Recording started successfully');
+      logger.debug('[AssistantAudioRecorder] Recording started successfully');
     } catch (error) {
-      console.error('[AssistantAudioRecorder] Error starting recording:', error);
+      logger.error('[AssistantAudioRecorder] Error starting recording:', error);
       Alert.alert('Erro', 'Não foi possível iniciar a gravação de áudio.');
     }
   };
@@ -267,7 +268,7 @@ export const AssistantAudioRecorder: React.FC<AssistantAudioRecorderProps> = ({
     if (!recorder) return;
 
     try {
-      console.log('[AssistantAudioRecorder] Stopping recording...');
+      logger.debug('[AssistantAudioRecorder] Stopping recording...');
       
       // Stop duration timer
       if (durationInterval) {
@@ -294,14 +295,14 @@ export const AssistantAudioRecorder: React.FC<AssistantAudioRecorderProps> = ({
         useNativeDriver: true,
       }).start();
 
-      console.log('[AssistantAudioRecorder] Recording stopped, URI:', uri);
+      logger.debug('[AssistantAudioRecorder] Recording stopped, URI:', uri);
 
       // Automatically process the recording
       if (uri) {
         await processRecording(uri);
       }
     } catch (error) {
-      console.error('[AssistantAudioRecorder] Error stopping recording:', error);
+      logger.error('[AssistantAudioRecorder] Error stopping recording:', error);
       Alert.alert('Erro', 'Não foi possível parar a gravação.');
     }
   };
@@ -325,7 +326,7 @@ export const AssistantAudioRecorder: React.FC<AssistantAudioRecorderProps> = ({
         const transcription = await useAssistantStore.getState().transcribeAudio(uri);
         onTranscriptionComplete(transcription);
       } catch (transcriptionError) {
-        console.error('[AssistantAudioRecorder] Transcription failed:', transcriptionError);
+        logger.error('[AssistantAudioRecorder] Transcription failed:', transcriptionError);
         // Show error to user but don't crash
         Alert.alert('Erro', 'Não foi possível transcrever o áudio. Verifique sua conexão com a internet.');
         onTranscriptionComplete(''); // Empty transcription on error
@@ -333,7 +334,7 @@ export const AssistantAudioRecorder: React.FC<AssistantAudioRecorderProps> = ({
       
       setIsTranscribing(false);
     } catch (error) {
-      console.error('[AssistantAudioRecorder] Error processing recording:', error);
+      logger.error('[AssistantAudioRecorder] Error processing recording:', error);
       setIsTranscribing(false);
       Alert.alert('Erro', 'Não foi possível processar a gravação.');
     }
@@ -359,7 +360,7 @@ export const AssistantAudioRecorder: React.FC<AssistantAudioRecorderProps> = ({
           useNativeDriver: true,
         }).start();
       } catch (error) {
-        console.error('[AssistantAudioRecorder] Error canceling recording:', error);
+        logger.error('[AssistantAudioRecorder] Error canceling recording:', error);
       }
     }
   };

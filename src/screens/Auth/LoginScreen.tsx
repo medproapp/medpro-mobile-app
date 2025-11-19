@@ -21,6 +21,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import { AuthStackParamList } from '../../types/navigation';
+import { logger } from '@/utils/logger';
 
 type LoginNavigationProp = StackNavigationProp<AuthStackParamList, 'Login'>;
 type LoginRouteProp = RouteProp<AuthStackParamList, 'Login'>;
@@ -70,19 +71,19 @@ export const LoginScreen: React.FC = () => {
   const onSubmit = async (data: LoginCredentials) => {
     try {
       if (__DEV__) {
-        console.log('🛠️ [LoginScreen] Tentando login com credenciais', {
+        logger.debug('🛠️ [LoginScreen] Tentando login com credenciais', {
           email: data.email,
         });
       }
       clearError();
       await login(data);
       if (__DEV__) {
-        console.log('✅ [LoginScreen] Login solicitado com sucesso');
+        logger.debug('✅ [LoginScreen] Login solicitado com sucesso');
       }
       // Navigation will be handled by the auth state change
     } catch (error) {
       if (__DEV__) {
-        console.error('❌ [LoginScreen] Falha no login', error);
+        logger.error('❌ [LoginScreen] Falha no login', error);
       }
       Alert.alert(
         'Erro no Login',

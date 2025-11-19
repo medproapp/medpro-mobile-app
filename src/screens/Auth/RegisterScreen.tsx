@@ -21,6 +21,7 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { AuthStackParamList } from '../../types/navigation';
 import api from '@services/api';
+import { logger } from '@/utils/logger';
 
 type RegisterNavigationProp = StackNavigationProp<AuthStackParamList, 'Register'>;
 
@@ -145,7 +146,7 @@ export const RegisterScreen: React.FC = () => {
     const checkBackendStatus = async () => {
       const isOnline = await api.checkHealth();
       if (__DEV__) {
-        console.log('🛠️ [RegisterScreen] Resultado do health check da API', {
+        logger.debug('🛠️ [RegisterScreen] Resultado do health check da API', {
           isOnline,
         });
       }
@@ -175,7 +176,7 @@ export const RegisterScreen: React.FC = () => {
   const onSubmit = async (formData: RegisterData) => {
     try {
       if (__DEV__) {
-        console.log('🛠️ [RegisterScreen] Enviando cadastro de profissional', {
+        logger.debug('🛠️ [RegisterScreen] Enviando cadastro de profissional', {
           name: formData.name,
           email: formData.email,
         });
@@ -190,11 +191,11 @@ export const RegisterScreen: React.FC = () => {
       });
 
       if (__DEV__) {
-        console.log('✅ [RegisterScreen] Cadastro concluído com sucesso', {
+        logger.debug('✅ [RegisterScreen] Cadastro concluído com sucesso', {
           name: result.fullname || formData.name,
           email: result.email || formData.email,
         });
-        console.log('🛠️ [RegisterScreen] Navegando para RegistrationSuccess', {
+        logger.debug('🛠️ [RegisterScreen] Navegando para RegistrationSuccess', {
           route: 'RegistrationSuccess',
           params: {
             name: (result.fullname || formData.name).trim() || formData.name.trim(),
@@ -209,7 +210,7 @@ export const RegisterScreen: React.FC = () => {
       });
     } catch (submitError) {
       if (__DEV__) {
-        console.error('❌ [RegisterScreen] Falha ao cadastrar profissional', submitError);
+        logger.error('❌ [RegisterScreen] Falha ao cadastrar profissional', submitError);
       }
       Alert.alert(
         'Erro no cadastro',
@@ -229,7 +230,7 @@ export const RegisterScreen: React.FC = () => {
     const { name, email } = buildDevPractitioner();
 
     if (__DEV__) {
-      console.log('🧪 [RegisterScreen] Populando formulário com credenciais de teste', {
+      logger.debug('🧪 [RegisterScreen] Populando formulário com credenciais de teste', {
         name,
         email,
       });

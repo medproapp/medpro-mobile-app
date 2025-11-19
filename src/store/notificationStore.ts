@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { NotificationItem, NotificationState, NotificationsQuery, NotificationStatus } from '@/types/notifications';
 import { notificationsService } from '@services/notificationsService';
+import { logger } from '@/utils/logger';
 
 const DEFAULT_QUERY: NotificationsQuery = {
   page: 1,
@@ -33,7 +34,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       const pendingCount = await notificationsService.fetchUnreadCount();
       set({ pendingCount, isLoadingCount: false });
     } catch (error) {
-      console.error('[NotificationStore] Failed to load pending count', error);
+      logger.error('[NotificationStore] Failed to load pending count', error);
       set({
         isLoadingCount: false,
         error: error instanceof Error ? error.message : 'Erro ao buscar notificações',
@@ -70,7 +71,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       const latestPendingCount = await notificationsService.fetchUnreadCount();
       set({ pendingCount: latestPendingCount });
     } catch (error) {
-      console.error('[NotificationStore] Failed to load notifications', error);
+      logger.error('[NotificationStore] Failed to load notifications', error);
       set({
         isLoadingList: false,
         error: error instanceof Error ? error.message : 'Erro ao carregar notificações',
@@ -114,7 +115,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       const latestPendingCount = await notificationsService.fetchUnreadCount();
       set({ pendingCount: latestPendingCount });
     } catch (error) {
-      console.error('[NotificationStore] Failed to mark notification as read', error);
+      logger.error('[NotificationStore] Failed to mark notification as read', error);
     }
   },
 
@@ -153,7 +154,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       const latestPendingCount = await notificationsService.fetchUnreadCount();
       set({ pendingCount: latestPendingCount });
     } catch (error) {
-      console.error('[NotificationStore] Failed to mark all notifications as read', error);
+      logger.error('[NotificationStore] Failed to mark all notifications as read', error);
     }
   },
 
@@ -176,7 +177,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       const pendingCount = await notificationsService.fetchUnreadCount();
       set({ pendingCount });
     } catch (error) {
-      console.error('[NotificationStore] Failed to archive notification', error);
+      logger.error('[NotificationStore] Failed to archive notification', error);
     }
   },
 

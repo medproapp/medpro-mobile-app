@@ -22,6 +22,7 @@ import { AudioFilePicker } from '@components/AudioFilePicker';
 import { NoteAppendModal } from '@components/NoteAppendModal';
 import { useAuthStore } from '@store/authStore';
 import { apiService } from '@services/api';
+import { logger } from '@/utils/logger';
 
 type EncounterViewRouteProp = RouteProp<DashboardStackParamList, 'EncounterView'>;
 
@@ -93,11 +94,10 @@ export const EncounterViewScreen: React.FC = () => {
 
   const loadEncounterBasicInfo = async () => {
     try {
-      console.log('[EncounterView] Loading encounter info for ID:', encounterId);
+      logger.debug('[EncounterView] Loading encounter info for ID:', encounterId);
 
       // Fetch real encounter data from API
       const response = await apiService.getEncounterInfoById(encounterId);
-      console.log('[EncounterView] API response:', response);
 
       // Extract encounter data (API returns array)
       const encounterData = Array.isArray(response) ? response[0] : response;
@@ -119,7 +119,7 @@ export const EncounterViewScreen: React.FC = () => {
             minute: '2-digit'
           });
         } catch (dateError) {
-          console.error('[EncounterView] Error formatting date:', dateError);
+          logger.error('[EncounterView] Error formatting date:', dateError);
         }
       }
 
@@ -133,10 +133,10 @@ export const EncounterViewScreen: React.FC = () => {
         actualStart: encounterData.actualStart, // For duration calculation
       };
 
-      console.log('[EncounterView] Mapped encounter info:', encounterInfo);
+      logger.debug('[EncounterView] Mapped encounter info:', encounterInfo);
       setEncounter(encounterInfo);
     } catch (error) {
-      console.error('[EncounterView] Error loading encounter:', error);
+      logger.error('[EncounterView] Error loading encounter:', error);
       Alert.alert('Erro', 'Não foi possível carregar os dados do encontro.');
     } finally {
       setLoading(false);
@@ -172,7 +172,7 @@ export const EncounterViewScreen: React.FC = () => {
         1 // sequence number
       );
       
-      console.log('Audio upload successful:', response);
+      logger.debug('Audio upload successful:', response);
       
       Alert.alert(
         'Sucesso',
@@ -181,7 +181,7 @@ export const EncounterViewScreen: React.FC = () => {
       );
       
     } catch (error) {
-      console.error('Audio upload error:', error);
+      logger.error('Audio upload error:', error);
       Alert.alert(
         'Erro',
         'Não foi possível enviar a gravação de áudio. Tente novamente.',
@@ -210,7 +210,7 @@ export const EncounterViewScreen: React.FC = () => {
         user.email
       );
       
-      console.log('Attachment upload successful:', response);
+      logger.debug('Attachment upload successful:', response);
       
       Alert.alert(
         'Sucesso',
@@ -219,7 +219,7 @@ export const EncounterViewScreen: React.FC = () => {
       );
       
     } catch (error) {
-      console.error('Attachment upload error:', error);
+      logger.error('Attachment upload error:', error);
       Alert.alert(
         'Erro',
         'Não foi possível enviar o anexo. Tente novamente.',
@@ -248,7 +248,7 @@ export const EncounterViewScreen: React.FC = () => {
         fileSize
       );
 
-      console.log('Image upload successful:', response);
+      logger.debug('Image upload successful:', response);
 
       Alert.alert(
         'Sucesso',
@@ -257,7 +257,7 @@ export const EncounterViewScreen: React.FC = () => {
       );
 
     } catch (error) {
-      console.error('Image upload error:', error);
+      logger.error('Image upload error:', error);
       Alert.alert(
         'Erro',
         'Não foi possível enviar a imagem. Tente novamente.',
@@ -285,25 +285,25 @@ export const EncounterViewScreen: React.FC = () => {
   };
 
   const handleAudioFileSelected = async (fileUri: string, fileName: string, fileType: string) => {
-    console.log('[EncounterView] === AUDIO FILE UPLOAD DEBUG START ===');
-    console.log('[EncounterView] File details:', {
+    logger.debug('[EncounterView] === AUDIO FILE UPLOAD DEBUG START ===');
+    logger.debug('[EncounterView] File details:', {
       fileUri,
       fileName,
       fileType,
     });
-    console.log('[EncounterView] Encounter context:', {
+    logger.debug('[EncounterView] Encounter context:', {
       encounterId,
       patientCpf,
       patientName,
     });
-    console.log('[EncounterView] User context:', {
+    logger.debug('[EncounterView] User context:', {
       email: user?.email,
       organization: user?.organization,
       name: user?.name,
     });
 
     if (!user?.email) {
-      console.error('[EncounterView] ERROR: User not authenticated');
+      logger.error('[EncounterView] ERROR: User not authenticated');
       Alert.alert('Erro', 'Usuário não autenticado.');
       return;
     }
@@ -311,7 +311,7 @@ export const EncounterViewScreen: React.FC = () => {
     try {
       setIsUploadingAudioFile(true);
 
-      console.log('[EncounterView] Calling apiService.uploadAudioRecording with params:', {
+      logger.debug('[EncounterView] Calling apiService.uploadAudioRecording with params:', {
         audioPath: fileUri,
         encounterId,
         patientCpf,
@@ -327,8 +327,8 @@ export const EncounterViewScreen: React.FC = () => {
         1 // sequence number
       );
 
-      console.log('[EncounterView] Audio file upload successful:', response);
-      console.log('[EncounterView] === AUDIO FILE UPLOAD DEBUG END (SUCCESS) ===');
+      logger.debug('[EncounterView] Audio file upload successful:', response);
+      logger.debug('[EncounterView] === AUDIO FILE UPLOAD DEBUG END (SUCCESS) ===');
 
       // Close modal and show success message
       setAudioFilePickerVisible(false);
@@ -340,8 +340,8 @@ export const EncounterViewScreen: React.FC = () => {
       );
 
     } catch (error: any) {
-      console.error('[EncounterView] === AUDIO FILE UPLOAD DEBUG END (ERROR) ===');
-      console.error('[EncounterView] Error details:', {
+      logger.error('[EncounterView] === AUDIO FILE UPLOAD DEBUG END (ERROR) ===');
+      logger.error('[EncounterView] Error details:', {
         message: error?.message,
         name: error?.name,
         stack: error?.stack,
@@ -375,18 +375,18 @@ export const EncounterViewScreen: React.FC = () => {
     }
 
     try {
-      console.log('[EncounterView] === MOBILE NOTE APPEND START ===');
-      console.log('[EncounterView] Note text length:', noteText.length);
+      logger.debug('[EncounterView] === MOBILE NOTE APPEND START ===');
+      logger.debug('[EncounterView] Note text length:', noteText.length);
 
       // Backend handles fetching current notes, appending with timestamp, and updating
       await apiService.appendMobileNote(encounterId, noteText);
 
-      console.log('[EncounterView] === MOBILE NOTE APPEND SUCCESS ===');
+      logger.debug('[EncounterView] === MOBILE NOTE APPEND SUCCESS ===');
 
       Alert.alert('Sucesso', 'Nota adicionada com sucesso!');
     } catch (error: any) {
-      console.error('[EncounterView] === MOBILE NOTE APPEND ERROR ===');
-      console.error('[EncounterView] Error details:', {
+      logger.error('[EncounterView] === MOBILE NOTE APPEND ERROR ===');
+      logger.error('[EncounterView] Error details:', {
         message: error?.message,
         name: error?.name,
       });

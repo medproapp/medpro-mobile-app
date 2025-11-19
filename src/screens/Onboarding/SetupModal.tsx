@@ -19,6 +19,7 @@ import {
   ServiceTypeOption,
 } from '@/types/onboarding';
 import { onboardingService } from '@services/onboardingService';
+import { logger } from '@/utils/logger';
 
 const generateCPF = ({ format = true }: { format?: boolean } = {}) => {
   const digitsBase = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10));
@@ -148,7 +149,7 @@ export const SetupModal: React.FC<SetupModalProps> = ({
 
 const normalizeOption = (raw: unknown, fallbackIndex: number) => {
   if (__DEV__) {
-    console.log('[Onboarding] Raw option item:', raw);
+    logger.debug('[Onboarding] Raw option item:', raw);
   }
 
   if (raw == null) {
@@ -165,7 +166,7 @@ const normalizeOption = (raw: unknown, fallbackIndex: number) => {
         return normalizeOption(JSON.parse(trimmed), fallbackIndex);
       } catch (parseError) {
         if (__DEV__) {
-          console.warn('[Onboarding] Não foi possível fazer parse do item de serviço/categoria:', trimmed, parseError);
+          logger.warn('[Onboarding] Não foi possível fazer parse do item de serviço/categoria:', trimmed, parseError);
         }
       }
     }
@@ -261,7 +262,7 @@ const normalizeOption = (raw: unknown, fallbackIndex: number) => {
   const normalizedCategories = useMemo(() => {
     const mapped = categories.map((category, index) => normalizeOption(category as Record<string, any>, index));
     if (__DEV__) {
-      console.log('[Onboarding] Categorias normalizadas:', mapped);
+      logger.debug('[Onboarding] Categorias normalizadas:', mapped);
     }
     return mapped;
   }, [categories]);
@@ -269,7 +270,7 @@ const normalizeOption = (raw: unknown, fallbackIndex: number) => {
   const normalizedServiceTypes = useMemo(() => {
     const mapped = serviceTypes.map((service, index) => normalizeOption(service as Record<string, any>, index));
     if (__DEV__) {
-      console.log('[Onboarding] Tipos de serviço normalizados:', mapped);
+      logger.debug('[Onboarding] Tipos de serviço normalizados:', mapped);
     }
     return mapped;
   }, [serviceTypes]);
@@ -326,7 +327,7 @@ const normalizeOption = (raw: unknown, fallbackIndex: number) => {
         });
       }
     } catch (lookupError) {
-      console.error('CEP lookup failed', lookupError);
+      logger.error('CEP lookup failed', lookupError);
       setCepError('Não foi possível consultar o CEP.');
     } finally {
       setCepLoading(false);

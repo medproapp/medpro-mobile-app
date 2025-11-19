@@ -18,6 +18,7 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
 import { api } from '@services/api';
 import { PatientsStackParamList } from '@/types/navigation';
+import { logger } from '@/utils/logger';
 
 type DiagnosticsRouteProp = RouteProp<PatientsStackParamList, 'Diagnostics'>;
 
@@ -97,7 +98,7 @@ export const DiagnosticsScreen: React.FC = () => {
       setPage(pageNum);
 
     } catch (error) {
-      console.error('[Diagnostics] Error loading diagnostic records:', error);
+      logger.error('[Diagnostics] Error loading diagnostic records:', error);
 
       // Stop pagination on error to prevent infinite loops
       setHasMore(false);

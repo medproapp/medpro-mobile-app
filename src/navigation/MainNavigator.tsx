@@ -40,6 +40,7 @@ import { MainTabParamList, DashboardStackParamList, PatientsStackParamList, Mess
 import { theme } from '@theme/index';
 import { useNotifications } from '../hooks/useNotifications';
 import { useMessagingUnreadCount } from '@store/messagingStore';
+import { logger } from '@/utils/logger';
 
 const Tab = createBottomTabNavigator<MainTabParamList, 'MainTabNavigator'>();
 const DashboardStack = createStackNavigator<DashboardStackParamList, 'DashboardStackNavigator'>();
@@ -124,7 +125,7 @@ const TabIcon: React.FC<TabIconProps> = ({
         </View>
       );
     } catch (error) {
-      console.warn('Failed to load MedPro logo, falling back to assistant icon');
+      logger.warn('Failed to load MedPro logo, falling back to assistant icon');
       // Fallback to assistant icon if logo fails to load
       const IconComponent = FontAwesome;
       return (

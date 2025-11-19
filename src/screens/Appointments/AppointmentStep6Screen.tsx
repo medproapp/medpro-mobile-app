@@ -20,6 +20,7 @@ import { useAppointmentStore } from '@store/appointmentStore';
 import { useAuthStore } from '@store/authStore';
 import api from '@services/api';
 import { DashboardStackParamList } from '@/types/navigation';
+import { logger } from '@/utils/logger';
 
 type Step6NavigationProp = StackNavigationProp<DashboardStackParamList, 'AppointmentStep6'>;
 
@@ -75,8 +76,8 @@ export const AppointmentStep6Screen: React.FC = () => {
       
       if (allCategoriesResult && practCategoriesResult?.data?.serviceCategoryList) {
         const practServiceCategoryIds = practCategoriesResult.data.serviceCategoryList;
-        console.log('[AppointmentStep6] Practitioner category IDs:', practServiceCategoryIds);
-        console.log('[AppointmentStep6] All categories:', allCategoriesResult);
+        logger.debug('[AppointmentStep6] Practitioner category IDs:', practServiceCategoryIds);
+        logger.debug('[AppointmentStep6] All categories:', allCategoriesResult);
         
         const availableCategories = allCategoriesResult.filter((cat: any) => 
           practServiceCategoryIds.includes(parseInt(cat.categoryId))
@@ -85,7 +86,7 @@ export const AppointmentStep6Screen: React.FC = () => {
           name: cat.categoryDesc
         }));
         
-        console.log('[AppointmentStep6] Available categories:', availableCategories);
+        logger.debug('[AppointmentStep6] Available categories:', availableCategories);
         setCategories(availableCategories);
       }
 
@@ -157,7 +158,7 @@ export const AppointmentStep6Screen: React.FC = () => {
       }
 
     } catch (error) {
-      console.error('[AppointmentStep6] Error loading dropdown data:', error);
+      logger.error('[AppointmentStep6] Error loading dropdown data:', error);
       Alert.alert('Erro', 'Não foi possível carregar os dados necessários');
     } finally {
       setLoading(false);

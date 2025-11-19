@@ -19,7 +19,7 @@ import {
   FormDetailApiResponse,
   PreAppointmentFormStatus,
 } from '../types/preAppointment';
-import { logger } from '../utils/logger';
+import { logger } from '@/utils/logger';
 
 interface ApiConfig {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -56,22 +56,11 @@ class ApiService {
       ...config.headers,
     };
 
-    // console.log('[API] Making request:', {
-    //   method,
-    //   url,
-    //   headers: {
-    //     ...headers,
-    //     Authorization: headers.Authorization ? '[REDACTED]' : undefined
-    //   }
-    // });
-
     const response = await fetch(url, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
     });
-
-    // console.log('[API] Response status:', response.status, response.statusText);
 
     if (!response.ok) {
       // Handle 404 as empty data for patient history endpoints
@@ -120,8 +109,7 @@ class ApiService {
     }
 
     const result = await response.json();
-    // console.log('[API] Response data:', result);
-    return result as T;
+        return result as T;
   }
 
   // Auth endpoints
@@ -212,49 +200,34 @@ class ApiService {
 
   // Get appointment details by ID
   async getAppointmentById(appointmentId: string) {
-    // console.log('[API] getAppointmentById called with ID:', appointmentId);
-    return this.request(`/appointment/getappointmentbyid/${appointmentId}`, {
+        return this.request(`/appointment/getappointmentbyid/${appointmentId}`, {
       headers: this.getOrgHeaders(),
     });
   }
 
   // Get patient details by CPF
   async getPatientDetails(cpf: string) {
-    // console.log('[API] getPatientDetails called with CPF:', cpf);
-    // console.log('[API] User context:', { organization: user?.organization, email: user?.email });
-
+        
     try {
       const result = await this.request(`/patient/getpatientdetails/${cpf}`, {
         headers: this.getOrgHeaders(),
       });
-      // console.log('[API] getPatientDetails success:', result);
-      return result;
+            return result;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getPatientDetails error:', error);
-      }
+      logger.error('Failed to get patient details:', error);
       throw error;
     }
   }
 
   // Get lead details by ID
   async getLeadDetails(leadId: string) {
-    if (__DEV__) {
-      console.log('[API] getLeadDetails called with ID:', leadId);
-    }
-
     try {
       const result = await this.request(`/patient/lead/${leadId}`, {
         headers: this.getOrgHeaders(),
       });
-      if (__DEV__) {
-        console.log('[API] getLeadDetails success:', result);
-      }
       return result;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getLeadDetails error:', error);
-      }
+      logger.error('Failed to get lead details:', error);
       throw error;
     }
   }
@@ -278,8 +251,7 @@ class ApiService {
   async searchPatients(searchTerm: string, searchType: 'name' | 'cpf' | 'phone', page: number = 1, limit: number = 10) {
     const { user } = useAuthStore.getState();
     const userEmail = user?.email || '';
-    // console.log('[API] searchPatients called with term:', searchTerm, 'type:', searchType);
-
+    
     try {
       // Use the same endpoint as web frontend: /patient/getpatientbyname/${practId}
       const params = new URLSearchParams({
@@ -291,30 +263,22 @@ class ApiService {
       const result = await this.request(`/patient/getpatientbyname/${userEmail}?${params}`, {
         headers: this.getOrgHeaders(),
       });
-      // console.log('[API] searchPatients success:', result);
       return result;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] searchPatients error:', error);
-      }
+      logger.error('Failed to search patients:', error);
       throw error;
     }
   }
 
   // Get patient appointments
   async getPatientAppointments(patientCpf: string) {
-    // console.log('[API] getPatientAppointments called with CPF:', patientCpf);
-
     try {
       const result = await this.request(`/appointment/getnextpatientappointments/${patientCpf}`, {
         headers: this.getOrgHeaders(),
       });
-      // console.log('[API] getPatientAppointments success:', result);
       return result;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getPatientAppointments error:', error);
-      }
+      logger.error('Failed to get patient appointments:', error);
       throw error;
     }
   }
@@ -323,10 +287,6 @@ class ApiService {
   async getPatientPhoto(patientCpf: string) {
     const { token } = useAuthStore.getState();
 
-    if (__DEV__) {
-      console.log('[API] getPatientPhoto called for CPF:', patientCpf);
-    }
-
     const url = `${API_BASE_URL}/patient/getpatientphoto?patientCpf=${patientCpf}`;
     const headers = {
       'Content-Type': 'application/json',
@@ -334,25 +294,13 @@ class ApiService {
       ...(token && { Authorization: `Bearer ${token}` }),
     };
 
-    if (__DEV__) {
-      console.log('[API] Fetching patient photo from:', url);
-    }
-
     try {
       const response = await fetch(url, {
         method: 'GET',
         headers,
       });
 
-      if (__DEV__) {
-        console.log('[API] Patient photo response status:', response.status);
-        console.log('[API] Patient photo response headers:', Object.fromEntries(response.headers.entries()));
-      }
-
       if (response.status === 404) {
-        if (__DEV__) {
-          console.log('[API] Patient photo not found (404)');
-        }
         return null;
       }
 
@@ -362,36 +310,22 @@ class ApiService {
 
       // Check if response has content
       const contentLength = response.headers.get('content-length');
-      if (__DEV__) {
-        console.log('[API] Photo content length:', contentLength);
-      }
 
       if (contentLength === '0' || contentLength === null) {
-        if (__DEV__) {
-          console.log('[API] No photo data available (empty response)');
-        }
         return null;
       }
 
       const arrayBuffer = await response.arrayBuffer();
       if (!arrayBuffer || arrayBuffer.byteLength === 0) {
-        if (__DEV__) {
-          console.log('[API] No photo data available (empty buffer)');
-        }
         return null;
       }
 
       const base64 = Buffer.from(arrayBuffer).toString('base64');
       const contentType = response.headers.get('content-type') || 'image/jpeg';
       const dataUri = `data:${contentType};base64,${base64}`;
-      if (__DEV__) {
-        console.log('[API] Photo converted to base64, length:', dataUri.length);
-      }
       return dataUri;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] Error fetching patient photo:', error);
-      }
+      logger.error('Failed to fetch patient photo:', error);
       throw error;
     }
   }
@@ -410,22 +344,13 @@ class ApiService {
       status: JSON.stringify(statusFilter)
     });
 
-    if (__DEV__) {
-      console.log('[API] getInProgressEncounters called for practitioner:', practId);
-    }
-
     try {
       const result = await this.request(`/encounter/getencounters/practitioner/${practId}?${params}`, {
         headers: this.getOrgHeaders(practId),
       });
-      if (__DEV__) {
-        console.log('[API] getInProgressEncounters success:', result);
-      }
       return result;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getInProgressEncounters error:', error);
-      }
+      logger.error('Failed to get in-progress encounters:', error);
       throw error;
     }
   }
@@ -453,24 +378,14 @@ class ApiService {
   }
 
   async getPractitionerPatientEncounters(patientCpf: string) {
-    if (__DEV__) {
-      console.log('[API] getPractitionerPatientEncounters called with CPF:', patientCpf);
-    }
-
     try {
       const response = await this.request(`/encounter/practitioner-encounters/${patientCpf}`, {
         headers: this.getOrgHeaders(),
       });
 
-      if (__DEV__) {
-        console.log('[API] getPractitionerPatientEncounters response:', JSON.stringify(response, null, 2));
-      }
-
       return response;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getPractitionerPatientEncounters error:', error);
-      }
+      logger.error('Failed to get practitioner patient encounters:', error);
       throw error;
     }
   }
@@ -481,45 +396,22 @@ class ApiService {
     });
   }
 
-  // async getEncounterInfoById(encounterId: string) {
-  //   const { user } = useAuthStore.getState();
-
-  //   return this.request(`/encounter/getencounterinfobyid/${encounterId}`, {
-  //     headers: {
-  //       'managingorg': user?.organization,
-  //       'practid': user?.email || '',
-  //     },
-  //   });
-  // }
-
   // Update encounter status (pause/resume)
   async updateEncounterStatus(encounterId: string, status: string) {
-    if (__DEV__) {
-      console.log('[API] updateEncounterStatus called with:', { encounterId, status });
-    }
-
     try {
       const result = await this.request(`/encounter/updateencounterstatus/${encounterId}?status=${status}`, {
         method: 'POST',
         headers: this.getOrgHeaders()
       });
-      if (__DEV__) {
-        console.log('[API] updateEncounterStatus success:', result);
-      }
       return result;
     } catch (error: unknown) {
-      if (__DEV__) {
-        console.error('[API] updateEncounterStatus error:', error);
-      }
+      logger.error('Failed to update encounter status:', error);
       throw error;
     }
   }
 
   // Append mobile note (uses separate MobileNotes field to avoid conflicts with web app)
   async appendMobileNote(encounterId: string, noteText: string) {
-    if (__DEV__) {
-      console.log('[API] appendMobileNote called with:', { encounterId, noteTextLength: noteText.length });
-    }
 
     try {
       const result = await this.request(`/encounter/append-mobile-note/${encounterId}`, {
@@ -529,14 +421,9 @@ class ApiService {
           noteText: noteText,
         },
       });
-      if (__DEV__) {
-        console.log('[API] appendMobileNote success:', result);
-      }
       return result;
     } catch (error: unknown) {
-      if (__DEV__) {
-        console.error('[API] appendMobileNote error:', error);
-      }
+      logger.error('Failed to append mobile note:', error);
       throw error;
     }
   }
@@ -552,8 +439,6 @@ class ApiService {
       headers: this.getOrgHeaders(),
     });
 
-    // console.log('[API] getEncounterClinicalRecords response:', JSON.stringify(response, null, 2));
-
     return response;
   }
 
@@ -567,24 +452,14 @@ class ApiService {
       ...(options.encounter && { encounter: options.encounter })
     });
 
-    if (__DEV__) {
-      console.log('[API] getPatientClinicalRecords called with CPF:', patientCpf, 'options:', options);
-    }
-
     try {
       const response = await this.request(`/clinical/records/${patientCpf}?${params}`, {
         headers: this.getOrgHeaders(),
       });
 
-      if (__DEV__) {
-        console.log('[API] getPatientClinicalRecords response:', JSON.stringify(response, null, 2));
-      }
-
       return response;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getPatientClinicalRecords error:', error);
-      }
+      logger.error('Failed to get patient clinical records:', error);
       throw error;
     }
   }
@@ -598,24 +473,14 @@ class ApiService {
       ...(options.encounter && { encounter: options.encounter })
     });
 
-    if (__DEV__) {
-      console.log('[API] getPatientMedicationRecords called with CPF:', patientCpf, 'options:', options);
-    }
-
     try {
       const response = await this.request(`/medication/records/${patientCpf}?${params}`, {
         headers: this.getOrgHeaders(),
       });
 
-      if (__DEV__) {
-        console.log('[API] getPatientMedicationRecords response:', JSON.stringify(response, null, 2));
-      }
-
       return response;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getPatientMedicationRecords error:', error);
-      }
+      logger.error('Failed to get patient medication records:', error);
       throw error;
     }
   }
@@ -628,25 +493,13 @@ class ApiService {
       ...(options.category && { category: options.category }),
       ...(options.code && { code: options.code })
     });
-
-    if (__DEV__) {
-      console.log('[API] getPatientDiagnosticRecords called with CPF:', patientCpf, 'options:', options);
-    }
-
     try {
       const response = await this.request(`/diagnostic/records/${patientCpf}?${params}`, {
         headers: this.getOrgHeaders(),
       });
-
-      if (__DEV__) {
-        console.log('[API] getPatientDiagnosticRecords response:', JSON.stringify(response, null, 2));
-      }
-
       return response;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getPatientDiagnosticRecords error:', error);
-      }
+      logger.error('[API] getPatientDiagnosticRecords error:', error);
       throw error;
     }
   }
@@ -656,25 +509,13 @@ class ApiService {
       page: (options.page || 1).toString(),
       limit: (options.limit || 10).toString(),
     });
-
-    if (__DEV__) {
-      console.log('[API] getPatientImageRecords called with ID:', patientId, 'options:', options);
-    }
-
     try {
       const response = await this.request(`/images/records/${patientId}?${params}`, {
         headers: this.getOrgHeaders(),
       });
-
-      if (__DEV__) {
-        console.log('[API] getPatientImageRecords response:', JSON.stringify(response, null, 2));
-      }
-
       return response;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getPatientImageRecords error:', error);
-      }
+      logger.error('[API] getPatientImageRecords error:', error);
       throw error;
     }
   }
@@ -685,10 +526,6 @@ class ApiService {
    * @returns Base64 data URI for React Native Image component, or null on error
    */
   async downloadImageBlob(blobname: string): Promise<string | null> {
-    if (__DEV__) {
-      console.log('[API] downloadImageBlob called with:', blobname);
-    }
-
     try {
       const url = `${API_BASE_URL}/images/getfromazure/${encodeURIComponent(blobname)}`;
 
@@ -714,18 +551,13 @@ class ApiService {
         reader.onloadend = () => {
           const base64data = reader.result as string;
           // The result is already a data URI (data:image/jpeg;base64,...)
-          if (__DEV__) {
-            console.log('[API] downloadImageBlob success, size:', base64data.length);
-          }
           resolve(base64data);
         };
         reader.onerror = reject;
         reader.readAsDataURL(blob);
       });
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] downloadImageBlob error:', error);
-      }
+      logger.error('[API] downloadImageBlob error:', error);
       return null;
     }
   }
@@ -735,25 +567,13 @@ class ApiService {
       page: (options.page || 1).toString(),
       limit: (options.limit || 10).toString(),
     });
-
-    if (__DEV__) {
-      console.log('[API] getPatientAttachments called with ID:', patientId, 'options:', options);
-    }
-
     try {
       const response = await this.request(`/attach/getbypatient/${patientId}?${params}`, {
         headers: this.getOrgHeaders(),
       });
-
-      if (__DEV__) {
-        console.log('[API] getPatientAttachments response:', JSON.stringify(response, null, 2));
-      }
-
       return response;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getPatientAttachments error:', error);
-      }
+      logger.error('[API] getPatientAttachments error:', error);
       throw error;
     }
   }
@@ -763,25 +583,13 @@ class ApiService {
       page: (options.page || 1).toString(),
       limit: (options.limit || 10).toString(),
     });
-
-    if (__DEV__) {
-      console.log('[API] getPatientRecordings called with CPF:', patientCpf, 'options:', options);
-    }
-
     try {
       const response = await this.request(`/recordings/patient/${patientCpf}?${params}`, {
         headers: this.getOrgHeaders(),
       });
-
-      if (__DEV__) {
-        console.log('[API] getPatientRecordings response:', JSON.stringify(response, null, 2));
-      }
-
       return response;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getPatientRecordings error:', error);
-      }
+      logger.error('[API] getPatientRecordings error:', error);
       throw error;
     }
   }
@@ -823,11 +631,6 @@ class ApiService {
     const response = await this.request(`/clinical/record/${clinicalId}/attachments`, {
       headers: this.getOrgHeaders(),
     });
-
-    if (__DEV__) {
-      console.log('[API] getClinicalRecordAttachments response:', JSON.stringify(response, null, 2));
-    }
-
     return response;
   }
 
@@ -835,11 +638,6 @@ class ApiService {
     const response = await this.request(`/attach/getbycontext/${contextId}`, {
       headers: this.getOrgHeaders(),
     });
-
-    if (__DEV__) {
-      console.log('[API] getAttachmentsByContext response:', JSON.stringify(response, null, 2));
-    }
-
     return response;
   }
 
@@ -895,32 +693,12 @@ class ApiService {
       limit: (params.limit || 50).toString(),
       offset: (params.offset || 0).toString(),
     });
-
-    if (__DEV__) {
-      console.log('[API] getThreadMessages -> request', {
-      threadId,
-      params,
-      query: queryParams.toString(),
-      });
-    }
-
     const response = await this.request(`/api/internal-comm/messages/thread/${threadId}?${queryParams}`);
-
-    if (__DEV__) {
-      console.log('[API] getThreadMessages <- response', response);
-    }
-
     return response;
   }
 
   async getThreadParticipants(threadId: string): Promise<any> {
-    if (__DEV__) {
-      console.log('[API] getThreadParticipants -> request', { threadId });
-    }
     const response = await this.request(`/api/internal-comm/messages/thread/${threadId}/participants`);
-    if (__DEV__) {
-      console.log('[API] getThreadParticipants <- response', response);
-    }
     return response;
   }
 
@@ -1083,46 +861,22 @@ class ApiService {
     formData.append('filetype', 'application/pdf');
     formData.append('datasource', 'medpro-mobile');
 
-    if (__DEV__) {
-      console.log('[API] uploadPrescriptionPdf called with:', {
-        filePath,
-        fileName,
-        prescriptionId,
-        encounterId,
-        patientCpf,
-      });
-      console.log('[API] uploadPrescriptionPdf context (prescription ID):', prescriptionId);
-    }
-
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
 
       xhr.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable) {
           const percentComplete = (event.loaded / event.total) * 100;
-          if (__DEV__) {
-            console.log(`[API] Prescription PDF upload progress: ${percentComplete.toFixed(1)}%`);
-          }
         }
       });
 
       xhr.addEventListener('load', () => {
-        if (__DEV__) {
-          console.log('[API] Prescription PDF upload response status:', xhr.status);
-          console.log('[API] Prescription PDF upload response text:', xhr.responseText);
-        }
-
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             const response = JSON.parse(xhr.responseText);
-            if (__DEV__) {
-              console.log('[API] Prescription PDF uploaded successfully:', response);
-            }
             resolve(response);
           } catch (error) {
-            if (__DEV__) {
-              console.error('[API] Error parsing prescription PDF upload response:', error);
-            }
+            logger.error('[API] Error parsing prescription PDF upload response:', error);
             reject(new Error('Invalid response format'));
           }
         } else {
@@ -1131,16 +885,11 @@ class ApiService {
       });
 
       xhr.addEventListener('error', () => {
-        if (__DEV__) {
-          console.error('[API] Prescription PDF upload network error');
-        }
+        logger.error('Prescription PDF upload network error');
         reject(new Error('Network error during prescription PDF upload'));
       });
 
       xhr.addEventListener('abort', () => {
-        if (__DEV__) {
-          console.log('[API] Prescription PDF upload was aborted');
-        }
         reject(new Error('Prescription PDF upload was aborted'));
       });
 
@@ -1188,46 +937,23 @@ class ApiService {
     const headers = {
       'Content-Type': 'multipart/form-data',
     };
-
-    if (__DEV__) {
-      console.log('[API] uploadAttachment called with:', {
-      filePath,
-      fileName,
-      fileType,
-      encounterId,
-      patientCpf,
-      practitionerId,
-      });
-    }
-
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
 
       xhr.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable) {
           const percentComplete = (event.loaded / event.total) * 100;
-          if (__DEV__) {
-            console.log(`[API] Attachment upload progress: ${percentComplete.toFixed(1)}%`);
-          }
         }
       });
 
       xhr.addEventListener('load', () => {
-        if (__DEV__) {
-          console.log('[API] Attachment upload response status:', xhr.status);
-        }
-        if (__DEV__) {
-          console.log('[API] Attachment upload response text:', xhr.responseText);
-        }
 
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             const response = JSON.parse(xhr.responseText);
             resolve(response);
           } catch (error) {
-            if (__DEV__) {
-              console.error('[API] Error parsing attachment response:', error);
-            }
+            logger.error('[API] Error parsing attachment response:', error);
             reject(new Error('Invalid response format'));
           }
         } else {
@@ -1236,16 +962,11 @@ class ApiService {
       });
 
       xhr.addEventListener('error', () => {
-        if (__DEV__) {
-          console.error('[API] Attachment upload network error');
-        }
+        logger.error('Attachment upload network error');
         reject(new Error('Network error during attachment upload'));
       });
 
       xhr.addEventListener('abort', () => {
-        if (__DEV__) {
-          console.log('[API] Attachment upload was aborted');
-        }
         reject(new Error('Attachment upload was aborted'));
       });
 
@@ -1315,45 +1036,23 @@ class ApiService {
     const headers = {
       'Content-Type': 'multipart/form-data',
     };
-
-    if (__DEV__) {
-      console.log('[API] uploadImage called with:', {
-      imagePath,
-      fileName,
-      encounterId,
-      patientCpf,
-      practitionerId,
-      });
-    }
-
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       
       xhr.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable) {
           const percentComplete = (event.loaded / event.total) * 100;
-          if (__DEV__) {
-            console.log(`[API] Image upload progress: ${percentComplete.toFixed(1)}%`);
-          }
         }
       });
       
       xhr.addEventListener('load', () => {
-        if (__DEV__) {
-          console.log('[API] Image upload response status:', xhr.status);
-        }
-        if (__DEV__) {
-          console.log('[API] Image upload response text:', xhr.responseText);
-        }
-        
+
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             const response = JSON.parse(xhr.responseText);
             resolve(response);
           } catch (error) {
-            if (__DEV__) {
-              console.error('[API] Error parsing image response:', error);
-            }
+            logger.error('[API] Error parsing image response:', error);
             reject(new Error('Invalid response format'));
           }
         } else {
@@ -1362,16 +1061,11 @@ class ApiService {
       });
       
       xhr.addEventListener('error', () => {
-        if (__DEV__) {
-          console.error('[API] Image upload network error');
-        }
+        logger.error('Image upload network error');
         reject(new Error('Network error during image upload'));
       });
       
       xhr.addEventListener('abort', () => {
-        if (__DEV__) {
-          console.log('[API] Image upload was aborted');
-        }
         reject(new Error('Image upload was aborted'));
       });
       
@@ -1403,39 +1097,12 @@ class ApiService {
   ): Promise<{ message: string; audioId: string }> {
     const { user, token } = useAuthStore.getState();
 
-    if (__DEV__) {
-      console.log('[API] === UPLOAD AUDIO RECORDING DEBUG START ===');
-    }
-    if (__DEV__) {
-      console.log('[API] Input parameters:', {
-      audioPath,
-      encounterId,
-      patientCpf,
-      practitionerId,
-      sequence,
-      });
-    }
-    if (__DEV__) {
-      console.log('[API] Auth store state:', {
-      hasToken: !!token,
-      tokenLength: token?.length,
-      userEmail: user?.email,
-      userOrganization: user?.organization,
-      userName: user?.name,
-      });
-    }
-
     const fileName = `recording_${Date.now()}.mp4`;
     const audioFile = {
       uri: audioPath,
       type: 'audio/mp4',
       name: fileName,
     };
-
-    if (__DEV__) {
-      console.log('[API] Audio file object:', audioFile);
-    }
-
     const formData = new FormData();
     formData.append('audio', audioFile as unknown as Blob);
 
@@ -1451,87 +1118,30 @@ class ApiService {
       'organization': user?.organization,
     };
 
-    if (__DEV__) {
-      console.log('[API] Request headers (will be sent):', {
-      ...headers,
-      'Authorization': token ? `Bearer ${token.substring(0, 10)}...` : 'MISSING',
-      });
-    }
-    if (__DEV__) {
-      console.log('[API] Request URL:', `${API_BASE_URL}/audio/uploadAudio`);
-    }
-
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
 
       xhr.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable) {
           const percentComplete = (event.loaded / event.total) * 100;
-          if (__DEV__) {
-            console.log(`[API] Upload progress: ${percentComplete.toFixed(1)}%`);
-          }
         }
       });
 
       xhr.addEventListener('load', () => {
-        if (__DEV__) {
-          console.log('[API] === UPLOAD RESPONSE RECEIVED ===');
-        }
-        if (__DEV__) {
-          console.log('[API] Response status:', xhr.status);
-        }
-        if (__DEV__) {
-          console.log('[API] Response status text:', xhr.statusText);
-        }
-        if (__DEV__) {
-          console.log('[API] Response headers:', xhr.getAllResponseHeaders());
-        }
-        if (__DEV__) {
-          console.log('[API] Response body:', xhr.responseText);
-        }
 
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             const response = JSON.parse(xhr.responseText);
-            if (__DEV__) {
-              console.log('[API] === UPLOAD SUCCESS ===');
-            }
-            if (__DEV__) {
-              console.log('[API] Parsed response:', response);
-            }
+
             resolve(response);
           } catch (error) {
-            if (__DEV__) {
-              console.error('[API] === UPLOAD ERROR: Invalid Response ===');
-            }
-            if (__DEV__) {
-              console.error('[API] Error parsing response:', error);
-            }
-            if (__DEV__) {
-              console.error('[API] Raw response text:', xhr.responseText);
-            }
+            logger.error('Error parsing audio upload response:', error);
             reject(new Error('Invalid response format'));
           }
         } else {
-          if (__DEV__) {
-            console.error('[API] === UPLOAD ERROR: Bad Status ===');
-          }
-          if (__DEV__) {
-            console.error('[API] Status code:', xhr.status);
-          }
-          if (__DEV__) {
-            console.error('[API] Status text:', xhr.statusText);
-          }
-          if (__DEV__) {
-            console.error('[API] Error response body:', xhr.responseText);
-          }
-
           let errorMessage = `Upload failed with status: ${xhr.status}`;
           try {
             const errorData = JSON.parse(xhr.responseText);
-            if (__DEV__) {
-              console.error('[API] Parsed error data:', errorData);
-            }
             if (errorData.message) {
               errorMessage += ` - ${errorData.message}`;
             }
@@ -1539,74 +1149,39 @@ class ApiService {
               errorMessage += ` (${errorData.error})`;
             }
           } catch (e) {
-            if (__DEV__) {
-              console.error('[API] Could not parse error response as JSON');
-            }
+            // Could not parse error response
           }
 
+          logger.error('Audio upload failed:', errorMessage);
           reject(new Error(errorMessage));
         }
       });
 
-      xhr.addEventListener('error', (event) => {
-        if (__DEV__) {
-          console.error('[API] === UPLOAD ERROR: Network Error ===');
-        }
-        if (__DEV__) {
-          console.error('[API] Network error event:', event);
-        }
-        if (__DEV__) {
-          console.error('[API] XHR status:', xhr.status);
-        }
-        if (__DEV__) {
-          console.error('[API] XHR ready state:', xhr.readyState);
-        }
+      xhr.addEventListener('error', () => {
+        logger.error('Network error during audio upload');
         reject(new Error('Network error during upload'));
       });
 
       xhr.addEventListener('abort', () => {
-        if (__DEV__) {
-          console.warn('[API] === UPLOAD ABORTED ===');
-        }
+        logger.warn('Audio upload aborted');
         reject(new Error('Upload was aborted'));
       });
 
       xhr.open('POST', `${API_BASE_URL}/audio/uploadAudio`);
-      if (__DEV__) {
-        console.log('[API] XHR opened, setting headers...');
-      }
-
       // Add auth headers
       if (token) {
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        if (__DEV__) {
-          console.log('[API] Authorization header set (Bearer token)');
-        }
       } else {
-        if (__DEV__) {
-          console.warn('[API] WARNING: No auth token available!');
-        }
+        logger.warn('No auth token available for audio upload');
       }
 
       // Add additional headers
-      if (__DEV__) {
-        console.log('[API] Setting custom headers...');
-      }
       Object.entries(headers).forEach(([key, value]) => {
         if (key !== 'Content-Type' && typeof value === 'string') { // Let browser set Content-Type for FormData
           xhr.setRequestHeader(key, value);
-          if (__DEV__) {
-            console.log(`[API] Header set: ${key} = ${value}`);
-          }
         }
       });
 
-      if (__DEV__) {
-        console.log('[API] Sending FormData with audio file...');
-      }
-      if (__DEV__) {
-        console.log('[API] === UPLOAD REQUEST SENT ===');
-      }
       xhr.send(formData);
     });
   }
@@ -1628,11 +1203,6 @@ class ApiService {
     fileName?: string;
   }): Promise<{ sessionId: string; status: string }> {
     const { user, token } = useAuthStore.getState();
-
-    if (__DEV__) {
-      console.log('[API] createChunkedSession called with:', options);
-    }
-
     try {
       const result = await this.request('/chunked-audio/sessions', {
         method: 'POST',
@@ -1651,14 +1221,9 @@ class ApiService {
           fileName: options.fileName || `recording_${Date.now()}.mp4`,
         },
       });
-      if (__DEV__) {
-        console.log('[API] createChunkedSession success:', result);
-      }
       return result;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] createChunkedSession error:', error);
-      }
+      logger.error('[API] createChunkedSession error:', error);
       throw error;
     }
   }
@@ -1678,11 +1243,6 @@ class ApiService {
     onProgress?: (percent: number) => void
   ): Promise<{ success: boolean; message?: string }> {
     const { token } = useAuthStore.getState();
-
-    if (__DEV__) {
-      console.log('[API] uploadChunk called with:', { sessionId, chunkIndex });
-    }
-
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
 
@@ -1696,18 +1256,12 @@ class ApiService {
       }
 
       xhr.addEventListener('load', () => {
-        if (__DEV__) {
-          console.log('[API] Chunk upload response status:', xhr.status);
-        }
-
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             const response = JSON.parse(xhr.responseText);
             resolve(response);
           } catch (error) {
-            if (__DEV__) {
-              console.error('[API] Error parsing chunk response:', error);
-            }
+            logger.error('[API] Error parsing chunk response:', error);
             reject(new Error('Invalid response format'));
           }
         } else {
@@ -1716,16 +1270,11 @@ class ApiService {
       });
 
       xhr.addEventListener('error', () => {
-        if (__DEV__) {
-          console.error('[API] Chunk upload network error');
-        }
+        logger.error('Chunk upload network error');
         reject(new Error('Network error during chunk upload'));
       });
 
       xhr.addEventListener('abort', () => {
-        if (__DEV__) {
-          console.log('[API] Chunk upload was aborted');
-        }
         reject(new Error('Chunk upload was aborted'));
       });
 
@@ -1755,23 +1304,13 @@ class ApiService {
     message?: string;
   }> {
     const { token } = useAuthStore.getState();
-
-    if (__DEV__) {
-      console.log('[API] completeChunkedSession called with:', sessionId);
-    }
-
     try {
       const result = await this.request(`/chunked-audio/sessions/${sessionId}/complete`, {
         method: 'POST',
       });
-      if (__DEV__) {
-        console.log('[API] completeChunkedSession success:', result);
-      }
       return result;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] completeChunkedSession error:', error);
-      }
+      logger.error('[API] completeChunkedSession error:', error);
       throw error;
     }
   }
@@ -1781,22 +1320,13 @@ class ApiService {
    * @param sessionId The session ID
    */
   async cancelChunkedSession(sessionId: string): Promise<{ success: boolean }> {
-    if (__DEV__) {
-      console.log('[API] cancelChunkedSession called with:', sessionId);
-    }
-
     try {
       const result = await this.request(`/chunked-audio/sessions/${sessionId}/cancel`, {
         method: 'POST',
       });
-      if (__DEV__) {
-        console.log('[API] cancelChunkedSession success:', result);
-      }
       return result;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] cancelChunkedSession error:', error);
-      }
+      logger.error('[API] cancelChunkedSession error:', error);
       throw error;
     }
   }
@@ -1812,20 +1342,11 @@ class ApiService {
     chunkExpected: number;
     sessionId: string;
   }> {
-    if (__DEV__) {
-      console.log('[API] getSessionStatus called with:', sessionId);
-    }
-
     try {
       const result = await this.request(`/chunked-audio/sessions/${sessionId}/status`);
-      if (__DEV__) {
-        console.log('[API] getSessionStatus success:', result);
-      }
       return result;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getSessionStatus error:', error);
-      }
+      logger.error('[API] getSessionStatus error:', error);
       throw error;
     }
   }
@@ -1836,68 +1357,40 @@ class ApiService {
       offering_type: offeringType,
       is_active: isActive.toString(),
     });
-
-    if (__DEV__) {
-      console.log('[API] getOfferings called with:', { offeringType, isActive });
-    }
-
     try {
       const result = await this.request(`/offerings?${params}`, {
         headers: this.getOrgHeaders()
       });
-      if (__DEV__) {
-        console.log('[API] getOfferings success:', result);
-      }
       // The offerings endpoint returns the array directly, unlike other endpoints
       return Array.isArray(result) ? result : [];
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getOfferings error:', error);
-      }
+      logger.error('[API] getOfferings error:', error);
       throw error;
     }
   }
 
   // Get patient care plans for appointment creation
   async getPatientCarePlans(patientCpf: string, practitionerId: string) {
-    if (__DEV__) {
-      console.log('[API] getPatientCarePlans called with:', { patientCpf, practitionerId });
-    }
-
     try {
       const result = await this.request(`/careplan/patient/${encodeURIComponent(patientCpf)}/careplans?practitionerId=${encodeURIComponent(practitionerId)}`, {
         headers: this.getOrgHeaders()
       });
-      if (__DEV__) {
-        console.log('[API] getPatientCarePlans success:', result);
-      }
       return result;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getPatientCarePlans error:', error);
-      }
+      logger.error('[API] getPatientCarePlans error:', error);
       throw error;
     }
   }
 
   // Get practitioner locations for appointment creation
   async getPractitionerLocations(practitionerEmail: string) {
-    if (__DEV__) {
-      console.log('[API] getPractitionerLocations called with:', { practitionerEmail });
-    }
-
     try {
       const result = await this.request(`/location/getpractlocationsbyemail/${encodeURIComponent(practitionerEmail)}/?status=active`, {
         headers: this.getOrgHeaders()
       });
-      if (__DEV__) {
-        console.log('[API] getPractitionerLocations success:', result);
-      }
       return result;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getPractitionerLocations error:', error);
-      }
+      logger.error('[API] getPractitionerLocations error:', error);
       throw error;
     }
   }
@@ -1915,23 +1408,13 @@ class ApiService {
     const url = `/location/getlocationbyid/${encodeURIComponent(locationId)}${
       params.toString() ? `?${params.toString()}` : ''
     }`;
-
-    if (__DEV__) {
-      console.log('[API] getLocationById called with:', { locationId, practitionerEmail });
-    }
-
     try {
       const result = await this.request(url, {
         headers: this.getOrgHeaders(),
       });
-      if (__DEV__) {
-        console.log('[API] getLocationById success:', result);
-      }
       return result;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getLocationById error:', error);
-      }
+      logger.error('[API] getLocationById error:', error);
       throw error;
     }
   }
@@ -1945,23 +1428,13 @@ class ApiService {
       month: month.toString(),
       duration: duration.toString(),
     });
-
-    if (__DEV__) {
-      console.log('[API] getAvailableDates called with:', { practitionerId, locationId, year, month, duration });
-    }
-
     try {
       const result = await this.request(`/appointment/available-dates?${params}`, {
         headers: this.getOrgHeaders()
       });
-      if (__DEV__) {
-        console.log('[API] getAvailableDates success:', result);
-      }
       return result;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getAvailableDates error:', error);
-      }
+      logger.error('[API] getAvailableDates error:', error);
       throw error;
     }
   }
@@ -1974,23 +1447,13 @@ class ApiService {
       date,
       duration: duration.toString(),
     });
-
-    if (__DEV__) {
-      console.log('[API] getAvailableTimes called with:', { practitionerId, locationId, date, duration });
-    }
-
     try {
       const result = await this.request(`/appointment/available-times?${params}`, {
         headers: this.getOrgHeaders()
       });
-      if (__DEV__) {
-        console.log('[API] getAvailableTimes success:', result);
-      }
       return result;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getAvailableTimes error:', error);
-      }
+      logger.error('[API] getAvailableTimes error:', error);
       throw error;
     }
   }
@@ -2002,23 +1465,13 @@ class ApiService {
       locationId,
       duration: duration.toString(),
     });
-
-    if (__DEV__) {
-      console.log('[API] getNextFiveSlots called with:', { practitionerId, locationId, duration });
-    }
-
     try {
       const result = await this.request(`/appointment/next-five-slots?${params}`, {
         headers: this.getOrgHeaders()
       });
-      if (__DEV__) {
-        console.log('[API] getNextFiveSlots success:', result);
-      }
       return result;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getNextFiveSlots error:', error);
-      }
+      logger.error('[API] getNextFiveSlots error:', error);
       throw error;
     }
   }
@@ -2030,81 +1483,47 @@ class ApiService {
       limit: (options.limit || 100).toString(), // Get more appointments to check conflicts
       ...(options.future && { future: options.future })
     });
-
-    if (__DEV__) {
-      console.log('[API] getPractitionerAppointments called with:', { practId, options });
-    }
-
     try {
       const result = await this.request(`/appointment/getappointments/${practId}?${params}`, {
         headers: this.getOrgHeaders()
       });
-      if (__DEV__) {
-        console.log('[API] getPractitionerAppointments success:', result);
-      }
       return result;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getPractitionerAppointments error:', error);
-      }
+      logger.error('[API] getPractitionerAppointments error:', error);
       throw error;
     }
   }
 
   // Create appointment
   async createAppointment(appointmentData: Partial<AppointmentData> | Record<string, unknown>) {
-    if (__DEV__) {
-      console.log('[API] createAppointment called with:', appointmentData);
-    }
-
     try {
-      if (__DEV__) {
-        console.log('[API] About to make POST request to /appointment/create-appointment');
-      }
       const result = await this.request('/appointment/create-appointment', {
         method: 'POST',
         headers: this.getOrgHeaders(),
         body: appointmentData
       });
-      if (__DEV__) {
-        console.log('[API] createAppointment success:', result);
-      }
       return result;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       const errorStack = error instanceof Error ? error.stack : undefined;
-      if (__DEV__) {
-        console.error('[API] createAppointment error:', errorMessage);
-      }
-      if (__DEV__) {
-        console.error('[API] Error details:', {
+      logger.error('createAppointment error:', {
         message: errorMessage,
         stack: errorStack
-        });
-      }
+      });
       throw error;
     }
   }
 
   // Cancel appointment
   async cancelAppointment(appointmentId: string) {
-    if (__DEV__) {
-      console.log('[API] cancelAppointment called with:', appointmentId);
-    }
-
     try {
       const result = await this.request(`/appointment/cancel/${appointmentId}`, {
         method: 'POST',
         headers: this.getOrgHeaders()
       });
-      if (__DEV__) {
-        console.log('[API] cancelAppointment success:', result);
-      }
       return result;
     } catch (error: unknown) {
-      if (__DEV__) {
-        console.error('[API] cancelAppointment error:', error);
-      }
+      logger.error('[API] cancelAppointment error:', error);
       // Re-throw with more context for error handling
       if (error && typeof error === 'object' && 'response' in error) {
         const errorResponse = error as { response?: { status?: number } };
@@ -2124,63 +1543,36 @@ class ApiService {
   // Step 6 API methods
   async getServiceCategories() {
     try {
-      if (__DEV__) {
-        console.log('[API] getServiceCategories called');
-      }
       const result = await this.request('/pract/getservicecategory');
-      if (__DEV__) {
-        console.log('[API] getServiceCategories success:', result);
-      }
       return result;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getServiceCategories error:', error);
-      }
+      logger.error('[API] getServiceCategories error:', error);
       throw error;
     }
   }
 
   async getPractServiceCategories(practId: string) {
     try {
-      if (__DEV__) {
-        console.log('[API] getPractServiceCategories called with practId:', practId);
-      }
       const result = await this.request(`/pract/getpractservicecategories/${practId}`);
-      if (__DEV__) {
-        console.log('[API] getPractServiceCategories success:', result);
-      }
       return result;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getPractServiceCategories error:', error);
-      }
+      logger.error('[API] getPractServiceCategories error:', error);
       throw error;
     }
   }
 
   async getServiceTypes() {
     try {
-      if (__DEV__) {
-        console.log('[API] getServiceTypes called');
-      }
       const result = await this.request('/pract/getservicetypes');
-      if (__DEV__) {
-        console.log('[API] getServiceTypes success:', result);
-      }
       return result;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getServiceTypes error:', error);
-      }
+      logger.error('[API] getServiceTypes error:', error);
       throw error;
     }
   }
 
   async getServiceDescriptions(categoryId?: string | null, typeId?: string | null) {
     if (!categoryId && !typeId) {
-      if (__DEV__) {
-        console.log('[API] getServiceDescriptions skipped (no ids provided)');
-      }
       return { category: null, type: null };
     }
 
@@ -2193,59 +1585,33 @@ class ApiService {
     }
 
     const url = `/pract/getservicedescriptions?${params.toString()}`;
-
-    if (__DEV__) {
-      console.log('[API] getServiceDescriptions called with:', { categoryId, typeId });
-    }
-
     try {
       const result = await this.request(url, {
         headers: this.getOrgHeaders(),
       });
-      if (__DEV__) {
-        console.log('[API] getServiceDescriptions success:', result);
-      }
       return result;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getServiceDescriptions error:', error);
-      }
+      logger.error('[API] getServiceDescriptions error:', error);
       throw error;
     }
   }
 
   async getPractServiceTypes(practId: string) {
     try {
-      if (__DEV__) {
-        console.log('[API] getPractServiceTypes called with practId:', practId);
-      }
       const result = await this.request(`/pract/getpractservicetypes/${practId}`);
-      if (__DEV__) {
-        console.log('[API] getPractServiceTypes success:', result);
-      }
       return result;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getPractServiceTypes error:', error);
-      }
+      logger.error('[API] getPractServiceTypes error:', error);
       throw error;
     }
   }
 
   async getAppointmentTypes(practId: string) {
     try {
-      if (__DEV__) {
-        console.log('[API] getAppointmentTypes called with practId:', practId);
-      }
       const result = await this.request(`/pract/config/${practId}`);
-      if (__DEV__) {
-        console.log('[API] getAppointmentTypes success:', result);
-      }
       return result;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getAppointmentTypes error:', error);
-      }
+      logger.error('[API] getAppointmentTypes error:', error);
       throw error;
     }
   }
@@ -2257,20 +1623,12 @@ class ApiService {
     }
 
     try {
-      if (__DEV__) {
-        console.log('[API] getMyPractitionerProfile request email:', email);
-      }
       const result = await this.request<PractitionerProfile>(
         `/pract/getmydata?email=${encodeURIComponent(email)}`
       );
-      if (__DEV__) {
-        console.log('[API] getMyPractitionerProfile response:', result);
-      }
       return result;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getMyPractitionerProfile error:', error);
-      }
+      logger.error('[API] getMyPractitionerProfile error:', error);
       throw error;
     }
   }
@@ -2281,17 +1639,12 @@ class ApiService {
     }
 
     try {
-      if (__DEV__) {
-        console.log('[API] saveMyPractitionerProfile payload:', updatedFields);
-      }
       return await this.request('/pract/savemydata', {
         method: 'POST',
         body: { updatedFields },
       });
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] saveMyPractitionerProfile error:', error);
-      }
+      logger.error('[API] saveMyPractitionerProfile error:', error);
       throw error;
     }
   }
@@ -2302,17 +1655,93 @@ class ApiService {
     }
 
     try {
-      if (__DEV__) {
-        console.log('[API] saveMyPractitionerPhoto email:', email, 'payloadLength:', dataURL.length);
-      }
       return await this.request('/pract/savemyphoto', {
         method: 'POST',
         body: { email, dataURL },
       });
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] saveMyPractitionerPhoto error:', error);
+      logger.error('[API] saveMyPractitionerPhoto error:', error);
+      throw error;
+    }
+  }
+
+  // === LOCATION SERVICES ===
+  async getStates(): Promise<Array<{ id: number; sigla: string; nome: string }>> {
+    try {
+      const result = await this.request<Array<{ id: number; sigla: string; nome: string }>>(
+        '/api/v1/localidades/estados?orderBy=nome'
+      );
+      return result;
+    } catch (error) {
+      logger.error('[API] getStates error:', error);
+      throw error;
+    }
+  }
+
+  async getCities(stateCode: string): Promise<Array<{ id: number; nome: string }>> {
+    if (!stateCode) {
+      throw new Error('State code is required to fetch cities.');
+    }
+
+    // Map state sigla to ID for API call (based on IBGE codes)
+    const stateMap: Record<string, number> = {
+      AC: 12, AL: 27, AP: 16, AM: 13, BA: 29, CE: 23, DF: 53, ES: 32,
+      GO: 52, MA: 21, MT: 51, MS: 50, MG: 31, PA: 15, PB: 25, PR: 41,
+      PE: 26, PI: 22, RJ: 33, RN: 24, RS: 43, RO: 11, RR: 14, SC: 42,
+      SP: 35, SE: 28, TO: 17,
+    };
+
+    const stateId = stateMap[stateCode.toUpperCase()];
+    if (!stateId) {
+      throw new Error(`Invalid state code: ${stateCode}`);
+    }
+
+    try {
+      const result = await this.request<Array<{ id: number; nome: string }>>(
+        `/api/v1/localidades/estados/${stateId}/municipios?orderBy=nome`
+      );
+      return result;
+    } catch (error) {
+      logger.error('[API] getCities error:', error);
+      throw error;
+    }
+  }
+
+  async lookupCEP(cep: string): Promise<{
+    cep: string;
+    logradouro: string;
+    complemento: string;
+    bairro: string;
+    localidade: string;
+    uf: string;
+    ibge: string;
+    erro?: boolean;
+  }> {
+    if (!cep) {
+      throw new Error('CEP is required.');
+    }
+
+    // Remove formatting
+    const cleanCEP = cep.replace(/\D/g, '');
+    if (cleanCEP.length !== 8) {
+      throw new Error('CEP deve ter 8 dígitos.');
+    }
+
+    try {
+      // Call ViaCEP API directly (external API)
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCEP}/json/`);
+      if (!response.ok) {
+        throw new Error('Erro ao consultar CEP.');
       }
+
+      const result = await response.json();
+      if (result.erro) {
+        throw new Error('CEP não encontrado.');
+      }
+
+      return result;
+    } catch (error) {
+      logger.error('[API] lookupCEP error:', error);
       throw error;
     }
   }
@@ -2346,10 +1775,6 @@ class ApiService {
    */
   async getPreAppointmentFormStatus(appointmentId: string): Promise<PreAppointmentFormStatus | null> {
     try {
-      if (__DEV__) {
-        console.log('[API] getPreAppointmentFormStatus called for appointment:', appointmentId);
-      }
-
       // Query the API with appointmentId filter
       const query = new URLSearchParams({
         appointmentId: appointmentId,
@@ -2363,11 +1788,6 @@ class ApiService {
           headers: this.getOrgHeaders(),
         }
       );
-
-      if (__DEV__) {
-        console.log('[API] getPreAppointmentFormStatus response:', response);
-      }
-
       // Return the first result if available and appointmentId matches
       if (response.success && response.data && response.data.length > 0) {
         const form = response.data[0];
@@ -2379,9 +1799,7 @@ class ApiService {
 
       return null;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getPreAppointmentFormStatus error:', error);
-      }
+      logger.error('[API] getPreAppointmentFormStatus error:', error);
       // Return null instead of throwing - form might not exist for this appointment
       return null;
     }
@@ -2394,25 +1812,15 @@ class ApiService {
    */
   async getPreAppointmentFormDetails(trackingId: string): Promise<FormDetailApiResponse> {
     try {
-      if (__DEV__) {
-        console.log('[API] getPreAppointmentFormDetails called for tracking:', trackingId);
-      }
-
       const response = await this.request<FormDetailApiResponse>(
         `/api/forms/pre-appointment/manage/${trackingId}`,
         {
           headers: this.getOrgHeaders(),
         }
       );
-
-      if (__DEV__) {
-        console.log('[API] getPreAppointmentFormDetails response:', response);
-      }
       return response;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] getPreAppointmentFormDetails error:', error);
-      }
+      logger.error('[API] getPreAppointmentFormDetails error:', error);
       throw error;
     }
   }
@@ -2430,11 +1838,6 @@ class ApiService {
     filetype: string;
   }): Promise<string | null> {
     const { token } = useAuthStore.getState();
-
-    if (__DEV__) {
-      console.log('[API] downloadAttachmentBlob called with:', params);
-    }
-
     try {
       const url = `${API_BASE_URL}/attach/getblob2`;
 
@@ -2466,9 +1869,7 @@ class ApiService {
         reader.readAsDataURL(blob);
       });
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] downloadAttachmentBlob error:', error);
-      }
+      logger.error('[API] downloadAttachmentBlob error:', error);
       return null;
     }
   }
@@ -2483,25 +1884,14 @@ class ApiService {
     message: string;
     data: any;
   }> {
-    if (__DEV__) {
-      console.log('[API] renewPrescription called with:', prescriptionId);
-    }
-
     try {
       const response = await this.request(`/medication/renew/${prescriptionId}`, {
         method: 'POST',
         headers: this.getOrgHeaders(),
       });
-
-      if (__DEV__) {
-        console.log('[API] renewPrescription response:', response);
-      }
-
       return response;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] renewPrescription error:', error);
-      }
+      logger.error('[API] renewPrescription error:', error);
       throw error;
     }
   }
@@ -2522,27 +1912,15 @@ class ApiService {
     metadata?: any;
     requestitens?: any[];
   }): Promise<any> {
-    if (__DEV__) {
-      console.log('[API] updatePrescriptionStatus called with identifier:', prescriptionData.identifier);
-      console.log('[API] updatePrescriptionStatus new status:', prescriptionData.status);
-    }
-
     try {
       const response = await this.request('/medication/save', {
         method: 'POST',
         headers: this.getOrgHeaders(),
         body: prescriptionData, // Don't stringify - request method does it automatically
       });
-
-      if (__DEV__) {
-        console.log('[API] updatePrescriptionStatus response:', response);
-      }
-
       return response;
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] updatePrescriptionStatus error:', error);
-      }
+      logger.error('[API] updatePrescriptionStatus error:', error);
       throw error;
     }
   }
@@ -2593,10 +1971,6 @@ class ApiService {
       groupIdentifier: string;
     }>;
   }): Promise<any> {
-    if (__DEV__) {
-      console.log('[API] generatePrescriptionPdf called with category:', params.category);
-    }
-
     try {
       // Ensure token is valid before making request
       await useAuthStore.getState().ensureValidToken();
@@ -2618,16 +1992,9 @@ class ApiService {
         const errorText = await response.text();
         throw new Error(`PDF generation failed: ${response.status} ${errorText}`);
       }
-
-      if (__DEV__) {
-        console.log('[API] generatePrescriptionPdf success');
-      }
-
       return { success: true };
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] generatePrescriptionPdf error:', error);
-      }
+      logger.error('[API] generatePrescriptionPdf error:', error);
       throw error;
     }
   }
@@ -2678,21 +2045,11 @@ class ApiService {
       groupIdentifier: string;
     }>;
   }): Promise<{ base64: string; fileName: string }> {
-    if (__DEV__) {
-      console.log('[API] generatePrescriptionPdfBlob called with category:', params.category);
-      console.log('[API] generatePrescriptionPdfBlob prescription ID:', params.header.identifier);
-    }
-
     try {
       // Ensure token is valid before making request
       await useAuthStore.getState().ensureValidToken();
 
       const url = `${API_BASE_URL}/medication/requestMedication/${params.category}`;
-
-      if (__DEV__) {
-        console.log('[API] Calling PDF generation endpoint:', url);
-      }
-
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -2705,23 +2062,11 @@ class ApiService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        if (__DEV__) {
-          console.error('[API] PDF generation failed:', response.status, errorText);
-        }
+        logger.error('PDF generation failed:', { status: response.status, error: errorText });
         throw new Error(`PDF generation failed: ${response.status} ${errorText}`);
       }
-
-      if (__DEV__) {
-        console.log('[API] PDF generation successful, processing response...');
-      }
-
       // Get PDF as blob
       const blob = await response.blob();
-
-      if (__DEV__) {
-        console.log('[API] PDF blob received, size:', blob.size, 'bytes');
-      }
-
       // Convert blob to base64
       const reader = new FileReader();
       const base64Data = await new Promise<string>((resolve, reject) => {
@@ -2734,11 +2079,6 @@ class ApiService {
         reader.onerror = reject;
         reader.readAsDataURL(blob);
       });
-
-      if (__DEV__) {
-        console.log('[API] PDF converted to base64, length:', base64Data.length);
-      }
-
       const fileName = `prescription-${params.header.identifier}-${Date.now()}.pdf`;
 
       return {
@@ -2746,9 +2086,7 @@ class ApiService {
         fileName,
       };
     } catch (error) {
-      if (__DEV__) {
-        console.error('[API] generatePrescriptionPdfBlob error:', error);
-      }
+      logger.error('[API] generatePrescriptionPdfBlob error:', error);
       throw error;
     }
   }

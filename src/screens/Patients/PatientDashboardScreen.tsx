@@ -20,6 +20,7 @@ import { api, API_BASE_URL } from '@services/api';
 import { PatientsStackParamList } from '@/types/navigation';
 import { CachedImage } from '@components/common';
 import { useAuthStore } from '@store/authStore';
+import { logger } from '@/utils/logger';
 
 type PatientDashboardRouteProp = RouteProp<PatientsStackParamList, 'PatientDashboard'>;
 
@@ -127,12 +128,10 @@ export const PatientDashboardScreen: React.FC = () => {
 
   const loadPatientData = async () => {
     try {
-      console.log('[PatientDashboard] Loading patient data for CPF:', patientCpf);
 
       // Load patient details (photo will be loaded by CachedImage with caching)
       const response = await api.getPatientDetails(patientCpf);
 
-      console.log('[PatientDashboard] Patient data received:', JSON.stringify(response, null, 2));
       
       // Extract patient data from API response structure
       const rawData = response.data || response;
@@ -141,7 +140,6 @@ export const PatientDashboardScreen: React.FC = () => {
           ? rawData.data
           : rawData;
 
-      console.log('[PatientDashboard] Raw data keys:', Object.keys(patientPayload));
       
       // Map API fields to component expected fields
       const patientData = {
@@ -163,19 +161,16 @@ export const PatientDashboardScreen: React.FC = () => {
         } : null,
       };
       
-      console.log('[PatientDashboard] Address data:', patientData.address);
       setPatient(patientData);
     } catch (error) {
-      console.error('[PatientDashboard] Error loading patient:', error);
+      logger.error('[PatientDashboard] Error loading patient:', error);
       Alert.alert('Erro', 'Não foi possível carregar os dados do paciente');
     }
   };
 
   const loadPatientAppointments = async () => {
     try {
-      console.log('[PatientDashboard] Loading appointments for CPF:', patientCpf);
       const appointmentsData = await api.getPatientAppointments(patientCpf);
-      console.log('[PatientDashboard] Appointments data received:', JSON.stringify(appointmentsData, null, 2));
 
       // The API returns appointments directly as an array, not wrapped in .appointments
       const rawAppointments = Array.isArray(appointmentsData) ? appointmentsData : appointmentsData.appointments || [];
@@ -191,10 +186,9 @@ export const PatientDashboardScreen: React.FC = () => {
         notes: apt.note || apt.notes,
       }));
 
-      console.log('[PatientDashboard] Processed appointments:', appointments);
       setAppointments(appointments);
     } catch (error) {
-      console.error('[PatientDashboard] Error loading appointments:', error);
+      logger.error('[PatientDashboard] Error loading appointments:', error);
     }
   };
 
@@ -206,7 +200,7 @@ export const PatientDashboardScreen: React.FC = () => {
         setClinicalRecordsCount(count);
       }
     } catch (error) {
-      console.error('[PatientDashboard] Error loading clinical records count:', error);
+      logger.error('[PatientDashboard] Error loading clinical records count:', error);
       if (mountedRef.current) {
         setClinicalRecordsCount(null); // null indicates error/unavailable
       }
@@ -221,7 +215,7 @@ export const PatientDashboardScreen: React.FC = () => {
         setPrescriptionsCount(count);
       }
     } catch (error) {
-      console.error('[PatientDashboard] Error loading prescriptions count:', error);
+      logger.error('[PatientDashboard] Error loading prescriptions count:', error);
       if (mountedRef.current) {
         setPrescriptionsCount(null);
       }
@@ -236,7 +230,7 @@ export const PatientDashboardScreen: React.FC = () => {
         setDiagnosticsCount(count);
       }
     } catch (error) {
-      console.error('[PatientDashboard] Error loading diagnostics count:', error);
+      logger.error('[PatientDashboard] Error loading diagnostics count:', error);
       if (mountedRef.current) {
         setDiagnosticsCount(null);
       }
@@ -251,7 +245,7 @@ export const PatientDashboardScreen: React.FC = () => {
         setImagesCount(count);
       }
     } catch (error) {
-      console.error('[PatientDashboard] Error loading images count:', error);
+      logger.error('[PatientDashboard] Error loading images count:', error);
       if (mountedRef.current) {
         setImagesCount(null);
       }
@@ -266,7 +260,7 @@ export const PatientDashboardScreen: React.FC = () => {
         setAttachmentsCount(count);
       }
     } catch (error) {
-      console.error('[PatientDashboard] Error loading attachments count:', error);
+      logger.error('[PatientDashboard] Error loading attachments count:', error);
       if (mountedRef.current) {
         setAttachmentsCount(null);
       }
@@ -281,7 +275,7 @@ export const PatientDashboardScreen: React.FC = () => {
         setRecordingsCount(count);
       }
     } catch (error) {
-      console.error('[PatientDashboard] Error loading recordings count:', error);
+      logger.error('[PatientDashboard] Error loading recordings count:', error);
       if (mountedRef.current) {
         setRecordingsCount(null);
       }
@@ -290,15 +284,13 @@ export const PatientDashboardScreen: React.FC = () => {
 
   const loadLastEncounter = async () => {
     try {
-      console.log('[PatientDashboard] Loading practitioner encounters for CPF:', patientCpf);
       const response = await api.getPractitionerPatientEncounters(patientCpf);
-      console.log('[PatientDashboard] Practitioner encounters response:', JSON.stringify(response, null, 2));
-      console.log('[PatientDashboard] Last encounter date:', response?.data?.data?.[0]?.date);
+      logger.debug('[PatientDashboard] Last encounter date:', response?.data?.data?.[0]?.date);
       if (mountedRef.current) {
         setLastEncounter(response);
       }
     } catch (error) {
-      console.error('[PatientDashboard] Error loading last encounter:', error);
+      logger.error('[PatientDashboard] Error loading last encounter:', error);
       if (mountedRef.current) {
         setLastEncounter(null);
       }
@@ -308,7 +300,7 @@ export const PatientDashboardScreen: React.FC = () => {
   const loadData = async () => {
     // Prevent concurrent load requests
     if (loadingRef.current) {
-      console.log('[PatientDashboard] Already loading, skipping duplicate request');
+      logger.debug('[PatientDashboard] Already loading, skipping duplicate request');
       return;
     }
 
@@ -334,11 +326,11 @@ export const PatientDashboardScreen: React.FC = () => {
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
           const names = ['PatientData', 'Appointments', 'ClinicalRecords', 'Prescriptions', 'Diagnostics', 'Images', 'Attachments', 'Recordings', 'LastEncounter'];
-          console.warn(`[PatientDashboard] ${names[index]} failed:`, result.reason);
+          logger.warn(`[PatientDashboard] ${names[index]} failed:`, result.reason);
         }
       });
     } catch (error) {
-      console.error('[PatientDashboard] Unexpected error in loadData:', error);
+      logger.error('[PatientDashboard] Unexpected error in loadData:', error);
     } finally {
       if (mountedRef.current) {
         setLoading(false);

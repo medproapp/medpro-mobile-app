@@ -22,6 +22,7 @@ import { RecentPatient } from '../../types/api';
 import { useAuthStore } from '@store/authStore';
 import { api } from '@services/api';
 import { DashboardStackParamList } from '@/types/navigation';
+import { logger } from '@/utils/logger';
 
 type Step1NavigationProp = StackNavigationProp<DashboardStackParamList, 'AppointmentStep1'>;
 
@@ -124,10 +125,10 @@ export const AppointmentStep1Screen: React.FC = () => {
 
     setLoading(true);
     try {
-      console.log('[AppointmentStep1] Searching for:', term, 'type:', type);
+      logger.debug('[AppointmentStep1] Searching for:', term, 'type:', type);
       
       const results = await api.searchPatients(term, type, 1);
-      console.log('[AppointmentStep1] Search results:', results);
+      logger.debug('[AppointmentStep1] Search results:', results);
       
       if (Array.isArray(results?.data?.data)) {
         const normalized = results.data.data.map((item: any) => normalizePatient(item));
@@ -135,7 +136,7 @@ export const AppointmentStep1Screen: React.FC = () => {
         setHasSearched(true);
       }
     } catch (error) {
-      console.error('[AppointmentStep1] Search error:', error);
+      logger.error('[AppointmentStep1] Search error:', error);
       Alert.alert('Erro', 'Não foi possível buscar os pacientes');
       setSearchResults([]);
     } finally {

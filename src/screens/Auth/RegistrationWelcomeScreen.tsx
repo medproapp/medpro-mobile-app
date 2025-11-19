@@ -15,6 +15,7 @@ import { theme } from '@theme/index';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { AuthStackParamList } from '../../types/navigation';
+import { logger } from '@/utils/logger';
 
 type WelcomeNavigationProp = StackNavigationProp<AuthStackParamList, 'RegistrationWelcome'>;
 type WelcomeRouteProp = RouteProp<AuthStackParamList, 'RegistrationWelcome'>;
@@ -29,7 +30,7 @@ export const RegistrationWelcomeScreen: React.FC = () => {
   const email = route.params?.email ?? '';
 
   if (__DEV__) {
-    console.log('🛠️ [RegistrationWelcome] Screen mounted', {
+    logger.debug('🛠️ [RegistrationWelcome] Screen mounted', {
       name,
       email,
     });
@@ -37,7 +38,7 @@ export const RegistrationWelcomeScreen: React.FC = () => {
 
   const handleContinue = () => {
     if (__DEV__) {
-      console.log('🛠️ [RegistrationWelcome] Ir para o login acionado', {
+      logger.debug('🛠️ [RegistrationWelcome] Ir para o login acionado', {
         email,
       });
     }

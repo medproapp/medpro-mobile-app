@@ -21,6 +21,7 @@ import * as IntentLauncher from 'expo-intent-launcher';
 import { theme } from '@theme/index';
 import { api } from '@services/api';
 import { PatientsStackParamList } from '@/types/navigation';
+import { logger } from '@/utils/logger';
 
 type AttachmentsRouteProp = RouteProp<PatientsStackParamList, 'Attachments'>;
 
@@ -137,7 +138,7 @@ export const AttachmentsScreen: React.FC = () => {
       setPage(pageNum);
 
     } catch (error) {
-      console.error('[Attachments] Error loading attachments:', error);
+      logger.error('[Attachments] Error loading attachments:', error);
 
       // Stop pagination on error to prevent infinite loops
       setHasMore(false);
@@ -241,7 +242,7 @@ export const AttachmentsScreen: React.FC = () => {
         Alert.alert('Erro', 'Informações do anexo incompletas');
       }
     } catch (error) {
-      console.error('[Attachments] Error opening attachment:', error);
+      logger.error('[Attachments] Error opening attachment:', error);
       setDownloadingAttachment(prev => ({ ...prev, [attachmentId]: false }));
       Alert.alert('Erro', 'Não foi possível abrir o anexo');
     }

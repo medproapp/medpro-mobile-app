@@ -6,6 +6,7 @@ import {
   NotificationsPagination,
   NotificationsQuery,
 } from '@/types/notifications';
+import { logger } from '@/utils/logger';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
@@ -100,7 +101,7 @@ class NotificationsService {
       const items = this.sanitizeItems(response?.data);
       return items.length;
     } catch (error) {
-      console.error('[NotificationsService] Failed to fetch unread count', error);
+      logger.error('[NotificationsService] Failed to fetch unread count', error);
       return 0;
     }
   }
@@ -114,7 +115,7 @@ class NotificationsService {
       const response: NotificationsApiResponse = await apiService.acknowledgeNotifications(ids);
       return Number(response?.affected ?? ids.length);
     } catch (error) {
-      console.error('[NotificationsService] Failed to acknowledge notifications', error);
+      logger.error('[NotificationsService] Failed to acknowledge notifications', error);
       throw error;
     }
   }
@@ -124,7 +125,7 @@ class NotificationsService {
       const response: NotificationsApiResponse = await apiService.archiveNotification(notificationId);
       return Boolean(response?.success ?? true);
     } catch (error) {
-      console.error('[NotificationsService] Failed to archive notification', error);
+      logger.error('[NotificationsService] Failed to archive notification', error);
       throw error;
     }
   }

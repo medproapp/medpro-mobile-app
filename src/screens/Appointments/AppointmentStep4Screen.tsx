@@ -19,6 +19,7 @@ import { useAppointmentStore } from '@store/appointmentStore';
 import { useAuthStore } from '@store/authStore';
 import { api } from '@services/api';
 import { DashboardStackParamList } from '@/types/navigation';
+import { logger } from '@/utils/logger';
 
 type Step4NavigationProp = StackNavigationProp<DashboardStackParamList, 'AppointmentStep4'>;
 
@@ -62,10 +63,10 @@ export const AppointmentStep4Screen: React.FC = () => {
 
     setLoading(true);
     try {
-      console.log('[AppointmentStep4] Loading locations for practitioner:', user.email);
+      logger.debug('[AppointmentStep4] Loading locations for practitioner:', user.email);
       
       const result = await api.getPractitionerLocations(user.email);
-      console.log('[AppointmentStep4] Locations result:', result);
+      logger.debug('[AppointmentStep4] Locations result:', result);
       
       if (result?.data && Array.isArray(result.data)) {
         setLocations(result.data);
@@ -75,7 +76,7 @@ export const AppointmentStep4Screen: React.FC = () => {
         setLocations([]);
       }
     } catch (error) {
-      console.error('[AppointmentStep4] Error loading locations:', error);
+      logger.error('[AppointmentStep4] Error loading locations:', error);
       setLocations([]);
       Alert.alert('Erro', 'Não foi possível carregar os locais de atendimento');
     } finally {

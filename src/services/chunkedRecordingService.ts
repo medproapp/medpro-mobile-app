@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiService } from './api';
+import { logger } from '@/utils/logger';
 
 // Constants
 const CHUNK_SIZE_MB = 5; // 5MB chunks
@@ -95,7 +96,7 @@ export class ChunkedRecordingService {
       const fileSize = fileInfo.size;
       const totalChunks = Math.ceil(fileSize / CHUNK_SIZE_BYTES);
 
-      console.log('[ChunkedRecording] File info:', {
+      logger.debug('[ChunkedRecording] File info:', {
         size: fileSize,
         totalChunks,
         chunkSize: CHUNK_SIZE_MB + 'MB'
@@ -198,14 +199,14 @@ export class ChunkedRecordingService {
       };
 
     } catch (error: any) {
-      console.error('[ChunkedRecording] Upload failed:', error);
+      logger.error('[ChunkedRecording] Upload failed:', error);
 
       // Try to cancel the session on the backend
       if (this.currentSession?.sessionId) {
         try {
           await apiService.cancelChunkedSession(this.currentSession.sessionId);
         } catch (cancelError) {
-          console.error('[ChunkedRecording] Failed to cancel session:', cancelError);
+          logger.error('[ChunkedRecording] Failed to cancel session:', cancelError);
         }
         await this.clearSessionState();
       }
@@ -261,7 +262,7 @@ export class ChunkedRecordingService {
             // Retry logic
             if (chunk.retries < MAX_RETRIES) {
               chunk.retries++;
-              console.log(`[ChunkedRecording] Retrying chunk ${chunk.index}, attempt ${chunk.retries}/${MAX_RETRIES}`);
+              logger.debug(`[ChunkedRecording] Retrying chunk ${chunk.index}, attempt ${chunk.retries}/${MAX_RETRIES}`);
 
               // Add back to queue with exponential backoff
               setTimeout(() => {
@@ -270,7 +271,7 @@ export class ChunkedRecordingService {
                 }
               }, INITIAL_RETRY_DELAY_MS * Math.pow(2, chunk.retries - 1));
             } else {
-              console.error(`[ChunkedRecording] Chunk ${chunk.index} failed after ${MAX_RETRIES} retries:`, error);
+              logger.error(`[ChunkedRecording] Chunk ${chunk.index} failed after ${MAX_RETRIES} retries:`, error);
               throw new Error(`Falha ao enviar chunk ${chunk.index + 1}: ${error.message}`);
             }
           });
@@ -296,7 +297,7 @@ export class ChunkedRecordingService {
 
     const { sessionId, audioPath } = this.currentSession;
 
-    console.log('[ChunkedRecording] Uploading chunk:', {
+    logger.debug('[ChunkedRecording] Uploading chunk:', {
       index: chunk.index,
       start: chunk.start,
       end: chunk.end,
@@ -342,7 +343,7 @@ export class ChunkedRecordingService {
       }
     );
 
-    console.log('[ChunkedRecording] Chunk uploaded successfully:', chunk.index);
+    logger.debug('[ChunkedRecording] Chunk uploaded successfully:', chunk.index);
   }
 
   /**
@@ -364,14 +365,14 @@ export class ChunkedRecordingService {
    * Abort the current upload
    */
   async abortUpload(): Promise<void> {
-    console.log('[ChunkedRecording] Aborting upload...');
+    logger.debug('[ChunkedRecording] Aborting upload...');
     this.aborted = true;
 
     if (this.currentSession?.sessionId) {
       try {
         await apiService.cancelChunkedSession(this.currentSession.sessionId);
       } catch (error) {
-        console.error('[ChunkedRecording] Error canceling session:', error);
+        logger.error('[ChunkedRecording] Error canceling session:', error);
       }
 
       await this.clearSessionState();
@@ -392,7 +393,7 @@ export class ChunkedRecordingService {
       const key = STORAGE_KEY_PREFIX + this.currentSession.sessionId;
       await AsyncStorage.setItem(key, JSON.stringify(this.currentSession));
     } catch (error) {
-      console.error('[ChunkedRecording] Error saving session state:', error);
+      logger.error('[ChunkedRecording] Error saving session state:', error);
     }
   }
 
@@ -406,7 +407,7 @@ export class ChunkedRecordingService {
       const key = STORAGE_KEY_PREFIX + this.currentSession.sessionId;
       await AsyncStorage.removeItem(key);
     } catch (error) {
-      console.error('[ChunkedRecording] Error clearing session state:', error);
+      logger.error('[ChunkedRecording] Error clearing session state:', error);
     }
   }
 
@@ -415,7 +416,7 @@ export class ChunkedRecordingService {
    */
   async resumeSession(sessionId: string): Promise<void> {
     // TODO: Implement session recovery
-    console.log('[ChunkedRecording] Session resume not yet implemented');
+    logger.debug('[ChunkedRecording] Session resume not yet implemented');
   }
 }
 

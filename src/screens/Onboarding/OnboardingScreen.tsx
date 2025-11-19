@@ -16,6 +16,7 @@ import { useOnboardingStore } from '@store/onboardingStore';
 import { useAuthStore } from '@store/authStore';
 import { SetupModal } from './SetupModal';
 import { OnboardingStepKey } from '@/types/onboarding';
+import { logger } from '@/utils/logger';
 
 const backgroundImage = require('../../assets/welcome1.png');
 
@@ -66,10 +67,10 @@ export const OnboardingScreen: React.FC = () => {
   const catalogReloadAttemptedRef = useRef(false);
 
   useEffect(() => {
-    console.log('OnboardingScreen mounted');
-    console.log('isInitialized:', isInitialized, 'isLoading:', isLoading);
+    logger.debug('OnboardingScreen mounted');
+    logger.debug('isInitialized:', isInitialized, 'isLoading:', isLoading);
     if (!user) {
-      console.log('OnboardingScreen: no authenticated user, skipping initialize');
+      logger.debug('OnboardingScreen: no authenticated user, skipping initialize');
       return;
     }
 
@@ -85,9 +86,9 @@ export const OnboardingScreen: React.FC = () => {
       (availableCategories.length === 0 || availableServiceTypes.length === 0)
     ) {
       catalogReloadAttemptedRef.current = true;
-      console.log('[OnboardingScreen] Forcing catalog reload');
+      logger.debug('[OnboardingScreen] Forcing catalog reload');
       initialize({ reloadCatalog: true }).catch(error => {
-        console.error('[OnboardingScreen] Catalog reload failed', error);
+        logger.error('[OnboardingScreen] Catalog reload failed', error);
       });
     }
   }, [availableCategories.length, availableServiceTypes.length, initialize, isInitialized, isLoading, user]);

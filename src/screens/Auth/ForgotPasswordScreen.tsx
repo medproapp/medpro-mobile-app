@@ -18,6 +18,7 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { AuthStackParamList } from '@/types/navigation';
 import api from '@services/api';
+import { logger } from '@/utils/logger';
 
 interface ForgotPasswordFormData {
   email: string;
@@ -67,7 +68,7 @@ export const ForgotPasswordScreen: React.FC = () => {
         ],
       );
     } catch (error) {
-      console.error('[ForgotPassword] erro ao solicitar redefinição de senha:', error);
+      logger.error('[ForgotPassword] erro ao solicitar redefinição de senha:', error);
       Alert.alert(
         'Não foi possível enviar',
         'Ocorreu um problema ao solicitar a redefinição de senha. Tente novamente em instantes.'

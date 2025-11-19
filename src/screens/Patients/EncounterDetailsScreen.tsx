@@ -27,6 +27,7 @@ import {
   formatClinicalDateTime,
   getStatusBadgeStyle,
 } from '@/utils/clinical';
+import { logger } from '@/utils/logger';
 
 type EncounterDetailsRouteProp = RouteProp<PatientsStackParamList, 'EncounterDetails'>;
 
@@ -346,7 +347,7 @@ export const EncounterDetailsScreen: React.FC = () => {
 
   const loadEncounterDetails = async () => {
     try {
-      console.log('[EncounterDetails] Loading details for encounter:', encounterId);
+      logger.debug('[EncounterDetails] Loading details for encounter:', encounterId);
       
       // Load all encounter data in parallel - handle errors gracefully
       const [clinicalResponse, medicationResponse, diagnosticResponse, imageResponse, attachmentResponse] = await Promise.allSettled([
@@ -358,33 +359,28 @@ export const EncounterDetailsScreen: React.FC = () => {
       ]);
 
       if (clinicalResponse.status === 'fulfilled') {
-        console.log('[EncounterDetails] Raw clinical records response:', JSON.stringify(clinicalResponse.value, null, 2));
       } else {
-        console.error('[EncounterDetails] Clinical records request failed:', clinicalResponse.reason);
+        logger.error('[EncounterDetails] Clinical records request failed:', clinicalResponse.reason);
       }
 
       if (medicationResponse.status === 'fulfilled') {
-        console.log('[EncounterDetails] Raw medications response:', JSON.stringify(medicationResponse.value, null, 2));
       } else {
-        console.error('[EncounterDetails] Medications request failed:', medicationResponse.reason);
+        logger.error('[EncounterDetails] Medications request failed:', medicationResponse.reason);
       }
 
       if (diagnosticResponse.status === 'fulfilled') {
-        console.log('[EncounterDetails] Raw diagnostics response:', JSON.stringify(diagnosticResponse.value, null, 2));
       } else {
-        console.error('[EncounterDetails] Diagnostics request failed:', diagnosticResponse.reason);
+        logger.error('[EncounterDetails] Diagnostics request failed:', diagnosticResponse.reason);
       }
 
       if (imageResponse.status === 'fulfilled') {
-        console.log('[EncounterDetails] Raw images response:', JSON.stringify(imageResponse.value, null, 2));
       } else {
-        console.error('[EncounterDetails] Images request failed:', imageResponse.reason);
+        logger.error('[EncounterDetails] Images request failed:', imageResponse.reason);
       }
 
       if (attachmentResponse.status === 'fulfilled') {
-        console.log('[EncounterDetails] Raw attachments response:', JSON.stringify(attachmentResponse.value, null, 2));
       } else {
-        console.error('[EncounterDetails] Attachments request failed:', attachmentResponse.reason);
+        logger.error('[EncounterDetails] Attachments request failed:', attachmentResponse.reason);
       }
 
       // Extract data from settled promises - all should be successful now
@@ -415,18 +411,18 @@ export const EncounterDetailsScreen: React.FC = () => {
         attachments,
       };
 
-      console.log('[EncounterDetails] Loaded encounter details:', {
+      logger.debug('[EncounterDetails] Loaded encounter details:', {
         clinical: clinicalRecords.length,
         medications: medications.length,
         diagnostics: diagnostics.length,
         images: images.length,
         attachments: attachments.length,
       });
-      console.log('[EncounterDetails] Encounter record fields:', encounter ? Object.keys(encounter) : []);
+      logger.debug('[EncounterDetails] Encounter record fields:', encounter ? Object.keys(encounter) : []);
 
       setEncounterDetails(details);
     } catch (error) {
-      console.error('[EncounterDetails] Error loading encounter details:', error);
+      logger.error('[EncounterDetails] Error loading encounter details:', error);
       Alert.alert('Erro', 'Não foi possível carregar os detalhes do encontro');
     }
   };
@@ -438,14 +434,13 @@ export const EncounterDetailsScreen: React.FC = () => {
     }
 
     try {
-      console.log('[EncounterDetails] Loading patient overview for CPF:', patientCpf);
       const response = await api.getPatientLastEncounterSummary(patientCpf, encounterId);
       setPatientOverview({
         total: response?.total ?? 0,
         lastEncounter: response?.data || null,
       });
     } catch (error) {
-      console.error('[EncounterDetails] Error loading patient overview:', error);
+      logger.error('[EncounterDetails] Error loading patient overview:', error);
       setPatientOverview(null);
     }
   };
@@ -457,22 +452,19 @@ export const EncounterDetailsScreen: React.FC = () => {
     }
 
     try {
-      console.log('[EncounterDetails] Loading patient details for CPF:', patientCpf);
       const response = await api.getPatientDetails(patientCpf);
-      console.log('[EncounterDetails] Raw patient details response:', JSON.stringify(response, null, 2));
       const raw = response?.data ?? response;
       setPatientDetails(raw || null);
     } catch (error) {
-      console.error('[EncounterDetails] Error loading patient details:', error);
+      logger.error('[EncounterDetails] Error loading patient details:', error);
       setPatientDetails(null);
     }
   };
 
   const loadEncounterInfo = async () => {
     try {
-      console.log('[EncounterDetails] Loading encounter info row for:', encounterId);
+      logger.debug('[EncounterDetails] Loading encounter info row for:', encounterId);
       const response = await api.getEncounterInfoById(encounterId);
-      console.log('[EncounterDetails] Raw encounter info response:', JSON.stringify(response, null, 2));
       const info = Array.isArray(response)
         ? response[0]
         : Array.isArray(response?.data)
@@ -480,7 +472,7 @@ export const EncounterDetailsScreen: React.FC = () => {
           : response?.data ?? response;
       setEncounterInfo(info || null);
     } catch (error) {
-      console.error('[EncounterDetails] Error loading encounter info:', error);
+      logger.error('[EncounterDetails] Error loading encounter info:', error);
       setEncounterInfo(null);
     }
   };
@@ -507,10 +499,9 @@ export const EncounterDetailsScreen: React.FC = () => {
 
   const loadEncounterServices = async () => {
     try {
-      console.log('[EncounterDetails] Loading encounter services for:', encounterId);
+      logger.debug('[EncounterDetails] Loading encounter services for:', encounterId);
       setEncounterServicesError(null);
       const response = await api.getEncounterServices(encounterId);
-      console.log('[EncounterDetails] Raw encounter services response:', JSON.stringify(response, null, 2));
 
       if (response && typeof response === 'object' && 'error' in response && response.error) {
         const errorMessage = typeof response.error === 'string'
@@ -525,27 +516,25 @@ export const EncounterDetailsScreen: React.FC = () => {
         ? (response as any).data
         : response;
 
-      console.log('[EncounterDetails] Encounter services payload extracted:', JSON.stringify(payload, null, 2));
 
       if (!payload) {
-        console.warn('[EncounterDetails] Encounter services payload empty, using fallback.');
+        logger.warn('[EncounterDetails] Encounter services payload empty, using fallback.');
         setEncounterServices(normalizeEncounterServicesData({ services: [] }));
         return;
       }
 
       const normalized = normalizeEncounterServicesData(payload);
-      console.log('[EncounterDetails] Encounter services normalized data:', JSON.stringify(normalized, null, 2));
       setEncounterServices(normalized);
     } catch (error) {
-      console.error('[EncounterDetails] Error loading encounter services:', error);
+      logger.error('[EncounterDetails] Error loading encounter services:', error);
       const rawMessage = error instanceof Error ? error.message : '';
       let normalizedMessage = 'Não foi possível carregar os serviços agendados.';
 
       if (rawMessage.includes('Encounter not found')) {
-        console.warn('[EncounterDetails] Encounter services request returned encounter not found.');
+        logger.warn('[EncounterDetails] Encounter services request returned encounter not found.');
         normalizedMessage = 'Encontro não encontrado.';
       } else if (rawMessage.includes('Appointment not found')) {
-        console.warn('[EncounterDetails] Encounter services request returned appointment not found.');
+        logger.warn('[EncounterDetails] Encounter services request returned appointment not found.');
         normalizedMessage = 'Nenhum agendamento associado ao encontro.';
       }
 
@@ -556,10 +545,9 @@ export const EncounterDetailsScreen: React.FC = () => {
 
   const loadEncounterFinancials = async () => {
     try {
-      console.log('[EncounterDetails] Loading encounter financials for:', encounterId);
+      logger.debug('[EncounterDetails] Loading encounter financials for:', encounterId);
       setEncounterFinancialsError(null);
       const response = await api.getEncounterFinancials(encounterId);
-      console.log('[EncounterDetails] Raw encounter financials response:', JSON.stringify(response, null, 2));
 
       if (response && typeof response === 'object' && 'error' in response && response.error) {
         const errorMessage = typeof response.error === 'string'
@@ -574,27 +562,25 @@ export const EncounterDetailsScreen: React.FC = () => {
         ? (response as any).data
         : response;
 
-      console.log('[EncounterDetails] Encounter financials payload extracted:', JSON.stringify(payload, null, 2));
 
       if (!payload) {
-        console.warn('[EncounterDetails] Encounter financials payload empty, using fallback.');
+        logger.warn('[EncounterDetails] Encounter financials payload empty, using fallback.');
         setEncounterFinancials(normalizeEncounterFinancialsData({ selectedServices: [], totals: {} }));
         return;
       }
 
       const normalized = normalizeEncounterFinancialsData(payload);
-      console.log('[EncounterDetails] Encounter financials normalized data:', JSON.stringify(normalized, null, 2));
       setEncounterFinancials(normalized);
     } catch (error) {
-      console.error('[EncounterDetails] Error loading encounter financials:', error);
+      logger.error('[EncounterDetails] Error loading encounter financials:', error);
       const rawMessage = error instanceof Error ? error.message : '';
       let normalizedMessage = 'Não foi possível carregar o resumo financeiro.';
 
       if (rawMessage.includes('Encounter not found')) {
-        console.warn('[EncounterDetails] Encounter financials request returned encounter not found.');
+        logger.warn('[EncounterDetails] Encounter financials request returned encounter not found.');
         normalizedMessage = 'Encontro não encontrado.';
       } else if (rawMessage.includes('Appointment not found')) {
-        console.warn('[EncounterDetails] Encounter financials request returned appointment not found.');
+        logger.warn('[EncounterDetails] Encounter financials request returned appointment not found.');
         normalizedMessage = 'Nenhum agendamento associado ao encontro.';
       }
 
@@ -605,37 +591,34 @@ export const EncounterDetailsScreen: React.FC = () => {
 
   const loadEncounterSummary = async () => {
     try {
-      console.log('[EncounterDetails] Loading encounter summary for:', encounterId);
+      logger.debug('[EncounterDetails] Loading encounter summary for:', encounterId);
       const response = await api.getEncounterSummary(encounterId);
-      console.log('[EncounterDetails] Raw encounter summary response:', JSON.stringify(response, null, 2));
       setEncounterSummary(response?.data || response || null);
     } catch (error) {
-      console.error('[EncounterDetails] Error loading encounter summary:', error);
+      logger.error('[EncounterDetails] Error loading encounter summary:', error);
       setEncounterSummary(null);
     }
   };
 
   const loadEncounterAI = async () => {
     try {
-      console.log('[EncounterDetails] Loading encounter AI data for:', encounterId);
+      logger.debug('[EncounterDetails] Loading encounter AI data for:', encounterId);
       const response = await api.getEncounterAI(encounterId);
-      console.log('[EncounterDetails] Raw encounter AI response:', JSON.stringify(response, null, 2));
       setEncounterAI(response?.data || response || null);
     } catch (error) {
-      console.error('[EncounterDetails] Error loading encounter AI:', error);
+      logger.error('[EncounterDetails] Error loading encounter AI:', error);
       setEncounterAI(null);
     }
   };
 
   const loadRecordings = async () => {
     try {
-      console.log('[EncounterDetails] Loading recordings for encounter:', encounterId);
+      logger.debug('[EncounterDetails] Loading recordings for encounter:', encounterId);
       const response = await api.getEncounterRecordings(encounterId, { limit: 20 });
-      console.log('[EncounterDetails] Raw recordings response:', JSON.stringify(response, null, 2));
       const data = response?.data || response || [];
       setRecordings(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error('[EncounterDetails] Error loading recordings:', error);
+      logger.error('[EncounterDetails] Error loading recordings:', error);
       setRecordings([]);
     }
   };

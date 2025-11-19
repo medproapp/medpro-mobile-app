@@ -24,6 +24,7 @@ import { MaskedInput } from '@/components/MaskedInput';
 import { DatePickerInput } from '@/components/DatePickerInput';
 import { validateCPF, validatePhone } from '@/utils/validation';
 import { convertIsoToDisplayDate, convertDisplayDateToIso } from '@/utils/dateHelpers';
+import { logger } from '@/utils/logger';
 
 const TEXT_INPUT_HEIGHT = Platform.select({ ios: 46, android: 48, default: 46 });
 
@@ -111,7 +112,7 @@ export const MyProfileScreen: React.FC = () => {
         const statesData = await apiService.getStates();
         setStates(statesData);
       } catch (error) {
-        console.error('[MyProfileScreen] Failed to load states:', error);
+        logger.error('Failed to load states:', error);
       }
     };
     loadStates();
@@ -129,7 +130,7 @@ export const MyProfileScreen: React.FC = () => {
       const citiesData = await apiService.getCities(stateCode);
       setCities(citiesData);
     } catch (error) {
-      console.error('[MyProfileScreen] Failed to load cities:', error);
+      logger.error('Failed to load cities:', error);
       Alert.alert('Erro', 'Não foi possível carregar as cidades.');
     } finally {
       setLoadingCities(false);
@@ -180,10 +181,8 @@ export const MyProfileScreen: React.FC = () => {
     }
 
     try {
-      console.log('[MyProfileScreen] Loading practitioner profile for:', email);
       setLoading(true);
       const profile = await apiService.getMyPractitionerProfile(email);
-      console.log('[MyProfileScreen] Raw profile payload:', profile);
 
       setFormValues({
         name: profile.name || user?.name || '',
@@ -211,7 +210,7 @@ export const MyProfileScreen: React.FC = () => {
 
       setPhotoAvailable(true);
     } catch (error) {
-      console.error('[MyProfileScreen] Failed to load profile. Raw error:', error);
+      logger.error('Failed to load practitioner profile:', error);
       Alert.alert('Erro', 'Não foi possível carregar seus dados. Tente novamente.');
     } finally {
       setLoading(false);
@@ -269,7 +268,6 @@ export const MyProfileScreen: React.FC = () => {
     });
 
     try {
-      console.log('[MyProfileScreen] Saving profile with payload:', updatedFields);
       setSaving(true);
       await apiService.saveMyPractitionerProfile(updatedFields);
 
@@ -278,7 +276,7 @@ export const MyProfileScreen: React.FC = () => {
 
       Alert.alert('Sucesso', 'Suas informações foram atualizadas.');
     } catch (error) {
-      console.error('[MyProfileScreen] Failed to save profile. Raw error:', error);
+      logger.error('Failed to save practitioner profile:', error);
       Alert.alert('Erro', 'Não foi possível salvar as alterações. Tente novamente.');
     } finally {
       setSaving(false);
@@ -332,13 +330,12 @@ export const MyProfileScreen: React.FC = () => {
       const dataURL = `data:${mimeType};base64,${asset.base64}`;
 
       setPhotoUploading(true);
-      console.log('[MyProfileScreen] Uploading new profile photo. Mime type:', mimeType, 'Base64 length:', asset.base64?.length);
       await apiService.saveMyPractitionerPhoto(email, dataURL);
       setPhotoAvailable(true);
       setPhotoVersion(prev => prev + 1);
       Alert.alert('Sucesso', 'Foto atualizada com sucesso.');
     } catch (error) {
-      console.error('[MyProfileScreen] Failed to update photo. Raw error:', error);
+      logger.error('Failed to update profile photo:', error);
       Alert.alert('Erro', 'Não foi possível atualizar a foto. Tente novamente.');
     } finally {
       setPhotoUploading(false);

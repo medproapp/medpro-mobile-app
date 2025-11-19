@@ -6,6 +6,7 @@ import notificationService from '@services/notificationService';
 import { useAuthStore } from '@store/authStore';
 import { useMessagingStore } from '@store/messagingStore';
 import { useNotificationStore } from '@store/notificationStore';
+import { logger } from '@/utils/logger';
 
 export const useNotifications = () => {
   const navigation = useNavigation<any>();
@@ -35,7 +36,7 @@ export const useNotifications = () => {
           fetchPendingCount(),
         ]);
       } catch (error) {
-        console.error('[useNotifications] Failed to initialize notifications:', error);
+        logger.error('[useNotifications] Failed to initialize notifications:', error);
       }
     };
 
@@ -43,7 +44,7 @@ export const useNotifications = () => {
 
     // Listen for notifications received while app is foregrounded
     notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
-      console.log('[useNotifications] Notification received:', notification);
+      logger.debug('[useNotifications] Notification received:', notification);
       
       const data = notification.request.content.data;
       
@@ -65,7 +66,7 @@ export const useNotifications = () => {
 
     // Listen for user interactions with notifications
     responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('[useNotifications] Notification response received:', response);
+      logger.debug('[useNotifications] Notification response received:', response);
       
       const data = response.notification.request.content.data;
       
@@ -81,7 +82,7 @@ export const useNotifications = () => {
             },
           });
         } catch (error) {
-          console.error('[useNotifications] Navigation error:', error);
+          logger.error('[useNotifications] Navigation error:', error);
           // Fallback: just navigate to Messages tab
           (navigation as any).navigate('Messages');
         }

@@ -12,6 +12,7 @@ import {
   ServiceCategoryOption,
   ServiceTypeOption,
 } from '@/types/onboarding';
+import { logger } from '@/utils/logger';
 
 const createInitialForm = (): SetupFormState => ({
   cpf: '',
@@ -59,7 +60,7 @@ const ONBOARDING_STORAGE_KEY = 'medpro-onboarding';
 
 const debugLog = (...args: unknown[]) => {
   if (__DEV__) {
-    console.log('[OnboardingStore]', ...args);
+    logger.debug('[OnboardingStore]', ...args);
   }
 };
 
@@ -222,7 +223,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
         AsyncStorage.removeItem(ONBOARDING_STORAGE_KEY)
           .then(() => debugLog('AsyncStorage cleared for onboarding'))
           .catch(error => {
-            console.warn('[OnboardingStore] Falha ao limpar armazenamento persistido', error);
+            logger.warn('[OnboardingStore] Falha ao limpar armazenamento persistido', error);
           });
       },
 
@@ -239,7 +240,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
       initialize: async (options: InitializeOptions = {}) => {
         debugLog('initialize()', options);
         const { reloadCatalog = false } = options;
-        console.log('[Onboarding] Initialization started', { reloadCatalog });
+        logger.debug('[Onboarding] Initialization started', { reloadCatalog });
         const { user } = useAuthStore.getState();
         if (!user) {
           debugLog('initialize() aborting: no authenticated user');
@@ -260,21 +261,19 @@ export const useOnboardingStore = create<OnboardingStore>()(
           const [categories, serviceTypes] = await Promise.all([
             shouldFetchCategories
               ? onboardingService.getServiceCategories().catch(error => {
-                  console.error('[Onboarding] Erro ao buscar categorias', error);
+                  logger.error('[Onboarding] Erro ao buscar categorias', error);
                   return previousCategories;
                 })
               : Promise.resolve(previousCategories),
             shouldFetchServiceTypes
               ? onboardingService.getServiceTypes().catch(error => {
-                  console.error('[Onboarding] Erro ao buscar tipos de serviço', error);
+                  logger.error('[Onboarding] Erro ao buscar tipos de serviço', error);
                   return previousServiceTypes;
                 })
               : Promise.resolve(previousServiceTypes),
           ]);
 
           if (__DEV__) {
-            console.log('[Onboarding] getServiceCategories raw response:', categories);
-            console.log('[Onboarding] getServiceTypes raw response:', serviceTypes);
           }
 
           const organizationLogoUrl = user.organizationLogoUrl;
@@ -319,7 +318,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
             serviceTypes: normalizedServiceTypes.length,
           });
         } catch (error) {
-          console.error('Onboarding initialization failed', error);
+          logger.error('Onboarding initialization failed', error);
           set({
             isLoading: false,
             error: error instanceof Error ? error.message : 'Falha ao iniciar onboarding',
@@ -340,7 +339,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
           const [profile, serviceCategories, locations, schedules] = await Promise.all([
             onboardingService.getPractitionerData(state.practitionerEmail).catch(error => {
               if (__DEV__) {
-                console.error('[Onboarding] Erro ao buscar dados do profissional', error);
+                logger.error('[Onboarding] Erro ao buscar dados do profissional', error);
               }
               return {};
             }),
@@ -354,7 +353,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
           const profileData = profile as Record<string, any>;
 
           if (__DEV__) {
-            console.log('[Onboarding] Perfil recebido:', profileData);
+            logger.debug('[Onboarding] Perfil recebido:', profileData);
           }
 
           const normalizeValue = (value: unknown) => {
@@ -415,7 +414,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
             schedules: normalizedSchedules.length,
           });
         } catch (error) {
-          console.error('Checklist refresh failed', error);
+          logger.error('Checklist refresh failed', error);
           set({
             error: error instanceof Error ? error.message : 'Falha ao validar progresso',
           });
@@ -495,7 +494,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
               cpf: profilePayload.cpf ? `${profilePayload.cpf.slice(0, 3)}******${profilePayload.cpf.slice(-2)}` : null,
               phone: profilePayload.phone ? `${profilePayload.phone.slice(0, 2)}******${profilePayload.phone.slice(-2)}` : null,
             };
-            console.log('🛠️ [Onboarding] Enviando dados do consultório', debugPayload);
+            logger.debug('🛠️ [Onboarding] Enviando dados do consultório', debugPayload);
           }
 
           await onboardingService.savePractitionerProfile({ updatedFields: profilePayload });
@@ -523,7 +522,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
 
           if (categoryIds.length) {
             if (__DEV__) {
-              console.log('🛠️ [Onboarding] Salvando categorias', {
+              logger.debug('🛠️ [Onboarding] Salvando categorias', {
                 endpoint: '/pract/savepractservicecategory',
                 practId: targetPractId,
                 serviceCategoryList: categoryIds,
@@ -535,7 +534,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
                 serviceCategoryList: categoryIds,
               });
             } catch (categoryError) {
-              console.error('[Onboarding] Falha ao salvar categorias', categoryError);
+              logger.error('[Onboarding] Falha ao salvar categorias', categoryError);
               throw categoryError;
             }
           }
@@ -545,7 +544,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
             .filter(id => Number.isFinite(id));
           if (serviceTypeIds.length) {
             if (__DEV__) {
-              console.log('🛠️ [Onboarding] Salvando tipos de serviço', {
+              logger.debug('🛠️ [Onboarding] Salvando tipos de serviço', {
                 endpoint: '/pract/savepractservicetypes',
                 practId: targetPractId,
                 serviceTypeList: serviceTypeIds,
@@ -557,7 +556,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
                 serviceTypeList: serviceTypeIds,
               });
             } catch (serviceTypeError) {
-              console.error('[Onboarding] Falha ao salvar tipos de serviço', serviceTypeError);
+              logger.error('[Onboarding] Falha ao salvar tipos de serviço', serviceTypeError);
               throw serviceTypeError;
             }
           }
@@ -572,7 +571,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
           const intervalValue = 15;
 
           if (__DEV__) {
-            console.log('🛠️ [Onboarding] Salvando parâmetros', {
+            logger.debug('🛠️ [Onboarding] Salvando parâmetros', {
               endpoint: `/pract/updatedata/${targetPractId}`,
               priceValue,
               durationValue,
@@ -588,7 +587,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
               intervaloatendimentos: intervalValue,
             });
           } catch (scheduleError) {
-            console.error('[Onboarding] Falha ao salvar parâmetros de agenda', scheduleError);
+            logger.error('[Onboarding] Falha ao salvar parâmetros de agenda', scheduleError);
             throw scheduleError;
           }
 
@@ -665,7 +664,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
 
           if (canManagePricing) {
             if (__DEV__) {
-              console.log('🛠️ [Onboarding] Criando serviço padrão', {
+              logger.debug('🛠️ [Onboarding] Criando serviço padrão', {
                 endpoint: '/offerings',
                 name: 'Consulta Médica',
                 duration: durationValue,
@@ -682,7 +681,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
                 currency: 'BRL',
               });
             } catch (offeringError) {
-              console.error('[Onboarding] Falha ao criar serviço padrão', offeringError);
+              logger.error('[Onboarding] Falha ao criar serviço padrão', offeringError);
               throw offeringError;
             }
           }
@@ -704,7 +703,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
             };
 
             if (__DEV__) {
-              console.log('🛠️ [Onboarding] Criando agenda padrão', {
+              logger.debug('🛠️ [Onboarding] Criando agenda padrão', {
                 endpoint: '/schedule/saveSchedule',
                 payload: schedulePayload,
               });
@@ -761,14 +760,14 @@ export const useOnboardingStore = create<OnboardingStore>()(
               for (const slotPayload of slotPayloads) {
                 try {
                   if (__DEV__) {
-                    console.log('🛠️ [Onboarding] Criando slot padrão', {
+                    logger.debug('🛠️ [Onboarding] Criando slot padrão', {
                       endpoint: '/schedule/savescheduleslot',
                       payload: slotPayload,
                     });
                   }
                   await onboardingService.saveScheduleSlot(slotPayload);
                 } catch (slotError) {
-                  console.error('[Onboarding] Falha ao criar slot padrão', slotError);
+                  logger.error('[Onboarding] Falha ao criar slot padrão', slotError);
                 }
               }
             }
@@ -785,7 +784,7 @@ export const useOnboardingStore = create<OnboardingStore>()(
           });
           debugLog('submitSetup() completed successfully');
         } catch (error) {
-          console.error('Submit setup failed', error);
+          logger.error('Submit setup failed', error);
           set({
             isSubmitting: false,
             error: error instanceof Error ? error.message : 'Falha ao concluir configuração',

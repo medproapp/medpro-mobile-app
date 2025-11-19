@@ -20,6 +20,7 @@ import { useMessagingStore } from '@store/messagingStore';
 import { useAuthStore } from '@store/authStore';
 import { Message, MessageThread } from '@/types/messaging';
 import { MessagesStackParamList } from '@/types/navigation';
+import { logger } from '@/utils/logger';
 
 type ConversationScreenRouteProp = RouteProp<MessagesStackParamList, 'Conversation'>;
 
@@ -127,7 +128,7 @@ export const ConversationScreen: React.FC = () => {
   // Debug logging for messages
   useEffect(() => {
     if (threadMessages.length > 0) {
-      console.log('[ConversationScreen] Thread messages loaded:', {
+      logger.debug('[ConversationScreen] Thread messages loaded:', {
         count: threadMessages.length,
         firstMessage: threadMessages[0] ? {
           message_id: threadMessages[0].message_id,
@@ -142,7 +143,7 @@ export const ConversationScreen: React.FC = () => {
 
   // Load messages when component mounts
   useEffect(() => {
-    console.log('[ConversationScreen] Loading messages for thread:', threadId);
+    logger.debug('[ConversationScreen] Loading messages for thread:', threadId);
     loadMessages(threadId);
     
     // Set as current thread
@@ -240,7 +241,7 @@ export const ConversationScreen: React.FC = () => {
       // Reload messages to show the new one
       await loadMessages(threadId);
     } catch (error) {
-      console.error('[ConversationScreen] Error sending message:', error);
+      logger.error('[ConversationScreen] Error sending message:', error);
       Alert.alert('Erro', 'Não foi possível enviar a mensagem. Tente novamente.');
       setMessageText(content); // Restore message text
     } finally {
@@ -251,14 +252,14 @@ export const ConversationScreen: React.FC = () => {
   // Handle mark as read
   const handleMarkAsRead = async (messageId: string) => {
     if (!messageId) {
-      console.warn('[ConversationScreen] Cannot mark message as read: messageId is undefined');
+      logger.warn('[ConversationScreen] Cannot mark message as read: messageId is undefined');
       return;
     }
     
     try {
       await markAsRead(messageId);
     } catch (error) {
-      console.error('[ConversationScreen] Error marking message as read:', error);
+      logger.error('[ConversationScreen] Error marking message as read:', error);
     }
   };
 

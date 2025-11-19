@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
+import { logger } from '@/utils/logger';
 
 export interface MessageThreadViewModel {
   identifier: string;
@@ -72,7 +73,7 @@ export const MessageThreadItem: React.FC<MessageThreadItemProps> = ({ thread, on
               source={{ uri: thread.avatar_uri }}
               style={styles.avatar}
               onError={(event) => {
-                console.warn('[MessageThreadItem] Failed to load avatar image', {
+                logger.warn('[MessageThreadItem] Failed to load avatar image', {
                   uri: thread.avatar_uri,
                   threadId: thread.identifier,
                 });

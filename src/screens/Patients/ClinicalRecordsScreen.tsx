@@ -22,6 +22,7 @@ import { PatientsStackParamList } from '@/types/navigation';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as Sharing from 'expo-sharing';
+import { logger } from '@/utils/logger';
 
 type ClinicalRecordsRouteProp = RouteProp<PatientsStackParamList, 'ClinicalRecords'>;
 
@@ -107,7 +108,7 @@ export const ClinicalRecordsScreen: React.FC = () => {
       setPage(pageNum);
 
     } catch (error) {
-      console.error('[ClinicalRecords] Error loading clinical records:', error);
+      logger.error('[ClinicalRecords] Error loading clinical records:', error);
 
       // Stop pagination on error to prevent infinite loops
       setHasMore(false);
@@ -160,19 +161,17 @@ export const ClinicalRecordsScreen: React.FC = () => {
     setLoadingAttachments(prev => ({ ...prev, [clinicalId]: true }));
     try {
       const response = await api.getClinicalRecordAttachments(clinicalId);
-      console.log('[ClinicalRecords] Attachments API response:', JSON.stringify(response, null, 2));
       const payload = response?.attachments ?? response?.data?.attachments ?? [];
       const normalized = Array.isArray(payload) ? payload : [];
 
-      console.log('[ClinicalRecords] Normalized attachments count:', normalized.length);
+      logger.debug('[ClinicalRecords] Normalized attachments count:', normalized.length);
       normalized.forEach((att, idx) => {
-        console.log(`[ClinicalRecords] Attachment ${idx} fields:`, Object.keys(att));
-        console.log(`[ClinicalRecords] Attachment ${idx} full object:`, JSON.stringify(att, null, 2));
+        logger.debug(`[ClinicalRecords] Attachment ${idx} fields:`, Object.keys(att));
       });
 
       setAttachmentsMap(prev => ({ ...prev, [clinicalId]: normalized }));
     } catch (error) {
-      console.error('[ClinicalRecords] Error loading attachments:', error);
+      logger.error('[ClinicalRecords] Error loading attachments:', error);
       setAttachmentsMap(prev => ({ ...prev, [clinicalId]: [] }));
     } finally {
       setLoadingAttachments(prev => ({ ...prev, [clinicalId]: false }));
@@ -180,7 +179,7 @@ export const ClinicalRecordsScreen: React.FC = () => {
   };
 
   const handleAttachmentPress = async (attachment: any) => {
-    console.log('[ClinicalRecords] Attachment pressed:', {
+    logger.debug('[ClinicalRecords] Attachment pressed:', {
       identifier: attachment?.identifier,
       hasExternalLink: !!attachment?.externallink,
       externalLink: attachment?.externallink,
@@ -191,45 +190,45 @@ export const ClinicalRecordsScreen: React.FC = () => {
     try {
       // Handle external links
       if (attachment?.externallink) {
-        console.log('[ClinicalRecords] Opening external link:', attachment.externallink);
+        logger.debug('[ClinicalRecords] Opening external link:', attachment.externallink);
         await Linking.openURL(attachment.externallink);
         return;
       }
 
       // Handle blob attachments
       if (attachment?.blob && attachment?.contentType) {
-        console.log('[ClinicalRecords] Processing blob attachment');
+        logger.debug('[ClinicalRecords] Processing blob attachment');
 
         const base64Data = attachment.blob;
         const filename = attachment.suggestedFilename || attachment.blobname || attachment.identifier || 'attachment';
         const fileUri = `${FileSystem.documentDirectory}${filename}`;
 
-        console.log('[ClinicalRecords] Writing file to:', fileUri);
+        logger.debug('[ClinicalRecords] Writing file to:', fileUri);
         await FileSystem.writeAsStringAsync(fileUri, base64Data, {
           encoding: FileSystem.EncodingType.Base64,
         });
-        console.log('[ClinicalRecords] File written successfully');
+        logger.debug('[ClinicalRecords] File written successfully');
 
         if (Platform.OS === 'android') {
-          console.log('[ClinicalRecords] Opening file on Android');
+          logger.debug('[ClinicalRecords] Opening file on Android');
           const contentUri = await FileSystem.getContentUriAsync(fileUri);
-          console.log('[ClinicalRecords] Content URI:', contentUri);
+          logger.debug('[ClinicalRecords] Content URI:', contentUri);
 
           await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
             data: contentUri,
             flags: ANDROID_READ_PERMISSION_FLAG,
             type: attachment.contentType,
           });
-          console.log('[ClinicalRecords] File opened successfully on Android');
+          logger.debug('[ClinicalRecords] File opened successfully on Android');
         } else {
-          console.log('[ClinicalRecords] Opening file on iOS');
+          logger.debug('[ClinicalRecords] Opening file on iOS');
           const isAvailable = await Sharing.isAvailableAsync();
           if (isAvailable) {
             await Sharing.shareAsync(fileUri, {
               mimeType: attachment.contentType,
               dialogTitle: filename,
             });
-            console.log('[ClinicalRecords] File shared successfully on iOS');
+            logger.debug('[ClinicalRecords] File shared successfully on iOS');
           } else {
             Alert.alert('Erro', 'Compartilhamento não disponível neste dispositivo');
           }
@@ -238,7 +237,7 @@ export const ClinicalRecordsScreen: React.FC = () => {
         Alert.alert('Erro', 'Anexo não disponível ou inválido');
       }
     } catch (error) {
-      console.error('[ClinicalRecords] Error opening attachment:', error);
+      logger.error('[ClinicalRecords] Error opening attachment:', error);
       Alert.alert('Erro', 'Não foi possível abrir o anexo');
     }
   };

@@ -19,6 +19,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { DashboardStackParamList } from '@/types/navigation';
 import { useAuthStore } from '@store/authStore';
 import { PreAppointmentFormStatus } from '@/types/preAppointment';
+import { logger } from '@/utils/logger';
 
 type AppointmentDetailsScreenProps = RouteProp<DashboardStackParamList, 'AppointmentDetails'>;
 type AppointmentDetailsNavigationProp = StackNavigationProp<DashboardStackParamList, 'AppointmentDetails'>;
@@ -172,15 +173,13 @@ export const AppointmentDetailsScreen: React.FC = () => {
   const fetchAppointmentDetails = async () => {
     try {
       setLoading(true);
-      console.log('Fetching appointment details for ID:', appointmentId);
+      logger.debug('Fetching appointment details for ID:', appointmentId);
 
       const appointmentData = await apiService.getAppointmentById(appointmentId);
-      console.log('Raw appointment data response:', appointmentData);
 
       if (appointmentData) {
         // The data might be directly in the response or nested under 'data'
         const apt = appointmentData.data || appointmentData;
-        console.log('Processed appointment data:', apt);
 
         const isLead = apt.subject_type === 'lead';
         const localStartDate = toLocalDateTime(apt.startdate, apt.starttime);
@@ -190,7 +189,7 @@ export const AppointmentDetailsScreen: React.FC = () => {
           // 1. Fetch patient or lead details
           (async () => {
             if (isLead && apt.lead_id) {
-              console.log('[AppointmentDetails] Processing lead appointment:', apt.lead_id);
+              logger.debug('[AppointmentDetails] Processing lead appointment:', apt.lead_id);
               try {
                 const leadData = await apiService.getLeadDetails(apt.lead_id);
                 return {
@@ -199,7 +198,7 @@ export const AppointmentDetailsScreen: React.FC = () => {
                 };
               } catch (error: unknown) {
                 const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-                console.warn('[AppointmentDetails] Error fetching lead details:', errorMessage);
+                logger.warn('[AppointmentDetails] Error fetching lead details:', errorMessage);
                 return { name: 'Lead', cpf: '' };
               }
             } else if (apt.subject) {
@@ -211,7 +210,7 @@ export const AppointmentDetailsScreen: React.FC = () => {
                 };
               } catch (error: unknown) {
                 const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-                console.error('[AppointmentDetails] Error fetching patient details:', errorMessage);
+                logger.error('[AppointmentDetails] Error fetching patient details:', errorMessage);
                 return { name: 'Paciente', cpf: '' };
               }
             }
@@ -227,7 +226,7 @@ export const AppointmentDetailsScreen: React.FC = () => {
                   apt.servicetype || null
                 );
               } catch (error) {
-                console.error('[AppointmentDetails] Error fetching service descriptions:', error);
+                logger.error('[AppointmentDetails] Error fetching service descriptions:', error);
                 return null;
               }
             }
@@ -267,7 +266,7 @@ export const AppointmentDetailsScreen: React.FC = () => {
                   };
                 }
               } catch (error) {
-                console.error('[AppointmentDetails] Error fetching location info:', error);
+                logger.error('[AppointmentDetails] Error fetching location info:', error);
               }
             }
             return undefined;
@@ -278,13 +277,13 @@ export const AppointmentDetailsScreen: React.FC = () => {
             try {
               const formData = await apiService.getPreAppointmentFormStatus(appointmentId);
               if (formData) {
-                console.log('[AppointmentDetails] Pre-appointment form status:', formData);
+                logger.debug('[AppointmentDetails] Pre-appointment form status:', formData);
               } else {
-                console.log('[AppointmentDetails] No pre-appointment form found for this appointment');
+                logger.debug('[AppointmentDetails] No pre-appointment form found for this appointment');
               }
               return formData;
             } catch (formError) {
-              console.log('[AppointmentDetails] Error fetching pre-appointment form:', formError);
+              logger.debug('[AppointmentDetails] Error fetching pre-appointment form:', formError);
               return null;
             }
           })(),
@@ -330,7 +329,7 @@ export const AppointmentDetailsScreen: React.FC = () => {
           isLead
         };
 
-        console.log('Final appointment details:', appointmentDetails);
+        logger.debug('Final appointment details:', appointmentDetails);
 
         // Update state in a single batch
         setAppointment(appointmentDetails);
@@ -338,8 +337,8 @@ export const AppointmentDetailsScreen: React.FC = () => {
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('Error fetching appointment details:', errorMessage);
-      console.error('Error details:', errorMessage);
+      logger.error('Error fetching appointment details:', errorMessage);
+      logger.error('Error details:', errorMessage);
       Alert.alert(
         'Erro',
         `Não foi possível carregar os detalhes do agendamento: ${errorMessage}`,
@@ -371,7 +370,7 @@ export const AppointmentDetailsScreen: React.FC = () => {
             text: 'Iniciar', 
             onPress: () => {
               // Navigate to encounter start (this would need to be implemented)
-              console.log('Starting encounter for appointment:', appointmentId);
+              logger.debug('Starting encounter for appointment:', appointmentId);
               Alert.alert('Info', 'Funcionalidade de iniciar atendimento será implementada em breve.');
             }
           }
@@ -422,11 +421,11 @@ export const AppointmentDetailsScreen: React.FC = () => {
           onPress: async () => {
             try {
               setCancelling(true);
-              console.log('[AppointmentDetails] Cancelling appointment:', appointmentId);
+              logger.debug('[AppointmentDetails] Cancelling appointment:', appointmentId);
 
               await apiService.cancelAppointment(appointmentId);
 
-              console.log('[AppointmentDetails] Appointment cancelled successfully');
+              logger.debug('[AppointmentDetails] Appointment cancelled successfully');
 
               // Show success message
               Alert.alert(
@@ -445,7 +444,7 @@ export const AppointmentDetailsScreen: React.FC = () => {
                 ]
               );
             } catch (error: any) {
-              console.error('[AppointmentDetails] Error cancelling appointment:', error);
+              logger.error('[AppointmentDetails] Error cancelling appointment:', error);
               Alert.alert(
                 'Erro',
                 error.message || 'Não foi possível cancelar o agendamento. Tente novamente.'

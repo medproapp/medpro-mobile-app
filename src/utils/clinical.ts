@@ -1,4 +1,5 @@
 import { theme } from '@theme/index';
+import { logger } from '@/utils/logger';
 
 type NullableString = string | null | undefined;
 
@@ -76,7 +77,7 @@ export const formatClinicalDateTime = (dateString?: string | null): string | nul
       minute: '2-digit',
     });
   } catch (error) {
-    console.warn('[clinical] Failed to format date:', error);
+    logger.warn('[clinical] Failed to format date:', error);
     return date.toISOString();
   }
 };
