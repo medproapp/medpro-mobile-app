@@ -131,6 +131,23 @@ const groupAppointmentsByDate = (appointments: Appointment[]) => {
 };
 
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
+const toLocalDateString = (date: Date): string =>
+  date.toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
+
+const normalizeAppointmentStatus = (status: string): Appointment['status'] => {
+  const normalized = (status || '').toLowerCase();
+  if (normalized === 'booked' || normalized === 'confirmed') return 'confirmed';
+  if (normalized === 'in-progress' || normalized === 'in_progress' || normalized === 'arrived' || normalized === 'checked-in' || normalized === 'checked_in') {
+    return 'in_progress';
+  }
+  if (normalized === 'completed' || normalized === 'done' || normalized === 'finished' || normalized === 'cancelled' || normalized === 'canceled' || normalized === 'no-show' || normalized === 'noshow' || normalized === 'missed') {
+    return 'completed';
+  }
+  if (normalized === 'pending' || normalized === 'scheduled') {
+    return 'scheduled';
+  }
+  return 'scheduled'; // default pending bucket
+};
 
 const MONTH_ALIASES: Record<string, string> = {
   jan: '01',
@@ -359,6 +376,7 @@ export const DashboardScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [scheduleSummary, setScheduleSummary] = useState<ScheduleSummaryDay[]>([]);
+  const [todayStats, setTodayStats] = useState({ total: 0, pending: 0, confirmed: 0 });
   const pendingCount = useNotificationStore(state => state.pendingCount);
   const isLoadingPendingCount = useNotificationStore(state => state.isLoadingCount);
   const fetchPendingCount = useNotificationStore(state => state.fetchPendingCount);
@@ -370,6 +388,56 @@ export const DashboardScreen: React.FC = () => {
     return `${API_BASE_URL}/pract/getmyphoto?email=${encodeURIComponent(user.email)}`;
   }, [user?.email]);
 
+  const fetchTodayAppointments = async (practEmail: string) => {
+    const aggregated: any[] = [];
+    let page = 1;
+    const limit = 100;
+    const maxPages = 5; // safety guard
+
+    while (page <= maxPages) {
+      const result = await apiService.getPractitionerAppointments(practEmail, { page, limit });
+      if (Array.isArray(result?.data)) {
+        aggregated.push(...result.data);
+      }
+
+      const totalPages = typeof result?.totalPages === 'number' ? result.totalPages : page;
+      if (page >= totalPages) {
+        break;
+      }
+      page += 1;
+    }
+
+    const todayStr = toLocalDateString(new Date());
+    const stats = aggregated.reduce(
+      (acc, apt) => {
+        const startDateValue = typeof apt.startdate === 'string' ? apt.startdate : '';
+        const datePart = startDateValue.includes('T') ? startDateValue.slice(0, 10) : startDateValue;
+        const startTimeValue = apt.starttime || '00:00:00';
+        const localDateTime = convertUTCToLocalDate(
+          datePart || new Date().toISOString().split('T')[0],
+          startTimeValue
+        );
+        const localDateStr = toLocalDateString(localDateTime);
+        if (localDateStr !== todayStr) {
+          return acc;
+        }
+
+        const status = normalizeAppointmentStatus(apt.status);
+        acc.total += 1;
+        if (status === 'scheduled') {
+          acc.pending += 1;
+        } else if (status === 'confirmed') {
+          acc.confirmed += 1;
+        }
+
+        return acc;
+      },
+      { total: 0, pending: 0, confirmed: 0 }
+    );
+
+    return stats;
+  };
+
   const fetchDashboardData = async () => {
     try {
       if (!user?.email) {
@@ -377,7 +445,7 @@ export const DashboardScreen: React.FC = () => {
       }
 
       // Fetch appointments, in-progress encounters and schedule summary in parallel
-      const [appointmentsData, inProgressData, scheduleSummaryData] = await Promise.all([
+      const [appointmentsData, inProgressData, scheduleSummaryData, todayAppointmentStats] = await Promise.all([
         apiService.getNextAppointments(user.email, 7),
         apiService.getInProgressEncounters(user.email).catch(() => ({ data: [] })), // Handle errors gracefully
         apiService
@@ -385,7 +453,8 @@ export const DashboardScreen: React.FC = () => {
           .catch(error => {
             logger.error('Error fetching practitioner schedule summary:', error);
             return null;
-          })
+          }),
+        fetchTodayAppointments(user.email)
       ]);
       
       // Transform API response to match our interface
@@ -428,9 +497,9 @@ export const DashboardScreen: React.FC = () => {
               patientName,
               patientCpf: isLead ? undefined : apt.subject, // Store CPF for photo loading (leads don't have photos)
               time: localDateTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }), // Local time
-              date: localDateTime.toISOString().split('T')[0], // Local date for grouping
+              date: toLocalDateString(localDateTime), // Local date for grouping
               type: formatAppointmentType(apt.appointmenttype),
-              status: apt.status === 'booked' ? 'confirmed' : apt.status,
+              status: normalizeAppointmentStatus(apt.status),
               isLead, // Add flag to indicate this is a lead appointment
             };
           } catch (error) {
@@ -446,9 +515,9 @@ export const DashboardScreen: React.FC = () => {
               patientName: 'Paciente',
               patientCpf: apt.subject_type === 'patient' ? apt.subject : undefined,
               time: localDateTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-              date: localDateTime.toISOString().split('T')[0],
+              date: toLocalDateString(localDateTime),
               type: formatAppointmentType('ROUTINE'),
-              status: 'scheduled',
+              status: normalizeAppointmentStatus(apt.status),
               isLead: false,
             };
           }
@@ -462,6 +531,7 @@ export const DashboardScreen: React.FC = () => {
         nextAppointments: appointments,
         inProgressEncountersCount: inProgressCount
       });
+      setTodayStats(todayAppointmentStats);
 
       const windowStartRaw =
         scheduleSummaryData?.window?.startDate ||
@@ -534,13 +604,14 @@ export const DashboardScreen: React.FC = () => {
       logger.error('Error fetching dashboard data:', error);
       
       // Fallback to mock data if API fails
+      const todayStr = toLocalDateString(new Date());
       setData({
         nextAppointments: [
           {
             id: '1',
             patientName: 'Maria Silva',
             time: '09:00',
-            date: new Date().toLocaleDateString('en-CA'), // Today (YYYY-MM-DD format, local)
+            date: todayStr, // Today (YYYY-MM-DD format, local)
             type: formatAppointmentType('ROUTINE'),
             status: 'confirmed'
           },
@@ -548,7 +619,7 @@ export const DashboardScreen: React.FC = () => {
             id: '2',
             patientName: 'João Santos',
             time: '10:30',
-            date: new Date().toLocaleDateString('en-CA'), // Today (YYYY-MM-DD format, local)
+            date: todayStr, // Today (YYYY-MM-DD format, local)
             type: formatAppointmentType('FOLLOWUP'),
             status: 'scheduled'
           },
@@ -556,7 +627,7 @@ export const DashboardScreen: React.FC = () => {
             id: '3',
             patientName: 'Ana Costa',
             time: '11:15',
-            date: new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('en-CA'), // Tomorrow (local)
+            date: toLocalDateString(new Date(Date.now() + 24 * 60 * 60 * 1000)), // Tomorrow (local)
             type: formatAppointmentType('CHECKUP'),
             status: 'confirmed'
           },
@@ -564,7 +635,7 @@ export const DashboardScreen: React.FC = () => {
             id: '4',
             patientName: 'Pedro Lima',
             time: '14:00',
-            date: new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('en-CA'), // Tomorrow (local)
+            date: toLocalDateString(new Date(Date.now() + 24 * 60 * 60 * 1000)), // Tomorrow (local)
             type: formatAppointmentType('ROUTINE'),
             status: 'scheduled'
           },
@@ -572,12 +643,27 @@ export const DashboardScreen: React.FC = () => {
             id: '5',
             patientName: 'Carla Oliveira',
             time: '15:30',
-            date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toLocaleDateString('en-CA'), // Day after tomorrow (local)
+            date: toLocalDateString(new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)), // Day after tomorrow (local)
             type: formatAppointmentType('FOLLOWUP'),
             status: 'confirmed'
           }
         ],
         inProgressEncountersCount: 0
+      });
+      const fallbackToday = [
+        {
+          status: 'confirmed',
+          date: todayStr,
+        },
+        {
+          status: 'scheduled',
+          date: todayStr,
+        },
+      ];
+      setTodayStats({
+        total: fallbackToday.length,
+        pending: fallbackToday.filter(apt => normalizeAppointmentStatus(apt.status) === 'scheduled').length,
+        confirmed: fallbackToday.filter(apt => normalizeAppointmentStatus(apt.status) === 'confirmed').length,
       });
       setScheduleSummary([]);
     } finally {
@@ -701,63 +787,54 @@ export const DashboardScreen: React.FC = () => {
         >
 
         {/* Quick Stats */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <FontAwesome
-              name="calendar-check-o"
-              size={20}
-              color={theme.colors.primary}
-              style={styles.statIcon}
-            />
-            <Text style={styles.statNumber} numberOfLines={1}>
-              {data?.nextAppointments.length || 0}
-            </Text>
-            <Text
-              style={styles.statLabel}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-              adjustsFontSizeToFit
-            >
-              Hoje
-            </Text>
+        <View style={styles.statsWrapper}>
+          <View style={styles.statsHeaderRow}>
+            <Text style={styles.statsHeading}>Agenda de hoje</Text>
+            <View style={styles.statsDivider} />
           </View>
-          <View style={styles.statCard}>
-            <FontAwesome
-              name="clock-o"
-              size={20}
-              color={theme.colors.info}
-              style={styles.statIcon}
-            />
-            <Text style={styles.statNumber} numberOfLines={1}>
-              {data?.nextAppointments.filter(apt => apt.status === 'scheduled').length || 0}
-            </Text>
-            <Text
-              style={styles.statLabel}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-              adjustsFontSizeToFit
-            >
-              Pendentes
-            </Text>
-          </View>
-          <View style={styles.statCard}>
-            <FontAwesome
-              name="check-circle"
-              size={20}
-              color={theme.colors.success}
-              style={styles.statIcon}
-            />
-            <Text style={styles.statNumber} numberOfLines={1}>
-              {data?.nextAppointments.filter(apt => apt.status === 'confirmed').length || 0}
-            </Text>
-            <Text
-              style={styles.statLabel}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-              adjustsFontSizeToFit
-            >
-              Confirmadas
-            </Text>
+          <View style={styles.statsContainer}>
+            <View style={styles.statCard}>
+              <FontAwesome
+                name="calendar-check-o"
+                size={20}
+                color={theme.colors.primary}
+                style={styles.statIcon}
+              />
+              <Text style={styles.statNumber} numberOfLines={1}>
+                {todayStats.total}
+              </Text>
+              <Text style={styles.statLabel} numberOfLines={1} ellipsizeMode="tail" adjustsFontSizeToFit>
+                Total
+              </Text>
+            </View>
+            <View style={styles.statCard}>
+              <FontAwesome
+                name="clock-o"
+                size={20}
+                color={theme.colors.info}
+                style={styles.statIcon}
+              />
+              <Text style={styles.statNumber} numberOfLines={1}>
+                {todayStats.pending}
+              </Text>
+              <Text style={styles.statLabel} numberOfLines={1} ellipsizeMode="tail" adjustsFontSizeToFit>
+                Pendentes
+              </Text>
+            </View>
+            <View style={styles.statCard}>
+              <FontAwesome
+                name="check-circle"
+                size={20}
+                color={theme.colors.success}
+                style={styles.statIcon}
+              />
+              <Text style={styles.statNumber} numberOfLines={1}>
+                {todayStats.confirmed}
+              </Text>
+              <Text style={styles.statLabel} numberOfLines={1} ellipsizeMode="tail" adjustsFontSizeToFit>
+                Confirmadas
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -1128,8 +1205,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.lg,
-    marginTop: theme.spacing.md,
+    marginTop: theme.spacing.sm,
     marginBottom: theme.spacing.md,
+  },
+  statsWrapper: {
+    paddingHorizontal: theme.spacing.none,
+    paddingTop: theme.spacing.md,
+    paddingBottom: theme.spacing.lg,
+  },
+  statsHeading: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.colors.textSecondary,
+  },
+  statsHeaderRow: {
+    paddingHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statsDivider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: theme.colors.borderLight,
+    marginLeft: theme.spacing.sm,
+    marginTop: 2,
   },
   statCard: {
     backgroundColor: theme.colors.surface,

@@ -25,17 +25,31 @@ import { logger } from '@/utils/logger';
 
 type PatientsNavigationProp = StackNavigationProp<PatientsStackParamList, 'PatientsList'>;
 
-interface Patient {
-  cpf: string;
-  name: string;
-  email: string;
-  phone: string;
-  gender: 'male' | 'female';
-}
+type Gender = 'male' | 'female' | 'unknown';
+
+type PatientListItem =
+  | {
+      type: 'patient';
+      cpf: string;
+      name: string;
+      email: string;
+      phone: string;
+      gender: Gender;
+    }
+  | {
+      type: 'lead';
+      id: number;
+      name: string;
+      email: string;
+      phone: string;
+      cpf: string;
+      status: string;
+    };
 
 interface PatientsData {
-  patients: Patient[];
-  total: number;
+  patients: PatientListItem[];
+  totalPatients: number;
+  totalLeads: number;
   page: number;
   pages: number;
 }
@@ -51,6 +65,66 @@ export const PatientsScreen: React.FC = () => {
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
+  const fetchLeadsSafe = async (pageNum: number, limit: number, search: string) => {
+    if (typeof (apiService as any).getLeads === 'function') {
+      return (apiService as any).getLeads(pageNum, limit, search);
+    }
+
+    // Fallback for environments that still have cached bundles without getLeads
+    const params = new URLSearchParams({
+      page: pageNum.toString(),
+      limit: limit.toString(),
+      filter: search,
+    });
+
+    // Reach into request/getOrgHeaders even though they are private in TS
+    const request = (apiService as any).request?.bind(apiService);
+    const getOrgHeaders = (apiService as any).getOrgHeaders?.bind(apiService);
+    if (!request) {
+      throw new Error('Lead fetcher unavailable');
+    }
+
+    return request(`/patient/leads?${params.toString()}`, {
+      headers: getOrgHeaders ? getOrgHeaders() : undefined,
+    });
+  };
+
+  const parseLeadsResponse = (res: any) => {
+    const payload =
+      res?.leads ||
+      res?.data?.leads ||
+      res?.data?.data ||
+      res?.data ||
+      [];
+
+    const items = Array.isArray(payload)
+      ? payload.map((lead: any) => ({
+          type: 'lead' as const,
+          id: lead.id ?? lead.lead_id ?? 0,
+          name: lead.patient_name || lead.name || 'Lead',
+          email: lead.patient_email || lead.email || '',
+          phone: lead.patient_phone || lead.phone || '',
+          cpf: lead.patient_cpf || lead.cpf || '',
+          status: lead.status || 'new',
+        }))
+      : [];
+
+    const reportedTotal = res?.total ?? res?.data?.total;
+    const inferredTotal = Array.isArray(payload) ? payload.length : items.length;
+    const total = typeof reportedTotal === 'number' && reportedTotal > 0 ? reportedTotal : inferredTotal;
+
+    logger.debug('[PatientsScreen] Leads parsed', {
+      total,
+      items: items.length,
+      hasLeadsField: !!res?.leads,
+      hasDataLeads: !!res?.data?.leads,
+      hasDataData: !!res?.data?.data,
+      rawKeys: res ? Object.keys(res) : [],
+    });
+
+    return { items, total };
+  };
+
   const fetchPatients = async (pageNum: number = 1, search: string = '') => {
     try {
       if (!user?.email) {
@@ -58,32 +132,40 @@ export const PatientsScreen: React.FC = () => {
       }
 
       logger.debug('[PatientsScreen] Fetching patients for page:', pageNum, 'search:', search);
-      const response = await apiService.getPatients(user.email, pageNum, 20, search);
-      
-      // Transform API response to match our interface
-      const patients = response.data.data.map((patient: any) => ({
+      const [patientsResponse, leadsResponse] = await Promise.all([
+        apiService.getPatients(user.email, pageNum, 20, search),
+        fetchLeadsSafe(pageNum, 20, search),
+      ]);
+
+      const patients = patientsResponse.data.data.map((patient: any) => ({
+        type: 'patient' as const,
         cpf: patient.patientCpf,
         name: patient.patientName,
         email: patient.patientEmail,
         phone: patient.patientPhone,
-        gender: patient.patientGender,
+        gender: patient.patientGender ?? 'unknown',
       }));
 
-      if (__DEV__) {
-      }
+      const { items: leads, total: leadsTotal } = parseLeadsResponse(leadsResponse);
 
-      // Photos will be loaded automatically by CachedImage with caching
+      const combined: PatientListItem[] = [...patients, ...leads];
+
+      const totalPatients = patientsResponse?.data?.total ?? patients.length;
+      const totalLeads = leadsTotal;
+
       setData({
-        patients: patients,
-        total: response.data.total,
+        patients: combined,
+        totalPatients,
+        totalLeads,
         page: pageNum,
-        pages: Math.ceil(response.data.total / 20),
+        pages: Math.ceil((totalPatients || patients.length) / 20),
       });
     } catch (error) {
       logger.error('Error fetching patients:', error);
       setData({
         patients: [],
-        total: 0,
+        totalPatients: 0,
+        totalLeads: 0,
         page: 1,
         pages: 1,
       });
@@ -121,17 +203,32 @@ export const PatientsScreen: React.FC = () => {
   };
 
   const formatCPF = (cpf: string) => {
-    return cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    if (/^\d{11}$/.test(cpf)) {
+      return cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    }
+    return cpf;
   };
 
-  const handlePatientPress = (patient: Patient) => {
+  const handlePatientPress = (item: PatientListItem) => {
+    if (item.type === 'lead') {
+      // Only navigate if this lead already has a valid CPF; otherwise skip.
+      const isValidCpf = /^\d{11}$/.test(item.cpf);
+      if (isValidCpf) {
+        navigation.navigate('PatientDashboard', {
+          patientCpf: item.cpf,
+          patientName: item.name,
+        });
+      }
+      return;
+    }
+
     navigation.navigate('PatientDashboard', {
-      patientCpf: patient.cpf,
-      patientName: patient.name,
+      patientCpf: item.cpf,
+      patientName: item.name,
     });
   };
 
-  const renderPatientItem = ({ item }: { item: Patient }) => (
+  const renderPatientItem = ({ item }: { item: PatientListItem }) => (
     <TouchableOpacity 
       onPress={() => handlePatientPress(item)}
       activeOpacity={0.8}
@@ -141,14 +238,20 @@ export const PatientsScreen: React.FC = () => {
         <View style={styles.patientRow}>
           {/* Enhanced Avatar Section */}
           <View style={styles.avatarSection}>
-            <CachedImage
-              uri={`${API_BASE_URL}/patient/getpatientphoto?patientCpf=${item.cpf}`}
-              headers={token ? { Authorization: `Bearer ${token}` } : undefined}
-              style={[styles.patientAvatar, styles.patientPhotoImage]}
-              fallbackIcon={item.gender === 'female' ? 'female' : 'male'}
-              fallbackIconSize={26}
-              fallbackIconColor={theme.colors.white}
-            />
+            {item.type === 'patient' ? (
+              <CachedImage
+                uri={`${API_BASE_URL}/patient/getpatientphoto?patientCpf=${item.cpf}`}
+                headers={token ? { Authorization: `Bearer ${token}` } : undefined}
+                style={[styles.patientAvatar, styles.patientPhotoImage]}
+                fallbackIcon={item.gender === 'female' ? 'female' : 'male'}
+                fallbackIconSize={26}
+                fallbackIconColor={theme.colors.white}
+              />
+            ) : (
+              <View style={[styles.patientAvatar, styles.leadAvatar]}>
+                <FontAwesome name="user-plus" size={20} color={theme.colors.primary} />
+              </View>
+            )}
             {/* Online status indicator (could be dynamic in the future) */}
             <View style={styles.statusIndicator} />
           </View>
@@ -157,20 +260,26 @@ export const PatientsScreen: React.FC = () => {
           <View style={styles.patientInfo}>
             <View style={styles.patientHeader}>
               <Text style={styles.patientName} numberOfLines={1}>{item.name}</Text>
-              <View style={[styles.genderBadge, { 
-                backgroundColor: item.gender === 'female' ? theme.colors.success + '15' : theme.colors.info + '15' 
-              }]}>
-                <FontAwesome 
-                  name={item.gender === 'female' ? 'venus' : 'mars'} 
-                  size={10} 
-                  color={item.gender === 'female' ? theme.colors.success : theme.colors.info} 
-                />
-                <Text style={[styles.genderBadgeText, { 
-                  color: item.gender === 'female' ? theme.colors.success : theme.colors.info 
+              {item.type === 'lead' ? (
+                <View style={styles.leadBadge}>
+                  <Text style={styles.leadBadgeText}>LEAD</Text>
+                </View>
+              ) : (
+                <View style={[styles.genderBadge, { 
+                  backgroundColor: item.gender === 'female' ? theme.colors.success + '15' : theme.colors.info + '15' 
                 }]}>
-                  {item.gender === 'female' ? 'F' : 'M'}
-                </Text>
-              </View>
+                  <FontAwesome 
+                    name={item.gender === 'female' ? 'venus' : 'mars'} 
+                    size={10} 
+                    color={item.gender === 'female' ? theme.colors.success : theme.colors.info} 
+                  />
+                  <Text style={[styles.genderBadgeText, { 
+                    color: item.gender === 'female' ? theme.colors.success : theme.colors.info 
+                  }]}>
+                    {item.gender === 'female' ? 'F' : 'M'}
+                  </Text>
+                </View>
+              )}
             </View>
             
             <View style={styles.patientDetailsContainer}>
@@ -182,6 +291,12 @@ export const PatientsScreen: React.FC = () => {
                 <FontAwesome name="phone" size={11} color={theme.colors.textSecondary} />
                 <Text style={styles.patientDetails}>{item.phone}</Text>
               </View>
+              {item.type === 'lead' && !!item.status && (
+                <View style={styles.detailRow}>
+                  <FontAwesome name="bookmark" size={11} color={theme.colors.textSecondary} />
+                  <Text style={styles.patientDetails}>Status: {item.status}</Text>
+                </View>
+              )}
             </View>
           </View>
           
@@ -215,7 +330,7 @@ export const PatientsScreen: React.FC = () => {
               <Text style={styles.greeting}>Pacientes</Text>
               <Text style={styles.userName}>Gerenciar Pacientes</Text>
               <Text style={styles.dateText}>
-                {data?.total} paciente{data?.total !== 1 ? 's' : ''} encontrado{data?.total !== 1 ? 's' : ''}
+                {(data?.totalPatients ?? 0) + (data?.totalLeads ?? 0)} registros • {data?.totalPatients ?? 0} pacientes • {data?.totalLeads ?? 0} leads
               </Text>
             </View>
           </View>
@@ -225,7 +340,7 @@ export const PatientsScreen: React.FC = () => {
         <FlatList
           data={data?.patients || []}
           renderItem={renderPatientItem}
-          keyExtractor={(item) => item.cpf}
+          keyExtractor={(item, index) => item.type === 'patient' ? item.cpf : `lead-${item.id || index}`}
           contentContainerStyle={styles.listContent}
           ListHeaderComponent={
             <>
@@ -233,22 +348,24 @@ export const PatientsScreen: React.FC = () => {
               <View style={styles.statsContainer}>
                 <View style={styles.statCard}>
                   <FontAwesome name="users" size={24} color={theme.colors.primary} />
-                  <Text style={styles.statNumber}>{data?.total || 0}</Text>
+                  <Text style={styles.statNumber}>
+                    {(data?.totalPatients ?? 0) + (data?.totalLeads ?? 0)}
+                  </Text>
                   <Text style={styles.statLabel}>Total</Text>
                 </View>
                 <View style={styles.statCard}>
-                  <FontAwesome name="user-plus" size={24} color={theme.colors.success} />
+                  <FontAwesome name="user-md" size={24} color={theme.colors.success} />
                   <Text style={styles.statNumber}>
-                    {data?.patients.filter(p => p.gender === 'female').length || 0}
+                    {data?.totalPatients ?? 0}
                   </Text>
-                  <Text style={styles.statLabel}>Mulheres</Text>
+                  <Text style={styles.statLabel}>Pacientes</Text>
                 </View>
                 <View style={styles.statCard}>
-                  <FontAwesome name="user" size={24} color={theme.colors.info} />
+                  <FontAwesome name="user-plus" size={24} color={theme.colors.info} />
                   <Text style={styles.statNumber}>
-                    {data?.patients.filter(p => p.gender === 'male').length || 0}
+                    {data?.totalLeads ?? 0}
                   </Text>
-                  <Text style={styles.statLabel}>Homens</Text>
+                  <Text style={styles.statLabel}>Leads</Text>
                 </View>
               </View>
 
@@ -572,6 +689,26 @@ const styles = StyleSheet.create({
     ...theme.typography.caption,
     fontWeight: '700',
     fontSize: 11,
+  },
+  leadBadge: {
+    backgroundColor: theme.colors.warning + '20',
+    borderWidth: 1,
+    borderColor: theme.colors.warning + '50',
+    borderRadius: 10,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs - 2,
+  },
+  leadBadgeText: {
+    ...theme.typography.caption,
+    color: theme.colors.warning,
+    fontWeight: '700',
+    fontSize: 11,
+  },
+  leadAvatar: {
+    backgroundColor: theme.colors.warning + '20',
+    borderColor: theme.colors.warning + '60',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyContainer: {
     alignItems: 'center',

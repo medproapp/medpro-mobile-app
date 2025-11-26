@@ -247,6 +247,19 @@ class ApiService {
     });
   }
 
+  // List leads for practitioner
+  async getLeads(page: number = 1, limit: number = 20, search: string = '') {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+      filter: search,
+    });
+
+    return this.request(`/patient/leads?${params}`, {
+      headers: this.getOrgHeaders(),
+    });
+  }
+
   // Search patients for appointment booking - using the same endpoint as web frontend
   async searchPatients(searchTerm: string, searchType: 'name' | 'cpf' | 'phone', page: number = 1, limit: number = 10) {
     const { user } = useAuthStore.getState();
