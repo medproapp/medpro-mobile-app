@@ -10,6 +10,7 @@ import {
   Image,
   StatusBar,
   GestureResponderEvent,
+  ScrollView,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -142,17 +143,18 @@ export const NotificationsScreen: React.FC = () => {
     [markAsRead, navigation]
   );
 
+  const getNotificationIcon = (item: NotificationItem): string => {
+    const type = (item.metadata as { type?: string })?.type || '';
+    if (type === 'internal_message') {
+      return 'mail';
+    }
+    if (type.includes('appointment')) {
+      return 'event';
+    }
+    return 'notifications';
+  };
+
   const renderItem = ({ item }: { item: NotificationItem }) => {
-    const handleMarkReadPress = (event: GestureResponderEvent) => {
-      event.stopPropagation();
-      markAsRead(item.id);
-    };
-
-    const handleArchivePress = (event: GestureResponderEvent) => {
-      event.stopPropagation();
-      archiveNotification(item.id);
-    };
-
     return (
       <TouchableOpacity
         style={[styles.card, isUnread(item) && styles.cardUnread]}
@@ -160,45 +162,21 @@ export const NotificationsScreen: React.FC = () => {
         onPress={() => handleNotificationPress(item)}
         accessibilityRole="button"
       >
-        <View style={styles.iconWrapper}>
-          <MaterialIcons
-            name={isUnread(item) ? 'notifications' : 'notifications-none'}
-            size={24}
-            color={isUnread(item) ? theme.colors.primary : theme.colors.textSecondary}
-          />
-        </View>
-        <View style={styles.content}>
-          <View style={styles.cardHeader}>
+        <View style={styles.cardRow}>
+          <View style={styles.iconWrapper}>
+            <MaterialIcons
+              name={getNotificationIcon(item)}
+              size={20}
+              color={isUnread(item) ? theme.colors.primary : theme.colors.textSecondary}
+            />
+          </View>
+          <View style={styles.cardContent}>
             <Text style={styles.title} numberOfLines={2}>
               {item.title || 'Notificação'}
             </Text>
-            <View style={styles.cardActions}>
-              {isUnread(item) ? (
-                <TouchableOpacity
-                  style={styles.actionButton}
-                  onPress={handleMarkReadPress}
-                  accessibilityLabel="Marcar como lida"
-                >
-                  <MaterialIcons name="done" size={18} color={theme.colors.success} />
-                </TouchableOpacity>
-              ) : null}
-              {item.status !== 'archived' ? (
-                <TouchableOpacity
-                  style={styles.actionButton}
-                  onPress={handleArchivePress}
-                  accessibilityLabel="Arquivar notificação"
-                >
-                  <MaterialIcons name="archive" size={18} color={theme.colors.textSecondary} />
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          </View>
-          {item.body ? <Text style={styles.message}>{item.body}</Text> : null}
-          <View style={styles.metaRow}>
-            <Text style={styles.source} numberOfLines={1}>
-              {item.source}
+            <Text style={styles.date}>
+              {formatDate(item.delivered_at)}
             </Text>
-            <Text style={styles.date}>{formatDate(item.read_at || item.delivered_at)}</Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -246,21 +224,26 @@ export const NotificationsScreen: React.FC = () => {
       </View>
 
       <View style={styles.contentWrapper}>
-        <View style={styles.filterRow}>
-          {filters.map(filter => {
-            const isActive = (query.status ?? 'all') === filter.value;
-            return (
-              <TouchableOpacity
-                key={filter.value}
-                style={[styles.filterChip, isActive && styles.filterChipActive]}
-                onPress={() => handleFilterChange(filter.value)}
-              >
-                <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
-                  {filter.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+        <View style={styles.filterContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+          >
+            {filters.map(filter => {
+              const isActive = (query.status ?? 'all') === filter.value;
+              return (
+                <TouchableOpacity
+                  key={filter.value}
+                  style={[styles.filterChip, isActive && styles.filterChipActive]}
+                  onPress={() => handleFilterChange(filter.value)}
+                >
+                  <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
+                    {filter.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
 
         <TouchableOpacity
@@ -391,10 +374,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 16,
   },
-  filterRow: {
+  filterContainer: {
     flexDirection: 'row',
     marginBottom: 16,
-    flexWrap: 'wrap',
   },
   filterChip: {
     paddingVertical: 6,
@@ -404,7 +386,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.borderLight,
     marginRight: 8,
-    marginBottom: 8,
   },
   filterChipActive: {
     backgroundColor: theme.colors.primary,
@@ -433,7 +414,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   card: {
-    flexDirection: 'row',
     backgroundColor: theme.colors.surface,
     borderRadius: 16,
     padding: 16,
@@ -447,6 +427,13 @@ const styles = StyleSheet.create({
   cardUnread: {
     borderWidth: 1,
     borderColor: theme.colors.primary,
+  },
+  cardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cardContent: {
+    flex: 1,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -467,9 +454,9 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   iconWrapper: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: theme.colors.primaryLight,
@@ -479,10 +466,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: theme.colors.text,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   message: {
     fontSize: 14,
@@ -501,7 +488,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   date: {
-    fontSize: 12,
+    fontSize: 11,
     color: theme.colors.textSecondary,
   },
   emptyState: {

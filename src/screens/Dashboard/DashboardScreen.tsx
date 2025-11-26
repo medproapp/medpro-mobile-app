@@ -926,7 +926,7 @@ export const DashboardScreen: React.FC = () => {
                     {day.blocks.length > 0 ? (
                       day.blocks.map((block, blockIndex) => (
                         <View
-                          key={block.id}
+                          key={`${day.date}-${block.id}-${blockIndex}`}
                           style={[styles.scheduleChip, blockIndex !== day.blocks.length - 1 && styles.scheduleChipSpacing]}
                         >
                           <FontAwesome

@@ -43,6 +43,22 @@ export const resolveNotificationNavigation = (
   const normalizedType = typeof type === 'string' ? type.toLowerCase() : undefined;
   const contextData = isObject(context) ? context : {};
 
+  // Check if this is actually an appointment notification (has appointment_id in context)
+  // Backend sometimes sends appointment notifications with type "internal_message"
+  const appointmentId =
+    getString((contextData as any).appointmentId) ||
+    getString((contextData as any).appointment_id);
+
+  if (appointmentId) {
+    // This is an appointment notification regardless of type
+    return {
+      type: 'DASHBOARD_APPOINTMENT_DETAILS',
+      params: {
+        appointmentId,
+      },
+    };
+  }
+
   switch (normalizedType) {
     case 'internal_message': {
       const threadId =
@@ -61,7 +77,8 @@ export const resolveNotificationNavigation = (
           },
         };
       }
-      return { type: 'MESSAGES_TAB' };
+      // No threadId and no appointmentId - can't navigate anywhere meaningful
+      return null;
     }
     // Practitioner appointment types (what backend actually sends)
     case 'appointment_created_practitioner':
