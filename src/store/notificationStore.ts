@@ -17,7 +17,14 @@ const mergeQuery = (prev: NotificationsQuery, next?: NotificationsQuery): Notifi
   ...(next || {}),
 });
 
-export const useNotificationStore = create<NotificationState>((set, get) => ({
+export interface StatusCounts {
+  all: number;
+  delivered: number;
+  read: number;
+  archived: number;
+}
+
+export const useNotificationStore = create<NotificationState & { statusCounts: StatusCounts; fetchStatusCounts: () => Promise<void> }>((set, get) => ({
   pendingCount: 0,
   items: [],
   pagination: null,
@@ -26,6 +33,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   isLoadingList: false,
   isRefreshing: false,
   error: null,
+  statusCounts: { all: 0, delivered: 0, read: 0, archived: 0 },
 
   fetchPendingCount: async () => {
     set({ isLoadingCount: true, error: null });
@@ -182,4 +190,13 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   setPendingCount: (count: number) => set({ pendingCount: count }),
+
+  fetchStatusCounts: async () => {
+    try {
+      const counts = await notificationsService.fetchAllCounts();
+      set({ statusCounts: counts, pendingCount: counts.delivered });
+    } catch (error) {
+      logger.error('[NotificationStore] Failed to fetch status counts', error);
+    }
+  },
 }));

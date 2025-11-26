@@ -57,6 +57,8 @@ export const NotificationsScreen: React.FC = () => {
   const query = useNotificationStore(state => state.query);
   const pendingCount = useNotificationStore(state => state.pendingCount);
   const error = useNotificationStore(state => state.error);
+  const statusCounts = useNotificationStore(state => state.statusCounts);
+  const fetchStatusCounts = useNotificationStore(state => state.fetchStatusCounts);
 
   const hasUnread = useMemo(() => items.some(isUnread), [items]);
   const markAllColor = hasUnread ? theme.colors.white : theme.colors.textSecondary;
@@ -64,17 +66,18 @@ export const NotificationsScreen: React.FC = () => {
   useFocusEffect(
     useCallback(() => {
       fetchNotifications({ page: 1 });
-    }, [fetchNotifications])
+      fetchStatusCounts();
+    }, [fetchNotifications, fetchStatusCounts])
   );
 
   const filters = useMemo(
     () => [
-      { label: 'Todas', value: 'all' as NotificationStatus | 'all' },
-      { label: 'Pendentes', value: 'delivered' as NotificationStatus | 'all' },
-      { label: 'Lidas', value: 'read' as NotificationStatus | 'all' },
-      { label: 'Arquivadas', value: 'archived' as NotificationStatus | 'all' },
+      { label: 'Todas', value: 'all' as NotificationStatus | 'all', count: statusCounts.all },
+      { label: 'Pendentes', value: 'delivered' as NotificationStatus | 'all', count: statusCounts.delivered },
+      { label: 'Lidas', value: 'read' as NotificationStatus | 'all', count: statusCounts.read },
+      { label: 'Arquivadas', value: 'archived' as NotificationStatus | 'all', count: statusCounts.archived },
     ],
-    []
+    [statusCounts]
   );
 
   const handleFilterChange = (status: NotificationStatus | 'all') => {
@@ -256,7 +259,7 @@ export const NotificationsScreen: React.FC = () => {
                   onPress={() => handleFilterChange(filter.value)}
                 >
                   <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
-                    {filter.label}
+                    {filter.label} ({filter.count})
                   </Text>
                 </TouchableOpacity>
               );

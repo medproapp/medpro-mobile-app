@@ -106,6 +106,30 @@ class NotificationsService {
     }
   }
 
+  async fetchAllCounts(): Promise<{ all: number; delivered: number; read: number; archived: number }> {
+    const fetchCount = async (status: NotificationStatus | 'all'): Promise<number> => {
+      try {
+        const response: NotificationsApiResponse = await apiService.listNotifications({
+          status,
+          page: 1,
+          limit: 1,
+        });
+        const pagination = toPagination(response?.pagination, 1, 1);
+        return pagination.total ?? 0;
+      } catch {
+        return 0;
+      }
+    };
+
+    const [all, delivered, read, archived] = await Promise.all([
+      fetchCount('all'),
+      fetchCount('delivered'),
+      fetchCount('read'),
+      fetchCount('archived'),
+    ]);
+    return { all, delivered, read, archived };
+  }
+
   async markAsRead(ids: number[]): Promise<number> {
     if (!ids.length) {
       return 0;
