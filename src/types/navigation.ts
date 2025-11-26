@@ -82,6 +82,8 @@ export type PatientsStackParamList = {
   PdfViewer: { fileUri: string; fileName: string; title?: string };
   AddPatient: undefined;
   EditPatient: { patientId: string };
+  LeadDetails: { leadId: number; name: string };
+  LeadCreate: undefined;
 };
 
 // Chat Stack

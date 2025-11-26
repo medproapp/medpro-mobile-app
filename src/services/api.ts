@@ -232,6 +232,22 @@ class ApiService {
     }
   }
 
+  // Create a new lead
+  async createLead(payload: {
+    patient_name: string;
+    patient_cpf?: string;
+    patient_phone?: string;
+    patient_email?: string;
+    status?: string;
+    notes?: string;
+  }) {
+    return this.request('/patient/lead', {
+      method: 'POST',
+      headers: this.getOrgHeaders(),
+      body: payload,
+    });
+  }
+
   // List patients for practitioner
   async getPatients(practId: string, page: number = 1, limit: number = 20, search: string = '') {
     const params = new URLSearchParams({

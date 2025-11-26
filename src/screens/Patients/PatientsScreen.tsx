@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,9 +12,10 @@ import {
   Image,
   ActivityIndicator,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Card, Loading, CachedImage } from '@components/common';
 import { theme } from '@theme/index';
 import { useAuthStore } from '@store/authStore';
@@ -180,6 +181,12 @@ export const PatientsScreen: React.FC = () => {
     fetchPatients();
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      fetchPatients(page, searchText);
+    }, [page, searchText])
+  );
+
   const handleRefresh = () => {
     setRefreshing(true);
     setPage(1);
@@ -211,14 +218,10 @@ export const PatientsScreen: React.FC = () => {
 
   const handlePatientPress = (item: PatientListItem) => {
     if (item.type === 'lead') {
-      // Only navigate if this lead already has a valid CPF; otherwise skip.
-      const isValidCpf = /^\d{11}$/.test(item.cpf);
-      if (isValidCpf) {
-        navigation.navigate('PatientDashboard', {
-          patientCpf: item.cpf,
-          patientName: item.name,
-        });
-      }
+      navigation.navigate('LeadDetails', {
+        leadId: item.id,
+        name: item.name,
+      });
       return;
     }
 
@@ -337,90 +340,101 @@ export const PatientsScreen: React.FC = () => {
         </View>
 
         {/* Patients List */}
-        <FlatList
-          data={data?.patients || []}
-          renderItem={renderPatientItem}
-          keyExtractor={(item, index) => item.type === 'patient' ? item.cpf : `lead-${item.id || index}`}
-          contentContainerStyle={styles.listContent}
-          ListHeaderComponent={
-            <>
-              {/* Quick Stats */}
-              <View style={styles.statsContainer}>
-                <View style={styles.statCard}>
-                  <FontAwesome name="users" size={24} color={theme.colors.primary} />
-                  <Text style={styles.statNumber}>
-                    {(data?.totalPatients ?? 0) + (data?.totalLeads ?? 0)}
-                  </Text>
-                  <Text style={styles.statLabel}>Total</Text>
+        <View style={{ flex: 1 }}>
+          <FlatList
+            data={data?.patients || []}
+            renderItem={renderPatientItem}
+            keyExtractor={(item, index) => item.type === 'patient' ? item.cpf : `lead-${item.id || index}`}
+            contentContainerStyle={styles.listContent}
+            ListHeaderComponent={
+              <>
+                {/* Quick Stats */}
+                <View style={styles.statsContainer}>
+                  <View style={styles.statCard}>
+                    <FontAwesome name="users" size={24} color={theme.colors.primary} />
+                    <Text style={styles.statNumber}>
+                      {(data?.totalPatients ?? 0) + (data?.totalLeads ?? 0)}
+                    </Text>
+                    <Text style={styles.statLabel}>Total</Text>
+                  </View>
+                  <View style={styles.statCard}>
+                    <FontAwesome name="user-md" size={24} color={theme.colors.success} />
+                    <Text style={styles.statNumber}>
+                      {data?.totalPatients ?? 0}
+                    </Text>
+                    <Text style={styles.statLabel}>Pacientes</Text>
+                  </View>
+                  <View style={styles.statCard}>
+                    <FontAwesome name="user-plus" size={24} color={theme.colors.info} />
+                    <Text style={styles.statNumber}>
+                      {data?.totalLeads ?? 0}
+                    </Text>
+                    <Text style={styles.statLabel}>Leads</Text>
+                  </View>
                 </View>
-                <View style={styles.statCard}>
-                  <FontAwesome name="user-md" size={24} color={theme.colors.success} />
-                  <Text style={styles.statNumber}>
-                    {data?.totalPatients ?? 0}
-                  </Text>
-                  <Text style={styles.statLabel}>Pacientes</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <FontAwesome name="user-plus" size={24} color={theme.colors.info} />
-                  <Text style={styles.statNumber}>
-                    {data?.totalLeads ?? 0}
-                  </Text>
-                  <Text style={styles.statLabel}>Leads</Text>
-                </View>
-              </View>
 
-              {/* Search */}
-              <View style={styles.searchContainer}>
-                <FontAwesome name="search" size={16} color={theme.colors.textSecondary} style={styles.searchIcon} />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Buscar por nome, CPF ou telefone..."
-                  value={searchText}
-                  onChangeText={handleSearch}
-                  autoCapitalize="none"
-                  placeholderTextColor={theme.colors.textSecondary}
-                />
-                {searchLoading && (
-                  <ActivityIndicator
-                    size="small"
-                    color={theme.colors.primary}
-                    style={styles.searchSpinner}
+                {/* Search */}
+                <View style={styles.searchContainer}>
+                  <FontAwesome name="search" size={16} color={theme.colors.textSecondary} style={styles.searchIcon} />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Buscar por nome, CPF ou telefone..."
+                    value={searchText}
+                    onChangeText={handleSearch}
+                    autoCapitalize="none"
+                    placeholderTextColor={theme.colors.textSecondary}
                   />
-                )}
-                {!searchLoading && searchText.length > 0 && (
-                  <TouchableOpacity
-                    onPress={() => handleSearch('')}
-                    style={styles.clearButton}
-                  >
-                    <FontAwesome name="times-circle" size={16} color={theme.colors.textSecondary} />
-                  </TouchableOpacity>
-                )}
+                  {searchLoading && (
+                    <ActivityIndicator
+                      size="small"
+                      color={theme.colors.primary}
+                      style={styles.searchSpinner}
+                    />
+                  )}
+                  {!searchLoading && searchText.length > 0 && (
+                    <TouchableOpacity
+                      onPress={() => handleSearch('')}
+                      style={styles.clearButton}
+                    >
+                      <FontAwesome name="times-circle" size={16} color={theme.colors.textSecondary} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </>
+            }
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                colors={[theme.colors.primary]}
+                tintColor={theme.colors.primary}
+              />
+            }
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <FontAwesome name="user-plus" size={48} color={theme.colors.textSecondary} style={styles.emptyIcon} />
+                <Text style={styles.emptyText}>Nenhum paciente encontrado</Text>
+                <Text style={styles.emptySubtext}>
+                  {searchText ? 'Tente ajustar sua busca' : 'Adicione o primeiro paciente'}
+                </Text>
+                <TouchableOpacity style={styles.emptyAction} activeOpacity={0.7}>
+                  <FontAwesome name="plus" size={16} color={theme.colors.primary} />
+                  <Text style={styles.emptyActionText}>Adicionar novo paciente</Text>
+                </TouchableOpacity>
               </View>
-            </>
-          }
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              colors={[theme.colors.primary]}
-              tintColor={theme.colors.primary}
-            />
-          }
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <FontAwesome name="user-plus" size={48} color={theme.colors.textSecondary} style={styles.emptyIcon} />
-              <Text style={styles.emptyText}>Nenhum paciente encontrado</Text>
-              <Text style={styles.emptySubtext}>
-                {searchText ? 'Tente ajustar sua busca' : 'Adicione o primeiro paciente'}
-              </Text>
-              <TouchableOpacity style={styles.emptyAction} activeOpacity={0.7}>
-                <FontAwesome name="plus" size={16} color={theme.colors.primary} />
-                <Text style={styles.emptyActionText}>Adicionar novo paciente</Text>
-              </TouchableOpacity>
-            </View>
-          }
-        />
+            }
+          />
+
+          <TouchableOpacity
+            style={styles.fab}
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('LeadCreate')}
+          >
+            <MaterialIcons name="add" size={24} color={theme.colors.white} />
+            <Text style={styles.fabLabel}>Paciente</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </>
   );
@@ -561,7 +575,7 @@ const styles = StyleSheet.create({
   listContent: {
     paddingTop: theme.spacing.xl,
     paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.xl,
+    paddingBottom: theme.spacing.xl + 80,
   },
   patientCardContainer: {
     marginBottom: theme.spacing.md,
@@ -751,5 +765,32 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
     fontWeight: '600',
     marginLeft: theme.spacing.sm,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: theme.colors.primary,
+    justifyContent: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    zIndex: 10,
+  },
+  fabLabel: {
+    color: theme.colors.white,
+    fontWeight: '700',
+    marginLeft: 8,
+    fontSize: 14,
   },
 });

@@ -1059,7 +1059,8 @@ export const DashboardScreen: React.FC = () => {
           onPress={() => navigation.navigate('AppointmentStep1')}
           activeOpacity={0.8}
         >
-          <MaterialIcons name="add" size={28} color={theme.colors.white} />
+          <MaterialIcons name="add" size={24} color={theme.colors.white} />
+          <Text style={styles.fabLabel}>Agendamento</Text>
         </TouchableOpacity>
       </View>
     </>
@@ -1644,11 +1645,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 20,
     right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: theme.colors.primary,
-    justifyContent: 'center',
     alignItems: 'center',
     elevation: 8,
     shadowColor: '#000',
@@ -1659,5 +1661,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     zIndex: 999,
+  },
+  fabLabel: {
+    color: theme.colors.white,
+    fontWeight: '700',
+    marginLeft: 8,
+    fontSize: 14,
   },
 });

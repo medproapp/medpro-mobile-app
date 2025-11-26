@@ -33,6 +33,8 @@ import { RecordingsScreen } from '@screens/Patients/RecordingsScreen';
 import { EncounterDetailsScreen } from '@screens/Patients/EncounterDetailsScreen';
 import { ClinicalRecordDetailsScreen } from '@screens/Patients/ClinicalRecordDetailsScreen';
 import { PdfViewerScreen } from '@screens/Patients/PdfViewerScreen';
+import { LeadDetailsScreen } from '@screens/Patients/LeadDetailsScreen';
+import { LeadCreateScreen } from '@screens/Patients/LeadCreateScreen';
 import { MoreScreen, MyProfileScreen, AboutScreen, HelpSupportScreen } from '@screens/More';
 import { MessagesListScreen, ConversationScreen, NewMessageScreen } from '@screens/Messages';
 import { AssistantScreen } from '@screens/Assistant';
@@ -277,6 +279,8 @@ const PatientsStackNavigator: React.FC = () => {
       <PatientsStack.Screen name="Recordings" component={RecordingsScreen} />
       <PatientsStack.Screen name="EncounterDetails" component={EncounterDetailsScreen} />
       <PatientsStack.Screen name="ClinicalRecordDetails" component={ClinicalRecordDetailsScreen} />
+      <PatientsStack.Screen name="LeadDetails" component={LeadDetailsScreen} />
+      <PatientsStack.Screen name="LeadCreate" component={LeadCreateScreen} />
       <PatientsStack.Screen
         name="PdfViewer"
         component={PdfViewerScreen}
