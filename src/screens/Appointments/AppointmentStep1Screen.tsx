@@ -34,6 +34,7 @@ interface Patient {
   lastAppointment?: string;
   photo?: string;
   raw?: unknown;
+  kind: 'patient' | 'lead';
 }
 
 const SEARCH_DELAY = 500; // ms
@@ -107,6 +108,25 @@ export const AppointmentStep1Screen: React.FC = () => {
       lastAppointment,
       photo,
       raw: data,
+      kind: 'patient',
+    };
+  }, []);
+
+  const normalizeLead = useCallback((data: any): Patient | null => {
+    const leadId = data?.id ?? data?.lead_id;
+    if (leadId === undefined || leadId === null) {
+      return null; // Skip leads without a backend id
+    }
+    const cpf = typeof data?.patient_cpf === 'string' ? data.patient_cpf : '';
+    return {
+      cpf: cpf || String(leadId),
+      name: data?.patient_name || data?.name || 'Lead',
+      phone: data?.patient_phone || data?.metadata?.phone,
+      email: data?.patient_email || data?.metadata?.email,
+      lastAppointment: undefined,
+      photo: undefined,
+      raw: data,
+      kind: 'lead',
     };
   }, []);
 
@@ -127,14 +147,33 @@ export const AppointmentStep1Screen: React.FC = () => {
     try {
       logger.debug('[AppointmentStep1] Searching for:', term, 'type:', type);
       
-      const results = await api.searchPatients(term, type, 1);
-      logger.debug('[AppointmentStep1] Search results:', results);
+      const [patientsRes, leadsRes] = await Promise.all([
+        api.searchPatients(term, type, 1),
+        api.getLeads(1, 20, term).catch(err => {
+          logger.warn('[AppointmentStep1] Lead search failed', err);
+          return { data: { leads: [] }, leads: [] };
+        }),
+      ]);
+      logger.debug('[AppointmentStep1] Patient search results:', patientsRes);
+      logger.debug('[AppointmentStep1] Lead search results:', leadsRes);
       
-      if (Array.isArray(results?.data?.data)) {
-        const normalized = results.data.data.map((item: any) => normalizePatient(item));
-        setSearchResults(normalized);
-        setHasSearched(true);
-      }
+      const patients = Array.isArray(patientsRes?.data?.data)
+        ? patientsRes.data.data.map((item: any) => normalizePatient(item))
+        : [];
+
+      const leadsPayload =
+        leadsRes?.leads ||
+        leadsRes?.data?.leads ||
+        leadsRes?.data?.data ||
+        [];
+      const leads = Array.isArray(leadsPayload)
+        ? leadsPayload
+            .map((item: any) => normalizeLead(item))
+            .filter((item: Patient | null): item is Patient => item !== null)
+        : [];
+
+      setSearchResults([...patients, ...leads]);
+      setHasSearched(true);
     } catch (error) {
       logger.error('[AppointmentStep1] Search error:', error);
       Alert.alert('Erro', 'Não foi possível buscar os pacientes');
@@ -176,11 +215,20 @@ export const AppointmentStep1Screen: React.FC = () => {
     const name = patient.name;
     const phone = patient.phone ?? '';
 
-    setPatient(cpf, name, phone);
-    const recentPatient = (patient.raw && typeof patient.raw === 'object' && 'cpf' in patient.raw && 'name' in patient.raw)
-      ? patient.raw
-      : { cpf, name, phone };
-    addRecentPatient(recentPatient as RecentPatient);
+    if (patient.kind === 'lead') {
+      const leadId = (patient.raw as any)?.id ?? (patient.raw as any)?.lead_id;
+      if (!leadId) {
+        Alert.alert('Lead inválido', 'Não foi possível identificar o lead selecionado.');
+        return;
+      }
+      setPatient(cpf, name, phone, 'lead', String(leadId));
+    } else {
+      setPatient(cpf, name, phone, 'patient', null);
+      const recentPatient = (patient.raw && typeof patient.raw === 'object' && 'cpf' in patient.raw && 'name' in patient.raw)
+        ? patient.raw
+        : { cpf, name, phone };
+      addRecentPatient(recentPatient as RecentPatient);
+    }
   };
 
   // Handle continue to next step
@@ -254,6 +302,11 @@ export const AppointmentStep1Screen: React.FC = () => {
                 Última consulta: {new Date(patient.lastAppointment).toLocaleDateString('pt-BR')}
               </Text>
             )}
+            {patient.kind === 'lead' && (
+              <View style={styles.leadBadge}>
+                <Text style={styles.leadBadgeText}>LEAD</Text>
+              </View>
+            )}
           </View>
         </View>
         
@@ -284,12 +337,12 @@ export const AppointmentStep1Screen: React.FC = () => {
             style={styles.backgroundLogo}
             resizeMode="contain"
           />
-          <View style={styles.header}>
-            <View style={styles.headerContent}>
-              <Text style={styles.greeting}>Novo Agendamento</Text>
-              <Text style={styles.userName}>Passo 1 de 6</Text>
-              <Text style={styles.dateText}>Selecione o paciente</Text>
-            </View>
+        <View style={styles.header}>
+          <View style={styles.headerContent}>
+            <Text style={styles.greeting}>Novo Agendamento</Text>
+            <Text style={styles.userName}>Passo 2 de 7</Text>
+            <Text style={styles.dateText}>Selecione o paciente</Text>
+          </View>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.logoutButton}>
               <FontAwesome name="arrow-left" size={20} color={theme.colors.white} />
             </TouchableOpacity>
@@ -664,6 +717,21 @@ const styles = StyleSheet.create({
   lastAppointment: {
     fontSize: 12,
     color: theme.colors.textSecondary,
+  },
+  leadBadge: {
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    backgroundColor: theme.colors.warning + '20',
+    borderColor: theme.colors.warning + '60',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  leadBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: theme.colors.warning,
   },
   selectedIndicator: {
     position: 'absolute',

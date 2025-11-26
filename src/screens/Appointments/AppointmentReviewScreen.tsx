@@ -51,7 +51,9 @@ export const AppointmentReviewScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const handleSubmit = async () => {
-    if (!appointmentData.subject || !appointmentData.startdate || !appointmentData.starttime) {
+    const isLead = appointmentData.subjectType === 'lead';
+    const hasIdentifier = isLead ? !!appointmentData.leadId : !!appointmentData.subject;
+    if (!hasIdentifier || !appointmentData.startdate || !appointmentData.starttime) {
       Alert.alert('Erro', 'Dados incompletos para criar o agendamento');
       return;
     }
@@ -61,7 +63,11 @@ export const AppointmentReviewScreen: React.FC<Props> = ({ navigation }) => {
     try {
       // Prepare appointment data for submission - match webapp format exactly
       const submitData = {
-        subject: appointmentData.subject,
+        subject: appointmentData.subjectType === 'lead' ? null : appointmentData.subject,
+        leadId: appointmentData.subjectType === 'lead' ? appointmentData.leadId : null,
+        lead_id: appointmentData.subjectType === 'lead' ? appointmentData.leadId : null, // align with backend naming
+        subjectType: appointmentData.subjectType ?? 'patient',
+        subject_type: appointmentData.subjectType ?? 'patient', // backend alias
         locationid: appointmentData.locationid.toString(), // Convert to string like webapp
         status: appointmentData.status,
         practitionerid: user?.email || appointmentData.practitionerid,
@@ -70,7 +76,7 @@ export const AppointmentReviewScreen: React.FC<Props> = ({ navigation }) => {
         duration: appointmentData.duration.toString(), // Convert to string like webapp
         description: appointmentData.description,
         note: appointmentData.note || "",
-        created: "", // Empty string like webapp default
+        created: new Date().toISOString().slice(0, 19).replace('T', ' '), // YYYY-MM-DD HH:mm:ss
         servicecategory: appointmentData.servicecategory,
         servicetype: appointmentData.servicetype,
         appointmenttype: appointmentData.appointmenttype,

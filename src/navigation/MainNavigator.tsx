@@ -17,6 +17,8 @@ import { AppointmentStep4Screen } from '@screens/Appointments/AppointmentStep4Sc
 import { AppointmentStep5Screen } from '@screens/Appointments/AppointmentStep5Screen';
 import { AppointmentStep6Screen } from '@screens/Appointments/AppointmentStep6Screen';
 import { AppointmentReviewScreen } from '@screens/Appointments/AppointmentReviewScreen';
+import { AppointmentStep0Screen } from '@screens/Appointments/AppointmentStep0Screen';
+import { AppointmentBrowseScreen } from '@screens/Appointments/AppointmentBrowseScreen';
 import { AppointmentDetailsScreen } from '@screens/Appointments/AppointmentDetailsScreen';
 import { AppointmentListScreen } from '@screens/Appointments/AppointmentListScreen';
 import { AppointmentCalendarScreen } from '@screens/Appointments/AppointmentCalendarScreen';
@@ -69,7 +71,7 @@ const TAB_BAR_BASE_STYLE = {
 
 const getDashboardTabBarStyle = (route: RouteProp<MainTabParamList, 'Dashboard'>): typeof TAB_BAR_BASE_STYLE & { display?: 'none' } => {
   const routeName = getFocusedRouteNameFromRoute(route) ?? 'DashboardHome';
-  if (['Notifications', 'AppointmentList', 'AppointmentCalendar', 'AppointmentDetails', 'FormResponse'].includes(routeName)) {
+  if (['Notifications', 'AppointmentList', 'AppointmentCalendar', 'AppointmentDetails', 'FormResponse', 'AppointmentStep0', 'AppointmentBrowse', 'AppointmentStep1', 'AppointmentStep2', 'AppointmentStep3', 'AppointmentStep4', 'AppointmentStep5', 'AppointmentStep6', 'AppointmentReview'].includes(routeName)) {
     return { ...TAB_BAR_BASE_STYLE, display: 'none' };
   }
   return TAB_BAR_BASE_STYLE;
@@ -239,7 +241,9 @@ const DashboardStackNavigator: React.FC = () => {
       screenOptions={{
         headerShown: false,
       }}
+      initialRouteName="DashboardHome"
     >
+      <DashboardStack.Screen name="AppointmentStep0" component={AppointmentStep0Screen} />
       <DashboardStack.Screen name="DashboardHome" component={DashboardScreen} />
       <DashboardStack.Screen name="AppointmentList" component={AppointmentListScreen} />
       <DashboardStack.Screen name="AppointmentCalendar" component={AppointmentCalendarScreen} />
@@ -249,6 +253,7 @@ const DashboardStackNavigator: React.FC = () => {
       <DashboardStack.Screen name="EncounterList" component={EncounterListScreen} />
       <DashboardStack.Screen name="EncounterView" component={EncounterViewScreen} />
       <DashboardStack.Screen name="AppointmentStep1" component={AppointmentStep1Screen} />
+      <DashboardStack.Screen name="AppointmentBrowse" component={AppointmentBrowseScreen} />
       <DashboardStack.Screen name="AppointmentStep2" component={AppointmentStep2Screen} />
       <DashboardStack.Screen name="AppointmentStep3" component={AppointmentStep3Screen} />
       <DashboardStack.Screen name="AppointmentStep4" component={AppointmentStep4Screen} />

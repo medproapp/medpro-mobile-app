@@ -955,7 +955,7 @@ export const DashboardScreen: React.FC = () => {
               <TouchableOpacity
                 style={styles.emptyAction}
                 activeOpacity={0.7}
-                onPress={() => navigation.navigate('AppointmentStep1')}
+                onPress={() => navigation.navigate('AppointmentStep0')}
               >
                 <FontAwesome name="plus" size={16} color={theme.colors.primary} />
                 <Text style={styles.emptyActionText}>Criar novo agendamento</Text>
@@ -1056,7 +1056,7 @@ export const DashboardScreen: React.FC = () => {
         {/* Floating Action Button */}
         <TouchableOpacity 
           style={styles.fab}
-          onPress={() => navigation.navigate('AppointmentStep1')}
+          onPress={() => navigation.navigate('AppointmentStep0')}
           activeOpacity={0.8}
         >
           <MaterialIcons name="add" size={24} color={theme.colors.white} />

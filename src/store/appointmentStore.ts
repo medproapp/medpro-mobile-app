@@ -8,6 +8,8 @@ export interface AppointmentData {
   subject: string;              // Patient CPF
   patientName: string;          // Display name
   patientPhone: string;         // For display
+  subjectType: 'patient' | 'lead';
+  leadId?: string | null;
   
   // Location info
   locationid: string;
@@ -60,7 +62,7 @@ interface AppointmentStore {
   selectedServices: SelectedService[];
   
   // Actions
-  setPatient: (cpf: string, name: string, phone: string) => void;
+  setPatient: (identifier: string, name: string, phone: string, subjectType?: 'patient' | 'lead', leadId?: string | null) => void;
   setServices: (category: string, type: string, appointmentType: string, services: Service[], duration: number) => void;
   setPayment: (paymentType: string, coverage: ServiceCoverageStatus[]) => void;
   setLocation: (locationId: string, locationName: string) => void;
@@ -93,6 +95,8 @@ const initialAppointmentData: AppointmentData = {
   subject: '',
   patientName: '',
   patientPhone: '',
+  subjectType: 'patient',
+  leadId: null,
   locationid: '',
   locationName: '',
   status: 'booked',
@@ -118,13 +122,16 @@ export const useAppointmentStore = create<AppointmentStore>((set, get) => ({
   selectedServices: [],
 
   // Set patient information
-  setPatient: (cpf: string, name: string, phone: string) => {
+  setPatient: (identifier: string, name: string, phone: string, subjectType: 'patient' | 'lead' = 'patient', leadId: string | null = null) => {
+    const resolvedLeadId = leadId !== null && leadId !== undefined ? String(leadId) : leadId;
     set((state) => ({
       appointmentData: {
         ...state.appointmentData,
-        subject: cpf,
+        subject: subjectType === 'patient' ? identifier : '',
         patientName: name,
         patientPhone: phone,
+        subjectType,
+        leadId: resolvedLeadId,
       },
     }));
   },
@@ -319,6 +326,9 @@ export const useAppointmentStore = create<AppointmentStore>((set, get) => ({
     
     switch (step) {
       case 1: // Patient selection
+        if (appointmentData.subjectType === 'lead') {
+          return !!appointmentData.leadId && !!appointmentData.patientName;
+        }
         return !!appointmentData.subject && !!appointmentData.patientName;
       
       case 2: // Services selection
@@ -346,7 +356,8 @@ export const useAppointmentStore = create<AppointmentStore>((set, get) => ({
     const { appointmentData } = get();
     
     return !!(
-      appointmentData.subject &&
+      ((appointmentData.subjectType === 'lead' && appointmentData.leadId) ||
+        (appointmentData.subjectType === 'patient' && appointmentData.subject)) &&
       appointmentData.patientName &&
       appointmentData.practitionerid &&
       appointmentData.locationid &&

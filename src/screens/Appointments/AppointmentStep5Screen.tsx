@@ -61,10 +61,11 @@ export const AppointmentStep5Screen: React.FC = () => {
 
   // Load available times on component mount
   useEffect(() => {
-    logger.debug('[DEBUG-BUSY] useEffect triggered - calling loadBusySlots directly');
-    loadBusySlots();
-    loadAvailableTimes();
-    loadNextFiveSlots();
+    loadBusySlots().then((busy) => {
+      logger.debug('[DEBUG-BUSY] Initial busy slots loaded:', busy?.length ?? 0, busy);
+      loadAvailableTimes(busy);
+      loadNextFiveSlots(busy);
+    });
   }, [user?.email]);
 
   // Load busy slots from existing appointments
@@ -73,7 +74,7 @@ export const AppointmentStep5Screen: React.FC = () => {
     
     if (!user?.email) {
       logger.debug('[DEBUG-BUSY] ❌ No user email, exiting');
-      return;
+      return [];
     }
 
     try {
@@ -91,7 +92,7 @@ export const AppointmentStep5Screen: React.FC = () => {
           logger.debug(`[DEBUG-BUSY] Appointment ${index}:`, appointment);
           
           // Only consider appointments with these statuses as "busy" (same as web app)
-          const busyStatuses = ['booked', 'confirmed', 'arrived', 'checked-in'];
+          const busyStatuses = ['booked', 'confirmed', 'arrived', 'checked-in', 'scheduled', 'pending'];
           const status = appointment.status ? appointment.status.toLowerCase() : '';
           
           logger.debug(`[DEBUG-BUSY] Status check: "${status}" in [${busyStatuses.join(', ')}] = ${busyStatuses.includes(status)}`);
@@ -144,13 +145,17 @@ export const AppointmentStep5Screen: React.FC = () => {
       setBusySlots(busy);
       logger.debug('[AppointmentStep5] Loaded busy slots:', busy.length);
       logger.debug('[DEBUG-BUSY] Busy slots details:', busy);
+      return busy;
     } catch (error) {
       logger.warn('[AppointmentStep5] Could not load busy slots:', error);
+      return [];
     }
   };
 
   // Load available times for the next 7 days
-  const loadAvailableTimes = async () => {
+  const loadAvailableTimes = async (busyOverride?: { date: string; startTime: string; endTime: string }[]) => {
+    const busyList = busyOverride ?? busySlots;
+    logger.debug('[DEBUG-BUSY] loadAvailableTimes using busy list size:', busyList.length, busyList);
     if (!user?.email || !appointmentData.locationid) {
       Alert.alert('Erro', 'Dados incompletos para buscar horários');
       return;
@@ -217,7 +222,7 @@ export const AppointmentStep5Screen: React.FC = () => {
                     
                     // Check if this slot conflicts with existing appointments
                     const duration = getTotalDuration();
-                    const isBusy = isSlotBusy(localDateString, localTimeString + ':00', duration);
+                    const isBusy = isSlotBusyWith(busyList, localDateString, localTimeString + ':00', duration);
                     
                     slots.push({
                       time: localTimeString,
@@ -230,7 +235,7 @@ export const AppointmentStep5Screen: React.FC = () => {
                   logger.warn('[AppointmentStep5] Error converting UTC time:', error, { slot });
                   // Fallback: use the time as-is
                   const duration = getTotalDuration();
-                  const isBusy = isSlotBusy(dateString, utcTime, duration);
+                  const isBusy = isSlotBusyWith(busyList, dateString, utcTime, duration);
                   
                   slots.push({
                     time: utcTime.slice(0, 5), // HH:MM
@@ -269,7 +274,8 @@ export const AppointmentStep5Screen: React.FC = () => {
   };
 
   // Load next 5 available slots for quick selection
-  const loadNextFiveSlots = async () => {
+  const loadNextFiveSlots = async (busyOverride?: { date: string; startTime: string; endTime: string }[]) => {
+    const busyList = busyOverride ?? busySlots;
     if (!user?.email || !appointmentData.locationid) return;
 
     try {
@@ -328,29 +334,41 @@ export const AppointmentStep5Screen: React.FC = () => {
             // Filter out slots that are in the past
             return slot.localDateTime > now;
           })
+          .filter((slot: any) => {
+            const duration = getTotalDuration();
+            return !isSlotBusyWith(busyList, slot.date, slot.time + ':00', duration);
+          })
           .map(({ localDateTime, ...slot }: { localDateTime: Date; [key: string]: any }) => slot); // Remove localDateTime from final result
         
         setNextFiveSlots(slots);
         logger.debug('[AppointmentStep5] Loaded next five slots (future only):', slots.length);
+        logger.debug('[DEBUG-BUSY] Next five slots after filtering busy:', slots);
       }
     } catch (error) {
       logger.warn('[AppointmentStep5] Could not load next five slots:', error);
     }
   };
 
-  // Check if a slot conflicts with existing appointments
-  const isSlotBusy = (date: string, time: string, duration: number): boolean => {
+  const isSlotBusyWith = (
+    busyList: { date: string; startTime: string; endTime: string }[],
+    date: string,
+    time: string,
+    duration: number
+  ): boolean => {
     // Parse the slot time as local time
     const [dateYear, dateMonth, dateDay] = date.split('-').map(Number);
-    const [timeHours, timeMinutes, timeSeconds] = time.split(':').map(Number);
-    const slotStart = new Date(dateYear, dateMonth - 1, dateDay, timeHours, timeMinutes, timeSeconds || 0);
+    const [timeHoursStr = '0', timeMinutesStr = '0', timeSecondsStr = '0'] = (time || '0:0:0').split(':');
+    const timeHours = Number(timeHoursStr) || 0;
+    const timeMinutes = Number(timeMinutesStr) || 0;
+    const timeSeconds = Number(timeSecondsStr) || 0;
+    const slotStart = new Date(dateYear, dateMonth - 1, dateDay, timeHours, timeMinutes, timeSeconds);
     const slotEnd = new Date(slotStart.getTime() + duration * 60 * 1000);
     
     logger.debug(`[DEBUG-BUSY] Checking slot ${date} ${time} (duration: ${duration}min)`);
     logger.debug(`[DEBUG-BUSY] Slot time range: ${slotStart.toISOString()} - ${slotEnd.toISOString()}`);
-    logger.debug(`[DEBUG-BUSY] Available busy slots:`, busySlots);
+    logger.debug(`[DEBUG-BUSY] Busy list provided (${busyList.length}):`, busyList);
     
-    const conflicts = busySlots.filter(busy => {
+    const conflicts = busyList.filter(busy => {
       logger.debug(`[DEBUG-BUSY] Checking against busy slot: ${busy.date} ${busy.startTime}-${busy.endTime}`);
       
       if (busy.date !== date) {
@@ -359,10 +377,10 @@ export const AppointmentStep5Screen: React.FC = () => {
       }
       
       // Parse busy times as local time too
-      const [busyHours, busyMinutes, busySeconds] = busy.startTime.split(':').map(Number);
-      const [endHours, endMinutes, endSeconds] = busy.endTime.split(':').map(Number);
-      const busyStart = new Date(dateYear, dateMonth - 1, dateDay, busyHours, busyMinutes, busySeconds || 0);
-      const busyEnd = new Date(dateYear, dateMonth - 1, dateDay, endHours, endMinutes, endSeconds || 0);
+      const [busyHoursStr = '0', busyMinutesStr = '0', busySecondsStr = '0'] = (busy.startTime || '0:0:0').split(':');
+      const [endHoursStr = '0', endMinutesStr = '0', endSecondsStr = '0'] = (busy.endTime || '0:0:0').split(':');
+      const busyStart = new Date(dateYear, dateMonth - 1, dateDay, Number(busyHoursStr) || 0, Number(busyMinutesStr) || 0, Number(busySecondsStr) || 0);
+      const busyEnd = new Date(dateYear, dateMonth - 1, dateDay, Number(endHoursStr) || 0, Number(endMinutesStr) || 0, Number(endSecondsStr) || 0);
       
       logger.debug(`[DEBUG-BUSY] Busy time range: ${busyStart.toISOString()} - ${busyEnd.toISOString()}`);
       
@@ -386,10 +404,15 @@ export const AppointmentStep5Screen: React.FC = () => {
     return false;
   };
 
+  // Check if a slot conflicts with existing appointments (uses current state)
+  const isSlotBusy = (date: string, time: string, duration: number): boolean =>
+    isSlotBusyWith(busySlots, date, time, duration);
+
   // Handle refresh
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadBusySlots(), loadAvailableTimes(), loadNextFiveSlots()]);
+    const busy = await loadBusySlots();
+    await Promise.all([loadAvailableTimes(busy), loadNextFiveSlots(busy)]);
     setRefreshing(false);
   };
 

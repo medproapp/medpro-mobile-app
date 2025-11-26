@@ -58,6 +58,8 @@ export type DashboardStackParamList = {
   AppointmentStep5: undefined;
   AppointmentStep6: undefined;
   AppointmentReview: undefined;
+  AppointmentStep0: undefined;
+  AppointmentBrowse: undefined;
 };
 
 // Patients Stack
