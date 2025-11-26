@@ -45,6 +45,48 @@ const toPagination = (
 };
 
 class NotificationsService {
+  private async fetchCountByStatus(status: NotificationStatus | 'all'): Promise<number> {
+    // Try to use pagination.total when available, otherwise walk pages until we exhaust results.
+    const limit = 50;
+    const maxPages = 200; // safety guard
+    let page = 1;
+    let total = 0;
+
+    while (page <= maxPages) {
+      try {
+        const response: NotificationsApiResponse = await apiService.listNotifications({
+          status,
+          page,
+          limit,
+        });
+
+        logger.debug('[NotificationsService] fetchCount response for', status, JSON.stringify(response?.pagination));
+
+        const pagination = toPagination(response?.pagination, page, limit);
+        const items = this.sanitizeItems(response?.data);
+
+        if (pagination.total !== undefined) {
+          return Number(pagination.total);
+        }
+
+        total += items.length;
+
+        // If backend doesn't provide hasMore, assume more pages only when we filled the current one.
+        const hasMore = pagination.hasMore ?? items.length === limit;
+        if (!hasMore || items.length === 0) {
+          break;
+        }
+
+        page += 1;
+      } catch (e) {
+        logger.error('[NotificationsService] fetchCount error for', status, e);
+        break;
+      }
+    }
+
+    return total;
+  }
+
   private sanitizeItems(items: unknown): NotificationItem[] {
     if (!Array.isArray(items)) {
       return [];
@@ -86,47 +128,17 @@ class NotificationsService {
   }
 
   async fetchUnreadCount(): Promise<number> {
-    try {
-      const response: NotificationsApiResponse = await apiService.listNotifications({
-        status: 'delivered',
-        page: 1,
-        limit: 1,
-      });
-
-      const pagination = toPagination(response?.pagination, 1, 1);
-      if (pagination.total !== undefined) {
-        return Number(pagination.total);
-      }
-
-      const items = this.sanitizeItems(response?.data);
-      return items.length;
-    } catch (error) {
-      logger.error('[NotificationsService] Failed to fetch unread count', error);
-      return 0;
-    }
+    return this.fetchCountByStatus('delivered');
   }
 
   async fetchAllCounts(): Promise<{ all: number; delivered: number; read: number; archived: number }> {
-    const fetchCount = async (status: NotificationStatus | 'all'): Promise<number> => {
-      try {
-        const response: NotificationsApiResponse = await apiService.listNotifications({
-          status,
-          page: 1,
-          limit: 1,
-        });
-        const pagination = toPagination(response?.pagination, 1, 1);
-        return pagination.total ?? 0;
-      } catch {
-        return 0;
-      }
-    };
-
     const [all, delivered, read, archived] = await Promise.all([
-      fetchCount('all'),
-      fetchCount('delivered'),
-      fetchCount('read'),
-      fetchCount('archived'),
+      this.fetchCountByStatus('all'),
+      this.fetchCountByStatus('delivered'),
+      this.fetchCountByStatus('read'),
+      this.fetchCountByStatus('archived'),
     ]);
+    logger.debug('[NotificationsService] fetchAllCounts result:', { all, delivered, read, archived });
     return { all, delivered, read, archived };
   }
 

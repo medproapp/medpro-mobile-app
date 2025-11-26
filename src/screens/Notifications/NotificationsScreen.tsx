@@ -53,6 +53,7 @@ export const NotificationsScreen: React.FC = () => {
   const markAsRead = useNotificationStore(state => state.markAsRead);
   const markAllAsRead = useNotificationStore(state => state.markAllAsRead);
   const archiveNotification = useNotificationStore(state => state.archiveNotification);
+  const archiveAllNotifications = useNotificationStore(state => state.archiveAllNotifications);
   const pagination = useNotificationStore(state => state.pagination);
   const query = useNotificationStore(state => state.query);
   const pendingCount = useNotificationStore(state => state.pendingCount);
@@ -61,7 +62,13 @@ export const NotificationsScreen: React.FC = () => {
   const fetchStatusCounts = useNotificationStore(state => state.fetchStatusCounts);
 
   const hasUnread = useMemo(() => items.some(isUnread), [items]);
+  const hasArchivable = useMemo(() => items.some(item => item.status !== 'archived'), [items]);
   const markAllColor = hasUnread ? theme.colors.white : theme.colors.textSecondary;
+  const archiveAllColor = hasArchivable ? theme.colors.textPrimary : theme.colors.textSecondary;
+  const allCount = useMemo(
+    () => Math.max(statusCounts.all - statusCounts.archived, 0),
+    [statusCounts.all, statusCounts.archived]
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -72,12 +79,12 @@ export const NotificationsScreen: React.FC = () => {
 
   const filters = useMemo(
     () => [
-      { label: 'Todas', value: 'all' as NotificationStatus | 'all', count: statusCounts.all },
+      { label: 'Todas', value: 'all' as NotificationStatus | 'all', count: allCount },
       { label: 'Pendentes', value: 'delivered' as NotificationStatus | 'all', count: statusCounts.delivered },
       { label: 'Lidas', value: 'read' as NotificationStatus | 'all', count: statusCounts.read },
       { label: 'Arquivadas', value: 'archived' as NotificationStatus | 'all', count: statusCounts.archived },
     ],
-    [statusCounts]
+    [statusCounts, allCount]
   );
 
   const handleFilterChange = (status: NotificationStatus | 'all') => {
@@ -101,6 +108,13 @@ export const NotificationsScreen: React.FC = () => {
       return;
     }
     markAllAsRead();
+  };
+
+  const handleArchiveAll = () => {
+    if (!hasArchivable) {
+      return;
+    }
+    archiveAllNotifications();
   };
 
   const handleNotificationPress = useCallback(
@@ -267,16 +281,29 @@ export const NotificationsScreen: React.FC = () => {
           </ScrollView>
         </View>
 
-        <TouchableOpacity
-          style={[styles.markAllButton, !hasUnread && styles.markAllButtonDisabled, styles.markAllButtonFloating]}
-          onPress={handleMarkAll}
-          disabled={!hasUnread}
-        >
-          <MaterialIcons name="done-all" size={18} color={markAllColor} />
-          <Text style={[styles.markAllButtonText, !hasUnread && styles.markAllButtonTextDisabled]}>
-            Marcar todas
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={[styles.markAllButton, !hasUnread && styles.markAllButtonDisabled]}
+            onPress={handleMarkAll}
+            disabled={!hasUnread}
+          >
+            <MaterialIcons name="done-all" size={18} color={markAllColor} />
+            <Text style={[styles.markAllButtonText, !hasUnread && styles.markAllButtonTextDisabled]}>
+              Marcar todas
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.archiveAllButton, !hasArchivable && styles.archiveAllButtonDisabled]}
+            onPress={handleArchiveAll}
+            disabled={!hasArchivable}
+          >
+            <MaterialIcons name="archive" size={18} color={archiveAllColor} />
+            <Text style={[styles.archiveAllButtonText, !hasArchivable && styles.archiveAllButtonTextDisabled]}>
+              Arquivar todas
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -364,6 +391,13 @@ const styles = StyleSheet.create({
     color: theme.colors.white + 'CC',
     marginTop: 4,
   },
+  actionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 16,
+  },
   markAllButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -390,10 +424,28 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     marginTop: -12,
   },
-  markAllButtonFloating: {
-    alignSelf: 'flex-end',
-    marginTop: 8,
-    marginBottom: 16,
+  archiveAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.borderLight,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 18,
+    marginLeft: 12,
+  },
+  archiveAllButtonDisabled: {
+    backgroundColor: theme.colors.borderLight,
+  },
+  archiveAllButtonText: {
+    marginLeft: 8,
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+  },
+  archiveAllButtonTextDisabled: {
+    color: theme.colors.textSecondary,
   },
   filterContainer: {
     flexDirection: 'row',

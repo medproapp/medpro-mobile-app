@@ -56,6 +56,10 @@ export const useNotificationStore = create<NotificationState & { statusCounts: S
 
     try {
       const { items, pagination } = await notificationsService.getNotifications(query);
+      const normalizedItems =
+        (query.status ?? DEFAULT_QUERY.status) === 'all'
+          ? items.filter(item => item.status !== 'archived')
+          : items;
 
       set(state => {
         const shouldAppend = (query.page ?? DEFAULT_QUERY.page ?? 1) > 1;
@@ -63,10 +67,10 @@ export const useNotificationStore = create<NotificationState & { statusCounts: S
 
         if (shouldAppend) {
           const existingIds = new Set(state.items.map(item => item.id));
-          const newItems = items.filter(item => !existingIds.has(item.id));
+          const newItems = normalizedItems.filter(item => !existingIds.has(item.id));
           mergedItems = [...state.items, ...newItems];
         } else {
-          mergedItems = items;
+          mergedItems = normalizedItems;
         }
         return {
           items: mergedItems,
@@ -189,11 +193,57 @@ export const useNotificationStore = create<NotificationState & { statusCounts: S
     }
   },
 
+  archiveAllNotifications: async () => {
+    const toArchive = get()
+      .items
+      .filter(item => item.status !== 'archived')
+      .map(item => item.id);
+
+    if (!toArchive.length) {
+      return;
+    }
+
+    try {
+      const archivedIds: number[] = [];
+
+      // Archive sequentially to reduce backend load and respect ordering
+      for (const id of toArchive) {
+        const success = await notificationsService.archive(id);
+        if (success) {
+          archivedIds.push(id);
+        }
+      }
+
+      if (!archivedIds.length) {
+        return;
+      }
+
+      set(state => {
+        const archiveIds = new Set(archivedIds);
+        const remainingItems = state.items.filter(item => !archiveIds.has(item.id));
+        return {
+          items: remainingItems,
+          pendingCount: remainingItems.filter(isUnread).length,
+        };
+      });
+
+      const [pendingCount, statusCounts] = await Promise.all([
+        notificationsService.fetchUnreadCount(),
+        notificationsService.fetchAllCounts(),
+      ]);
+      set({ pendingCount, statusCounts });
+    } catch (error) {
+      logger.error('[NotificationStore] Failed to archive all notifications', error);
+    }
+  },
+
   setPendingCount: (count: number) => set({ pendingCount: count }),
 
   fetchStatusCounts: async () => {
     try {
+      logger.debug('[NotificationStore] Fetching status counts...');
       const counts = await notificationsService.fetchAllCounts();
+      logger.debug('[NotificationStore] Status counts received:', counts);
       set({ statusCounts: counts, pendingCount: counts.delivered });
     } catch (error) {
       logger.error('[NotificationStore] Failed to fetch status counts', error);

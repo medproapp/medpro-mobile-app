@@ -81,5 +81,6 @@ export interface NotificationState {
   markAsRead: (notificationId: number) => Promise<void>;
   markAllAsRead: () => Promise<void>;
   archiveNotification: (notificationId: number) => Promise<void>;
+  archiveAllNotifications: () => Promise<void>;
   setPendingCount: (count: number) => void;
 }
