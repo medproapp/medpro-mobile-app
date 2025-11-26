@@ -63,6 +63,11 @@ export const resolveNotificationNavigation = (
       }
       return { type: 'MESSAGES_TAB' };
     }
+    // Practitioner appointment types (what backend actually sends)
+    case 'appointment_created_practitioner':
+    case 'appointment_cancelled_practitioner':
+    case 'appointment_rescheduled_practitioner':
+    // Legacy types (backwards compatibility)
     case 'appointment_created':
     case 'appointment_cancelled':
     case 'appointment_rescheduled': {
@@ -83,3 +88,30 @@ export const resolveNotificationNavigation = (
       return null;
   }
 };
+
+/**
+ * Convert push notification response data to NotificationItem format
+ * for use with resolveNotificationNavigation()
+ */
+export const pushDataToNotificationItem = (
+  data: Record<string, unknown> | undefined,
+): NotificationItem => ({
+  id: 0,
+  source: 'push',
+  title: '',
+  body: '',
+  status: 'delivered',
+  delivered_at: new Date().toISOString(),
+  metadata: {
+    type: data?.type as string,
+    context: {
+      // Push data comes with context nested
+      ...(data?.context as Record<string, unknown> || {}),
+      // Also support flat structure for backwards compatibility
+      threadId: (data?.context as any)?.threadId || data?.thread_id as string,
+      thread_id: (data?.context as any)?.thread_id || data?.thread_id as string,
+      appointmentId: (data?.context as any)?.appointmentId || data?.appointment_id as string,
+      appointment_id: (data?.context as any)?.appointment_id || data?.appointment_id as string,
+    },
+  },
+});

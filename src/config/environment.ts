@@ -2,7 +2,7 @@ import Constants from 'expo-constants';
 
 type MaybeString = string | null | undefined;
 
-const FALLBACK_API_BASE_URL = 'https://medproapp.ngrok.dev';
+const FALLBACK_API_BASE_URL = 'https://server.medproapp.dev';
 
 const readExtra = (): Record<string, unknown> => {
   const expoConfig = (Constants as any)?.expoConfig ?? (Constants as any)?.manifest;

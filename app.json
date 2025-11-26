@@ -2,7 +2,7 @@
   "expo": {
     "name": "Profissional",
     "slug": "medpro-app",
-    "version": "0.8.1",
+    "version": "0.8.2",
     "orientation": "portrait",
     "icon": "./assets/newlogo5.png",
     "userInterfaceStyle": "light",
@@ -75,7 +75,7 @@
       "bundler": "metro"
     },
     "extra": {
-      "apiBaseUrl": "https://medproapp.ngrok.dev",
+      "apiBaseUrl": "https://server.medproapp.dev",
       "eas": {
         "projectId": "bc8e5697-2118-45bb-9c81-8f7a7fa10ab3"
       }

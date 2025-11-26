@@ -7,6 +7,10 @@ import { useAuthStore } from '@store/authStore';
 import { useMessagingStore } from '@store/messagingStore';
 import { useNotificationStore } from '@store/notificationStore';
 import { logger } from '@/utils/logger';
+import {
+  resolveNotificationNavigation,
+  pushDataToNotificationItem,
+} from '@/utils/notificationNavigation';
 
 export const useNotifications = () => {
   const navigation = useNavigation<any>();
@@ -64,28 +68,46 @@ export const useNotifications = () => {
       }
     });
 
-    // Listen for user interactions with notifications
+    // Listen for user interactions with notifications (taps from device tray)
     responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
       logger.debug('[useNotifications] Notification response received:', response);
-      
+
       const data = response.notification.request.content.data;
-      
-      // Navigate to appropriate screen based on notification data
-      if (data?.type === 'internal_message' && data.thread_id) {
-        // Navigate to Messages tab first, then to specific conversation
-        try {
-          (navigation as any).navigate('Messages', {
-            screen: 'Conversation',
-            params: {
-              threadId: data.thread_id,
-              threadSubject: data.subject || 'Conversa',
-            },
-          });
-        } catch (error) {
-          logger.error('[useNotifications] Navigation error:', error);
-          // Fallback: just navigate to Messages tab
-          (navigation as any).navigate('Messages');
+
+      // Convert push data to NotificationItem format and resolve navigation target
+      const notificationItem = pushDataToNotificationItem(data as Record<string, unknown>);
+      const target = resolveNotificationNavigation(notificationItem);
+
+      if (!target) {
+        logger.debug('[useNotifications] No navigation target for notification type:', data?.type);
+        return;
+      }
+
+      try {
+        switch (target.type) {
+          case 'MESSAGES_CONVERSATION':
+            navigation.navigate('Messages', {
+              screen: 'Conversation',
+              params: target.params,
+            });
+            break;
+          case 'MESSAGES_TAB':
+            navigation.navigate('Messages');
+            break;
+          case 'DASHBOARD_APPOINTMENT_DETAILS':
+            navigation.navigate('Dashboard', {
+              screen: 'AppointmentDetails',
+              params: target.params,
+            });
+            break;
+          case 'DASHBOARD_HOME':
+            navigation.navigate('Dashboard', { screen: 'DashboardHome' });
+            break;
         }
+      } catch (error) {
+        logger.error('[useNotifications] Navigation error:', error);
+        // Fallback: navigate to Dashboard
+        navigation.navigate('Dashboard');
       }
     });
 
