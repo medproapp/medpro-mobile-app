@@ -9,9 +9,9 @@ import {
   TouchableOpacity,
   Image,
   StatusBar,
-  GestureResponderEvent,
   ScrollView,
 } from 'react-native';
+import { Swipeable } from 'react-native-gesture-handler';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -154,32 +154,50 @@ export const NotificationsScreen: React.FC = () => {
     return 'notifications';
   };
 
-  const renderItem = ({ item }: { item: NotificationItem }) => {
+  const renderRightActions = (itemId: number | string) => {
     return (
       <TouchableOpacity
-        style={[styles.card, isUnread(item) && styles.cardUnread]}
-        activeOpacity={0.85}
-        onPress={() => handleNotificationPress(item)}
-        accessibilityRole="button"
+        style={styles.archiveAction}
+        onPress={() => archiveNotification(itemId)}
+        accessibilityLabel="Arquivar notificação"
       >
-        <View style={styles.cardRow}>
-          <View style={styles.iconWrapper}>
-            <MaterialIcons
-              name={getNotificationIcon(item)}
-              size={20}
-              color={isUnread(item) ? theme.colors.primary : theme.colors.textSecondary}
-            />
-          </View>
-          <View style={styles.cardContent}>
-            <Text style={styles.title} numberOfLines={2}>
-              {item.title || 'Notificação'}
-            </Text>
-            <Text style={styles.date}>
-              {formatDate(item.delivered_at)}
-            </Text>
-          </View>
-        </View>
+        <MaterialIcons name="archive" size={24} color={theme.colors.white} />
+        <Text style={styles.archiveActionText}>Arquivar</Text>
       </TouchableOpacity>
+    );
+  };
+
+  const renderItem = ({ item }: { item: NotificationItem }) => {
+    return (
+      <Swipeable
+        renderRightActions={() => renderRightActions(item.id)}
+        overshootRight={false}
+      >
+        <TouchableOpacity
+          style={[styles.card, isUnread(item) && styles.cardUnread]}
+          activeOpacity={0.85}
+          onPress={() => handleNotificationPress(item)}
+          accessibilityRole="button"
+        >
+          <View style={styles.cardRow}>
+            <View style={styles.iconWrapper}>
+              <MaterialIcons
+                name={getNotificationIcon(item)}
+                size={20}
+                color={isUnread(item) ? theme.colors.primary : theme.colors.textSecondary}
+              />
+            </View>
+            <View style={styles.cardContent}>
+              <Text style={styles.title} numberOfLines={2}>
+                {item.title || 'Notificação'}
+              </Text>
+              <Text style={styles.date}>
+                {formatDate(item.delivered_at)}
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Swipeable>
     );
   };
 
@@ -514,5 +532,20 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  archiveAction: {
+    backgroundColor: theme.colors.error,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 80,
+    borderRadius: 16,
+    marginBottom: 12,
+    marginLeft: 8,
+  },
+  archiveActionText: {
+    color: theme.colors.white,
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
   },
 });
