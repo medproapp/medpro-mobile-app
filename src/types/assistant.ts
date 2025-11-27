@@ -143,73 +143,168 @@ export interface DocumentAnalysisResponse {
   suggestions?: string[];
 }
 
+// ============================================================================
+// V2 SESSION-BASED API TYPES
+// Matching web app's assistant-api.js implementation
+// ============================================================================
+
+/**
+ * Channel type for multi-channel support
+ */
+export type SessionChannel = 'web' | 'whatsapp' | 'app';
+
+/**
+ * Session object from v2 API
+ */
+export interface Session {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  lastMessageAt?: string;
+  channels?: SessionChannel[];
+  metadata?: {
+    source?: string;
+    patientId?: string;
+    encounterId?: string;
+  };
+}
+
+/**
+ * Message object from v2 API
+ * Note: v2 messages have content as { text: string } not plain string
+ */
+export interface SessionMessage {
+  id: number | string;
+  role: 'user' | 'assistant' | 'tool';
+  content: {
+    text: string;
+  };
+  createdAt: string;
+  channel?: SessionChannel;
+  clientMessageId?: string;
+}
+
+/**
+ * Response from list sessions endpoint
+ */
+export interface SessionListResponse {
+  sessions: Session[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+  } | null;
+}
+
+/**
+ * Response from get session messages endpoint
+ */
+export interface MessagesResponse {
+  messages: SessionMessage[];
+  pagination: {
+    hasMore?: boolean;
+    before?: string;
+    after?: string;
+  } | null;
+}
+
+/**
+ * Response from post message endpoint
+ * Includes both user message and assistant response
+ */
+export interface PostMessageResponse {
+  userMessage: SessionMessage;
+  assistantMessage: SessionMessage;
+  context?: {
+    patientId?: string;
+    encounterId?: string;
+    prescription?: {
+      justcreated: boolean;
+      pdfBase64?: string;
+      id?: string;
+    };
+  };
+}
+
 // Store State Types
 export interface AssistantState {
-  // Conversation
+  // V2 Session State
+  sessions: Session[];
+  activeSessionId: string | null;
+  sessionMessages: Record<string, SessionMessage[]>;
+  sessionsLoading: boolean;
+  sessionLoading: boolean;
+  messageLoading: boolean;
+
+  // Legacy local messages (for UI display during v2 transition)
   messages: AssistantMessage[];
   isLoading: boolean;
   isTyping: boolean;
-  
+
   // Context
   currentPatient?: Patient;
   currentEncounter?: Encounter;
   contextHistory: ContextInfo[];
-  
+
   // UI State
   showContextCard: boolean;
   inputHeight: number;
   keyboardVisible: boolean;
-  
+
   // Audio State
   isTranscribing: boolean;
   lastAudioUri?: string;
-  
-  // Persistence
-  conversationSessions: ConversationSession[];
-  lastSessionId?: string;
-  
+
   // Error handling
   lastError?: string;
   retryCount: number;
 }
 
 export interface AssistantActions {
-  // Messages
+  // V2 Session Actions
+  initializeAssistant: () => Promise<void>;
+  loadSessions: () => Promise<void>;
+  selectSession: (sessionId: string) => Promise<void>;
+  createNewSession: () => Promise<Session | null>;
+  deleteSession: (sessionId: string) => Promise<void>;
+  renameSession: (sessionId: string, title: string) => Promise<void>;
+  sendMessage: (content: string) => Promise<void>;
+  loadMoreMessages: () => Promise<void>;
+
+  // Legacy Messages (for UI compatibility)
   addMessage: (message: Omit<AssistantMessage, 'id'>) => void;
   updateLastMessage: (update: Partial<AssistantMessage>) => void;
   removeMessage: (messageId: string) => void;
   clearMessages: () => void;
-  
+
   // Conversation
-  sendMessage: (content: string) => Promise<void>;
   resetConversation: () => void;
-  loadConversation: (sessionId: string) => void;
-  saveConversation: () => void;
-  
+
   // Context
   setPatientContext: (patient: Patient) => void;
   setEncounterContext: (encounter: Encounter) => void;
   clearContext: () => void;
   updateContextFromResponse: (context: any) => void;
-  
+
   // UI
   setLoading: (loading: boolean) => void;
   setTyping: (typing: boolean) => void;
   toggleContextCard: () => void;
   setKeyboardVisible: (visible: boolean) => void;
-  
+
   // Special Actions
   handlePrescriptionSign: (pdfBase64: string) => Promise<void>;
   handlePrescriptionSend: (prescriptionId: string) => Promise<void>;
   handleDocumentAnalysis: (attachment: FormData) => Promise<void>;
   navigateToPatient: (patientId: string) => void;
   navigateToEncounter: (encounterId: string) => void;
-  
+
   // Audio Actions
   transcribeAudio: (audioUri: string) => Promise<string>;
   sendAudioMessage: (audioUri: string, transcription?: string) => Promise<void>;
   setTranscribing: (transcribing: boolean) => void;
-  
+
   // Error handling
   setError: (error: string) => void;
   clearError: () => void;

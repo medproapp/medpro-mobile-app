@@ -39,8 +39,8 @@ import { LeadDetailsScreen } from '@screens/Patients/LeadDetailsScreen';
 import { LeadCreateScreen } from '@screens/Patients/LeadCreateScreen';
 import { MoreScreen, MyProfileScreen, AboutScreen, HelpSupportScreen } from '@screens/More';
 import { MessagesListScreen, ConversationScreen, NewMessageScreen } from '@screens/Messages';
-import { AssistantScreen } from '@screens/Assistant';
-import { MainTabParamList, DashboardStackParamList, PatientsStackParamList, MessagesStackParamList, MoreStackParamList } from '../types/navigation';
+import { AssistantSessionsScreen, AssistantChatScreen } from '@screens/Assistant';
+import { MainTabParamList, DashboardStackParamList, PatientsStackParamList, MessagesStackParamList, MoreStackParamList, AssistantStackParamList } from '../types/navigation';
 import { theme } from '@theme/index';
 import { useNotifications } from '../hooks/useNotifications';
 import { useMessagingUnreadCount } from '@store/messagingStore';
@@ -51,6 +51,7 @@ const DashboardStack = createStackNavigator<DashboardStackParamList, 'DashboardS
 const PatientsStack = createStackNavigator<PatientsStackParamList, 'PatientsStackNavigator'>();
 const MessagesStack = createStackNavigator<MessagesStackParamList, 'MessagesStackNavigator'>();
 const MoreStack = createStackNavigator<MoreStackParamList, 'MoreStackNavigator'>();
+const AssistantStack = createStackNavigator<AssistantStackParamList, 'AssistantStackNavigator'>();
 
 const TAB_BAR_BASE_STYLE = {
   backgroundColor: theme.colors.surface,
@@ -80,6 +81,14 @@ const getDashboardTabBarStyle = (route: RouteProp<MainTabParamList, 'Dashboard'>
 const getPatientsTabBarStyle = (route: RouteProp<MainTabParamList, 'Patients'>): typeof TAB_BAR_BASE_STYLE & { display?: 'none' } => {
   const routeName = getFocusedRouteNameFromRoute(route) ?? 'PatientsList';
   if (routeName === 'PatientDashboard' || routeName === 'PatientHistory' || routeName === 'ClinicalRecords' || routeName === 'Prescriptions' || routeName === 'Diagnostics' || routeName === 'Images' || routeName === 'Attachments' || routeName === 'Recordings' || routeName === 'EncounterDetails' || routeName === 'ClinicalRecordDetails' || routeName === 'PdfViewer') {
+    return { ...TAB_BAR_BASE_STYLE, display: 'none' };
+  }
+  return TAB_BAR_BASE_STYLE;
+};
+
+const getAssistantTabBarStyle = (route: RouteProp<MainTabParamList, 'Chat'>): typeof TAB_BAR_BASE_STYLE & { display?: 'none' } => {
+  const routeName = getFocusedRouteNameFromRoute(route) ?? 'AssistantSessions';
+  if (routeName === 'AssistantChat') {
     return { ...TAB_BAR_BASE_STYLE, display: 'none' };
   }
   return TAB_BAR_BASE_STYLE;
@@ -232,6 +241,20 @@ const MessagesStackNavigator: React.FC = () => {
   );
 };
 
+// Assistant Stack Navigator (two-screen mode)
+const AssistantStackNavigator: React.FC = () => {
+  return (
+    <AssistantStack.Navigator
+      id="AssistantStackNavigator"
+      screenOptions={{
+        headerShown: false,
+      }}
+    >
+      <AssistantStack.Screen name="AssistantSessions" component={AssistantSessionsScreen} />
+      <AssistantStack.Screen name="AssistantChat" component={AssistantChatScreen} />
+    </AssistantStack.Navigator>
+  );
+};
 
 // Dashboard Stack Navigator
 const DashboardStackNavigator: React.FC = () => {
@@ -373,19 +396,20 @@ export const MainNavigator: React.FC = () => {
       
       <Tab.Screen
         name="Chat"
-        component={AssistantScreen}
-        options={{
+        component={AssistantStackNavigator}
+        options={({ route }) => ({
           title: 'Assistente',
+          tabBarStyle: getAssistantTabBarStyle(route),
           tabBarIcon: ({ focused, color }) => (
-            <TabIcon 
-              name="medpro-logo" 
-              focused={focused} 
+            <TabIcon
+              name="medpro-logo"
+              focused={focused}
               color={color}
               isCustomImage={true}
               size={32}
             />
           ),
-        }}
+        })}
       />
       
       <Tab.Screen

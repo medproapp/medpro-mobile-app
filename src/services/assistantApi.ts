@@ -14,6 +14,11 @@ import {
   ApiError,
   ACTION_TYPES,
   ACTION_STYLES,
+  Session,
+  SessionMessage,
+  SessionListResponse,
+  MessagesResponse,
+  PostMessageResponse,
 } from '../types/assistant';
 import { logger } from '@/utils/logger';
 
@@ -94,18 +99,33 @@ class AssistantApiService {
       if (!response.ok) {
         const errorText = await response.text();
         logger.error('[AssistantAPI] Error response:', errorText);
-        
+
         const error: ApiError = {
           status: response.status,
           message: `HTTP ${response.status}: ${response.statusText}`,
           details: errorText,
         };
-        
+
         throw error;
       }
 
-      const data = await response.json();
-      return data;
+      // Handle 204 No Content and other empty responses
+      if (response.status === 204 || response.headers.get('content-length') === '0') {
+        return undefined as T;
+      }
+
+      // Try to parse JSON, but handle empty responses gracefully
+      const text = await response.text();
+      if (!text || text.trim() === '') {
+        return undefined as T;
+      }
+
+      try {
+        return JSON.parse(text);
+      } catch {
+        // If it's not valid JSON but we got a successful response, return the text
+        return text as T;
+      }
     } catch (error) {
       logger.error('[AssistantAPI] Request failed:', error);
       throw error;
@@ -264,6 +284,221 @@ class AssistantApiService {
       // Re-throw the error instead of using fallback
       throw new Error(`Audio transcription failed: ${errorMessage}`);
     }
+  }
+
+  // ============================================================================
+  // V2 SESSION-BASED API METHODS
+  // Matching web app's assistant-api.js implementation
+  // ============================================================================
+
+  /**
+   * Get base URL for v2 API endpoints
+   */
+  private getV2BaseUrl(practitionerId: string): string {
+    if (!practitionerId) {
+      throw new Error('Practitioner identifier is required for Assistant API calls.');
+    }
+    return `${API_BASE_URL}/ai/v2/practitioners/${encodeURIComponent(practitionerId)}`;
+  }
+
+  /**
+   * Normalize sessions response from API
+   * Handles different response formats: { sessions: [] }, { data: [] }, or []
+   */
+  private normalizeSessionsResponse(payload: any): Session[] {
+    if (!payload) return [];
+    if (Array.isArray(payload.sessions)) return payload.sessions;
+    if (Array.isArray(payload.data)) return payload.data;
+    if (Array.isArray(payload)) return payload;
+    return [];
+  }
+
+  /**
+   * Normalize messages response from API
+   * Handles different response formats
+   */
+  private normalizeMessagesResponse(payload: any): MessagesResponse {
+    if (!payload) return { messages: [], pagination: null };
+    if (Array.isArray(payload.messages)) {
+      return { messages: payload.messages, pagination: payload.pagination || null };
+    }
+    if (Array.isArray(payload)) {
+      return { messages: payload, pagination: null };
+    }
+    return { messages: [], pagination: null };
+  }
+
+  /**
+   * List all assistant sessions for a practitioner
+   * GET /ai/v2/practitioners/{id}/sessions
+   */
+  async listSessions(
+    practitionerId: string,
+    options: { page?: number; pageSize?: number } = {}
+  ): Promise<SessionListResponse> {
+    const { page = 1, pageSize = 20 } = options;
+    const baseUrl = this.getV2BaseUrl(practitionerId);
+
+    const query = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+    });
+
+    logger.debug('[AssistantAPI] Listing sessions:', { practitionerId, page, pageSize });
+
+    const response = await this.request<any>(`${baseUrl}/sessions?${query.toString()}`.replace(API_BASE_URL, ''));
+
+    return {
+      sessions: this.normalizeSessionsResponse(response),
+      pagination: response?.pagination || null,
+    };
+  }
+
+  /**
+   * Create a new assistant session
+   * POST /ai/v2/practitioners/{id}/sessions
+   */
+  async createSession(
+    practitionerId: string,
+    metadata: { source?: string; title?: string } = {}
+  ): Promise<Session> {
+    const baseUrl = this.getV2BaseUrl(practitionerId);
+
+    const payload = {
+      metadata: { source: 'app', ...metadata },
+      title: metadata.title || 'Nova conversa',
+    };
+
+    logger.debug('[AssistantAPI] Creating session:', { practitionerId, payload });
+
+    const response = await this.request<any>(`${baseUrl}/sessions`.replace(API_BASE_URL, ''), {
+      method: 'POST',
+      body: payload,
+    });
+
+    logger.debug('[AssistantAPI] Create session response:', JSON.stringify(response));
+
+    // Handle various response formats
+    const session = response?.data || response?.session || response;
+    if (!session || !session.id) {
+      logger.error('[AssistantAPI] Invalid session response:', response);
+      throw new Error('Invalid session response from server');
+    }
+
+    return session;
+  }
+
+  /**
+   * Get a specific session by ID
+   * GET /ai/v2/practitioners/{id}/sessions/{sessionId}
+   */
+  async getSession(practitionerId: string, sessionId: string): Promise<Session> {
+    const baseUrl = this.getV2BaseUrl(practitionerId);
+    const safeSessionId = encodeURIComponent(sessionId);
+
+    logger.debug('[AssistantAPI] Getting session:', { practitionerId, sessionId });
+
+    const response = await this.request<any>(`${baseUrl}/sessions/${safeSessionId}`.replace(API_BASE_URL, ''));
+
+    return response.data || response;
+  }
+
+  /**
+   * Get messages for a session with pagination support
+   * GET /ai/v2/practitioners/{id}/sessions/{sessionId}/messages
+   */
+  async getSessionMessages(
+    practitionerId: string,
+    sessionId: string,
+    options: { limit?: number; before?: string; after?: string } = {}
+  ): Promise<MessagesResponse> {
+    const { limit = 30, before, after } = options;
+    const baseUrl = this.getV2BaseUrl(practitionerId);
+    const safeSessionId = encodeURIComponent(sessionId);
+
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (before) query.set('before', before);
+    if (after) query.set('after', after);
+
+    logger.debug('[AssistantAPI] Getting session messages:', { practitionerId, sessionId, limit, before, after });
+
+    const response = await this.request<any>(
+      `${baseUrl}/sessions/${safeSessionId}/messages?${query.toString()}`.replace(API_BASE_URL, '')
+    );
+
+    return this.normalizeMessagesResponse(response);
+  }
+
+  /**
+   * Post a new message to a session
+   * POST /ai/v2/practitioners/{id}/sessions/{sessionId}/messages
+   */
+  async postSessionMessage(
+    practitionerId: string,
+    sessionId: string,
+    content: string
+  ): Promise<PostMessageResponse> {
+    const baseUrl = this.getV2BaseUrl(practitionerId);
+    const safeSessionId = encodeURIComponent(sessionId);
+
+    const payload = {
+      content,
+      clientMessageId: `app-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      channel: 'app' as const,
+    };
+
+    logger.debug('[AssistantAPI] Posting message:', { practitionerId, sessionId, contentLength: content.length });
+
+    const response = await this.request<any>(
+      `${baseUrl}/sessions/${safeSessionId}/messages`.replace(API_BASE_URL, ''),
+      {
+        method: 'POST',
+        body: payload,
+      }
+    );
+
+    return response.data || response;
+  }
+
+  /**
+   * Delete a session
+   * DELETE /ai/v2/practitioners/{id}/sessions/{sessionId}
+   */
+  async deleteSession(practitionerId: string, sessionId: string): Promise<void> {
+    const baseUrl = this.getV2BaseUrl(practitionerId);
+    const safeSessionId = encodeURIComponent(sessionId);
+
+    logger.debug('[AssistantAPI] Deleting session:', { practitionerId, sessionId });
+
+    await this.request<void>(
+      `${baseUrl}/sessions/${safeSessionId}`.replace(API_BASE_URL, ''),
+      { method: 'DELETE' }
+    );
+  }
+
+  /**
+   * Rename a session (update title)
+   * PATCH /ai/v2/practitioners/{id}/sessions/{sessionId}
+   */
+  async renameSession(
+    practitionerId: string,
+    sessionId: string,
+    title: string
+  ): Promise<Session> {
+    const baseUrl = this.getV2BaseUrl(practitionerId);
+    const safeSessionId = encodeURIComponent(sessionId);
+
+    logger.debug('[AssistantAPI] Renaming session:', { practitionerId, sessionId, title });
+
+    const response = await this.request<any>(
+      `${baseUrl}/sessions/${safeSessionId}`.replace(API_BASE_URL, ''),
+      {
+        method: 'PATCH',
+        body: { title },
+      }
+    );
+
+    return response.data || response;
   }
 
   /**

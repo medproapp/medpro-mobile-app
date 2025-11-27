@@ -88,10 +88,16 @@ export type PatientsStackParamList = {
   LeadCreate: undefined;
 };
 
-// Chat Stack
+// Chat Stack (legacy - may be removed)
 export type ChatStackParamList = {
   ChatList: undefined;
   ChatRoom: { chatId: string; patientName: string };
+};
+
+// Assistant Stack (two-screen mode)
+export type AssistantStackParamList = {
+  AssistantSessions: undefined;
+  AssistantChat: { sessionId: string };
 };
 
 // Messages Stack
