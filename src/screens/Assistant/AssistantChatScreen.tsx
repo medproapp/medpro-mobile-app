@@ -22,6 +22,7 @@ import { useAssistantStore, useAssistantActiveSession } from '../../store/assist
 import { AssistantMessage, ActionButton } from '../../types/assistant';
 import { AssistantStackParamList } from '../../types/navigation';
 import { logger } from '@/utils/logger';
+import { logAssistantSessionStarted, logAssistantMessageSent } from '@services/analytics';
 
 type NavigationProp = NativeStackNavigationProp<AssistantStackParamList, 'AssistantChat'>;
 type ChatRouteProp = RouteProp<AssistantStackParamList, 'AssistantChat'>;
@@ -160,6 +161,8 @@ export const AssistantChatScreen: React.FC = () => {
   // Load session on mount
   useEffect(() => {
     selectSession(sessionId);
+    // Track assistant session started
+    logAssistantSessionStarted(currentPatient?.id);
   }, [sessionId, selectSession]);
 
   // Keyboard handling
@@ -194,6 +197,9 @@ export const AssistantChatScreen: React.FC = () => {
     const message = inputText.trim();
     setInputText('');
     inputRef.current?.blur();
+
+    // Track assistant message sent (text message, no audio)
+    logAssistantMessageSent(false);
 
     await sendMessage(message);
   }, [inputText, isLoading, sendMessage]);

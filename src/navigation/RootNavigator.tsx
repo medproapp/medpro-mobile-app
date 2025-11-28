@@ -1,5 +1,5 @@
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import React, { useRef } from 'react';
+import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
 import { AuthNavigator } from './AuthNavigator';
@@ -9,6 +9,7 @@ import { Loading } from '@components/common';
 import { useAuthStore } from '@store/authStore';
 import { RootStackParamList } from '../types/navigation';
 import { logger } from '@/utils/logger';
+import { logScreenView } from '@services/analytics';
 
 const Stack = createStackNavigator<RootStackParamList, 'RootNavigator'>();
 
@@ -17,8 +18,26 @@ export const RootNavigator: React.FC = () => {
   // logger.debug('Auth State:', { isAuthenticated, isLoading, user });
   const needsOnboarding = isAuthenticated && user?.role === 'practitioner' && user?.firstLogin;
 
+  // Analytics: screen tracking refs
+  const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
+  const routeNameRef = useRef<string>();
+
   return (
-    <NavigationContainer>
+    <NavigationContainer
+      ref={navigationRef}
+      onReady={() => {
+        routeNameRef.current = navigationRef.current?.getCurrentRoute()?.name;
+      }}
+      onStateChange={async () => {
+        const previousRouteName = routeNameRef.current;
+        const currentRouteName = navigationRef.current?.getCurrentRoute()?.name;
+
+        if (previousRouteName !== currentRouteName && currentRouteName) {
+          // Track screen view in Firebase Analytics
+          await logScreenView(currentRouteName);
+        }
+        routeNameRef.current = currentRouteName;
+      }}>
       <StatusBar style="dark" backgroundColor="transparent" />
       <Stack.Navigator
         id="RootNavigator"

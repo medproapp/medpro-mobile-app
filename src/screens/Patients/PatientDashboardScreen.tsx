@@ -21,6 +21,7 @@ import { PatientsStackParamList } from '@/types/navigation';
 import { CachedImage } from '@components/common';
 import { useAuthStore } from '@store/authStore';
 import { logger } from '@/utils/logger';
+import { logPatientViewed } from '@services/analytics';
 
 type PatientDashboardRouteProp = RouteProp<PatientsStackParamList, 'PatientDashboard'>;
 
@@ -353,6 +354,9 @@ export const PatientDashboardScreen: React.FC = () => {
   useEffect(() => {
     mountedRef.current = true;
     loadData();
+
+    // Track patient viewed event
+    logPatientViewed(patientCpf);
 
     // Cleanup on unmount
     return () => {

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "728061637228",
+    "project_id": "medpro-mobile",
+    "storage_bucket": "medpro-mobile.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:728061637228:android:226e738f4b0e88092f5e49",
+        "android_client_info": {
+          "package_name": "com.medproapp.prof.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBiQ1DM0rJg_RMQkkXazP3Cu14R77TM-oo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

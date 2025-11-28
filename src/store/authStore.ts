@@ -12,6 +12,12 @@ import {
 import { Organization } from '../types/api';
 import { secureStorage } from '../utils/secureStorage';
 import { logger } from '@/utils/logger';
+import {
+  logLogin,
+  logLogout,
+  setAnalyticsUserId,
+  setUserProperties,
+} from '@services/analytics';
 
 const AUTH_API_BASE_URL = API_BASE_URL;
 
@@ -84,6 +90,9 @@ export const useAuthStore = create<AuthStore>()(
 
           const data = await response.json();
           logger.info('Login successful');
+
+          // Track login event in analytics
+          logLogin('email');
 
           // Calculate token expiration (default 1 hour if not provided)
           const expiresIn = data.expiresIn || data.expires_in || 3600; // seconds
@@ -197,6 +206,13 @@ export const useAuthStore = create<AuthStore>()(
               // Update state with complete user info
               set({ user });
               logger.info('User profile updated successfully');
+
+              // Set analytics user ID and properties
+              setAnalyticsUserId(user.id);
+              setUserProperties({
+                user_role: user.role || null,
+                organization: user.organization || null,
+              });
             }
           } catch (userInfoError) {
             logger.warn('Could not fetch detailed user info:', userInfoError);
@@ -280,6 +296,11 @@ export const useAuthStore = create<AuthStore>()(
 
       logout: () => {
         logger.info('Logout initiated');
+
+        // Track logout event and clear user ID in analytics
+        logLogout();
+        setAnalyticsUserId(null);
+
         set({
           user: null,
           token: null,

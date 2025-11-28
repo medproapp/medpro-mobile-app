@@ -21,6 +21,7 @@ import { useAuthStore } from '@store/authStore';
 import { Message, MessageThread } from '@/types/messaging';
 import { MessagesStackParamList } from '@/types/navigation';
 import { logger } from '@/utils/logger';
+import { logConversationOpened, logMessageSent } from '@services/analytics';
 
 type ConversationScreenRouteProp = RouteProp<MessagesStackParamList, 'Conversation'>;
 
@@ -145,7 +146,10 @@ export const ConversationScreen: React.FC = () => {
   useEffect(() => {
     logger.debug('[ConversationScreen] Loading messages for thread:', threadId);
     loadMessages(threadId);
-    
+
+    // Track conversation opened event
+    logConversationOpened(threadId);
+
     // Set as current thread
     const thread: MessageThread = {
       thread_id: threadId,
@@ -237,7 +241,10 @@ export const ConversationScreen: React.FC = () => {
         message_type: 'text',
         priority: 'normal',
       });
-      
+
+      // Track message sent event
+      logMessageSent();
+
       // Reload messages to show the new one
       await loadMessages(threadId);
     } catch (error) {

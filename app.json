@@ -6,8 +6,9 @@
     "orientation": "portrait",
     "icon": "./assets/newlogo5.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "plugins": [
+      "@react-native-firebase/app",
       [
         "expo-audio",
         {
@@ -38,7 +39,15 @@
           ]
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ]
     ],
     "splash": {
       "image": "./assets/medpro-logo.png",
@@ -49,6 +58,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.medproapp.prof.app",
       "buildNumber": "0.8.1",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Este aplicativo precisa acessar o microfone para gravar áudios dos encontros médicos.",
         "ITSAppUsesNonExemptEncryption": false
@@ -62,6 +72,7 @@
       "edgeToEdgeEnabled": true,
       "package": "com.medproapp.prof.app",
       "versionCode": 81,
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
