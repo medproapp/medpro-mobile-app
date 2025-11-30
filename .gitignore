@@ -37,5 +37,8 @@ yarn-error.*
 # local env files
 .env*.local
 
+# Google Service Account Key
+medpro-play-store-1fb30c9a6885.json
+
 # typescript
 *.tsbuildinfo
