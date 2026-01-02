@@ -384,6 +384,49 @@ class ApiService {
     }
   }
 
+  // Get all encounters for practitioner with optional status filter
+  async getPractitionerEncounters(
+    practId: string,
+    options: {
+      page?: number;
+      limit?: number;
+      statusFilter?: 'OPEN' | 'COMPLETED' | 'ALL';
+    } = {}
+  ) {
+    const { page = 1, limit = 20, statusFilter = 'ALL' } = options;
+
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+    });
+
+    // Only add status filter if not fetching ALL
+    if (statusFilter === 'OPEN') {
+      params.append('status', JSON.stringify({
+        filter1: 'in-progress',
+        filter2: 'on-hold',
+        filter3: ''
+      }));
+    } else if (statusFilter === 'COMPLETED') {
+      params.append('status', JSON.stringify({
+        filter1: 'finished',
+        filter2: 'completed',
+        filter3: ''
+      }));
+    }
+    // For 'ALL', don't pass status filter - backend returns all encounters
+
+    try {
+      const result = await this.request(`/encounter/getencounters/practitioner/${practId}?${params}`, {
+        headers: this.getOrgHeaders(practId),
+      });
+      return result;
+    } catch (error) {
+      logger.error('Failed to get practitioner encounters:', error);
+      throw error;
+    }
+  }
+
   // Patient History/Encounters APIs
   async getPatientEncounters(patientCpf: string, options: { page?: number; limit?: number; fromDate?: string; toDate?: string } = {}) {
     const params = new URLSearchParams({

@@ -43,7 +43,7 @@ export type DashboardStackParamList = {
     appointmentDate: string;
   };
   PatientDetails: { patientId: string };
-  EncounterList: { filterStatus?: 'OPEN' | 'ALL' };
+  EncounterList: { filterStatus?: 'OPEN' | 'COMPLETED' | 'ALL' };
   EncounterView: {
     encounterId: string;
     patientName: string;

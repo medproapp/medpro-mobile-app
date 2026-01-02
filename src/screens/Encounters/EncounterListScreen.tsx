@@ -28,10 +28,12 @@ interface Encounter {
   patientName?: string;
 }
 
+type EncounterFilterStatus = 'OPEN' | 'COMPLETED' | 'ALL';
+
 interface EncounterListProps {
   route?: {
     params?: {
-      filterStatus?: 'OPEN' | 'ALL';
+      filterStatus?: EncounterFilterStatus;
     };
   };
 }
@@ -42,25 +44,29 @@ export const EncounterListScreen: React.FC<EncounterListProps> = ({ route }) => 
   const [encounters, setEncounters] = useState<Encounter[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<'OPEN' | 'ALL'>(
-    route?.params?.filterStatus || 'ALL'
+  const [filterStatus, setFilterStatus] = useState<EncounterFilterStatus>(
+    route?.params?.filterStatus || 'OPEN'
   );
 
-  const fetchEncounters = async () => {
+  const fetchEncounters = async (showLoading = true) => {
     try {
+      if (showLoading) {
+        setLoading(true);
+      }
+
       if (!user?.email) {
         throw new Error('User email not available');
       }
 
-      let encountersData;
-      
-      if (filterStatus === 'OPEN') {
-        // Fetch only in-progress and on-hold encounters
-        encountersData = await apiService.getInProgressEncounters(user.email);
-      } else {
-        // TODO: Implement full encounter list API
-        encountersData = await apiService.getInProgressEncounters(user.email);
-      }
+      logger.debug('[EncounterList] Fetching encounters with filter:', filterStatus);
+
+      // Use the new API that properly supports status filtering
+      const encountersData = await apiService.getPractitionerEncounters(user.email, {
+        statusFilter: filterStatus,
+        limit: 50,
+      });
+
+      logger.debug('[EncounterList] Received encounters:', encountersData?.data?.length || 0);
 
       // Fetch patient names for each encounter
       const encountersWithPatients = await Promise.all(
@@ -97,7 +103,7 @@ export const EncounterListScreen: React.FC<EncounterListProps> = ({ route }) => 
 
   const handleRefresh = () => {
     setRefreshing(true);
-    fetchEncounters();
+    fetchEncounters(false); // Don't show full-screen loading, use pull-to-refresh indicator
   };
 
   const getStatusInfo = (status: string) => {
@@ -149,12 +155,6 @@ export const EncounterListScreen: React.FC<EncounterListProps> = ({ route }) => 
   };
 
   const handleEncounterPress = (encounter: Encounter) => {
-    // TODO: Navigate to encounter details
-    logger.debug('Navigate to encounter details:', encounter.Identifier);
-  };
-
-  const handleOpenEncounter = (encounter: Encounter) => {
-    // Navigate to encounter view
     logger.debug('Open encounter:', encounter.Identifier);
     (navigation as any).navigate('EncounterView', {
       encounterId: encounter.Identifier,
@@ -200,29 +200,55 @@ export const EncounterListScreen: React.FC<EncounterListProps> = ({ route }) => 
           <TouchableOpacity
             style={[
               styles.filterTab,
-              filterStatus === 'ALL' && styles.activeFilterTab
+              filterStatus === 'OPEN' && styles.activeFilterTab
             ]}
-            onPress={() => setFilterStatus('ALL')}
+            onPress={() => setFilterStatus('OPEN')}
           >
-            <Text style={[
-              styles.filterTabText,
-              filterStatus === 'ALL' && styles.activeFilterTabText
-            ]}>
-              Todos
+            <Text
+              style={[
+                styles.filterTabText,
+                filterStatus === 'OPEN' && styles.activeFilterTabText
+              ]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              Em Andamento
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[
               styles.filterTab,
-              filterStatus === 'OPEN' && styles.activeFilterTab
+              filterStatus === 'COMPLETED' && styles.activeFilterTab
             ]}
-            onPress={() => setFilterStatus('OPEN')}
+            onPress={() => setFilterStatus('COMPLETED')}
           >
-            <Text style={[
-              styles.filterTabText,
-              filterStatus === 'OPEN' && styles.activeFilterTabText
-            ]}>
-              Em Andamento
+            <Text
+              style={[
+                styles.filterTabText,
+                filterStatus === 'COMPLETED' && styles.activeFilterTabText
+              ]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              Finalizados
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterTab,
+              filterStatus === 'ALL' && styles.activeFilterTab
+            ]}
+            onPress={() => setFilterStatus('ALL')}
+          >
+            <Text
+              style={[
+                styles.filterTabText,
+                filterStatus === 'ALL' && styles.activeFilterTabText
+              ]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              Todos
             </Text>
           </TouchableOpacity>
         </View>
@@ -280,16 +306,11 @@ export const EncounterListScreen: React.FC<EncounterListProps> = ({ route }) => 
                       </View>
                     </View>
 
-                    {canContinue && (
-                      <TouchableOpacity
-                        style={styles.continueButton}
-                        onPress={() => handleOpenEncounter(encounter)}
-                        activeOpacity={0.7}
-                      >
-                        <FontAwesome name="play" size={16} color={theme.colors.primary} />
-                        <Text style={styles.continueButtonText}>Abrir</Text>
-                      </TouchableOpacity>
-                    )}
+                    <FontAwesome
+                      name="chevron-right"
+                      size={16}
+                      color={theme.colors.textSecondary}
+                    />
                   </TouchableOpacity>
                 </Card>
               );
