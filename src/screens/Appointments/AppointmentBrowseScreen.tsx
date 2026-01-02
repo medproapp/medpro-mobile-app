@@ -87,8 +87,10 @@ export const AppointmentBrowseScreen: React.FC = () => {
         : [];
 
       const leadsPayload = leadsRes?.leads || leadsRes?.data?.leads || leadsRes?.data?.data || [];
+      // Filter out leads that have been converted to patients (status = 'converted')
       const leads = Array.isArray(leadsPayload)
         ? leadsPayload
+            .filter((l: any) => l?.status !== 'converted')
             .map((l: any) => normalizeLead(l))
             .filter((l: ListItem | null): l is ListItem => l !== null)
         : [];

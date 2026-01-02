@@ -166,8 +166,10 @@ export const AppointmentStep1Screen: React.FC = () => {
         leadsRes?.data?.leads ||
         leadsRes?.data?.data ||
         [];
+      // Filter out leads that have been converted to patients (status = 'converted')
       const leads = Array.isArray(leadsPayload)
         ? leadsPayload
+            .filter((item: any) => item?.status !== 'converted')
             .map((item: any) => normalizeLead(item))
             .filter((item: Patient | null): item is Patient => item !== null)
         : [];
