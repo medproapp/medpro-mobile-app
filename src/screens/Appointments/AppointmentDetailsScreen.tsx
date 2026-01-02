@@ -61,12 +61,17 @@ interface AppointmentDetails {
 const formatAppointmentType = (type: string): string => {
   const types: Record<string, string> = {
     ROUTINE: "Agendamento Regular",
-    WALKIN: "Visita não agendada", 
+    WALKIN: "Visita não agendada",
     FOLLOWUP: "Retorno",
     CHECKUP: "Check-up de Rotina",
     EMERGENCY: "Emergência",
+    FIRST: "Primeira Consulta",
+    CONSULTATION: "Consulta",
+    EXAM: "Exame",
+    PROCEDURE: "Procedimento",
+    TELEMEDICINE: "Telemedicina",
   };
-  return types[type] || type || "Não especificado";
+  return types[type?.toUpperCase()] || "Consulta";
 };
 
 const toLocalDateTime = (utcDate?: string, utcTime?: string): Date => {
@@ -539,7 +544,7 @@ export const AppointmentDetailsScreen: React.FC = () => {
                 <Text style={styles.patientName}>{appointment.patientName}</Text>
                 {appointment.isLead && (
                   <View style={styles.leadBadge}>
-                    <Text style={styles.leadBadgeText}>LEAD</Text>
+                    <Text style={styles.leadBadgeText}>POTENCIAL</Text>
                   </View>
                 )}
               </View>

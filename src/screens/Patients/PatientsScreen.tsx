@@ -278,7 +278,7 @@ export const PatientsScreen: React.FC = () => {
               <Text style={styles.patientName} numberOfLines={1}>{item.name}</Text>
               {item.type === 'lead' ? (
                 <View style={styles.leadBadge}>
-                  <Text style={styles.leadBadgeText}>LEAD</Text>
+                  <Text style={styles.leadBadgeText}>POTENCIAL</Text>
                 </View>
               ) : (
                 <View style={[styles.genderBadge, { 

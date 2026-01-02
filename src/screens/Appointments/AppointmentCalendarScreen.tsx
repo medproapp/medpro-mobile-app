@@ -98,14 +98,18 @@ function getStatusColor(status: string): string {
 // Format appointment type
 function formatAppointmentType(type: string): string {
   const typeMap: Record<string, string> = {
-    ROUTINE: 'Consulta Rotina',
+    ROUTINE: 'Agendamento Regular',
     FIRST: 'Primeira Consulta',
-    WALKIN: 'Sem Agendamento',
-    CHECKUP: 'Check-up',
+    WALKIN: 'Visita não agendada',
+    CHECKUP: 'Check-up de Rotina',
     FOLLOWUP: 'Retorno',
     EMERGENCY: 'Emergência',
+    CONSULTATION: 'Consulta',
+    EXAM: 'Exame',
+    PROCEDURE: 'Procedimento',
+    TELEMEDICINE: 'Telemedicina',
   };
-  return typeMap[type] || type;
+  return typeMap[type?.toUpperCase()] || 'Consulta';
 }
 
 // Get status label
@@ -355,7 +359,7 @@ export function AppointmentCalendarScreen() {
             <Text style={styles.patientName}>{item.patientName}</Text>
             {item.isLead && (
               <View style={styles.leadBadge}>
-                <Text style={styles.leadBadgeText}>LEAD</Text>
+                <Text style={styles.leadBadgeText}>POTENCIAL</Text>
               </View>
             )}
           </View>

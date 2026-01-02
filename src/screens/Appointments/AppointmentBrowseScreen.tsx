@@ -121,7 +121,7 @@ export const AppointmentBrowseScreen: React.FC = () => {
       <View style={styles.itemHeader}>
         <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
         {item.type === 'lead' ? (
-          <View style={styles.leadBadge}><Text style={styles.leadBadgeText}>LEAD</Text></View>
+          <View style={styles.leadBadge}><Text style={styles.leadBadgeText}>POTENCIAL</Text></View>
         ) : null}
       </View>
       {item.cpf ? <Text style={styles.itemDetail}>CPF: {item.cpf}</Text> : null}

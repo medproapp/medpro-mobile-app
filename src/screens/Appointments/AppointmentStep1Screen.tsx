@@ -304,7 +304,7 @@ export const AppointmentStep1Screen: React.FC = () => {
             )}
             {patient.kind === 'lead' && (
               <View style={styles.leadBadge}>
-                <Text style={styles.leadBadgeText}>LEAD</Text>
+                <Text style={styles.leadBadgeText}>POTENCIAL</Text>
               </View>
             )}
           </View>

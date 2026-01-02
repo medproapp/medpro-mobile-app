@@ -42,8 +42,13 @@ const formatAppointmentType = (type: string): string => {
     FOLLOWUP: 'Retorno',
     CHECKUP: 'Check-up de Rotina',
     EMERGENCY: 'Emergência',
+    FIRST: 'Primeira Consulta',
+    CONSULTATION: 'Consulta',
+    EXAM: 'Exame',
+    PROCEDURE: 'Procedimento',
+    TELEMEDICINE: 'Telemedicina',
   };
-  return types[type] || (type ? type : 'Não especificado');
+  return types[type?.toUpperCase()] || 'Consulta';
 };
 
 const convertUTCToLocalDate = (utcDateStr: string, utcTimeStr: string = '00:00:00'): Date => {
@@ -425,7 +430,7 @@ export const AppointmentListScreen: React.FC = () => {
                           <Text style={styles.patientName}>{appointment.patientName}</Text>
                           {appointment.isLead && (
                             <View style={styles.leadBadge}>
-                              <Text style={styles.leadBadgeText}>LEAD</Text>
+                              <Text style={styles.leadBadgeText}>POTENCIAL</Text>
                             </View>
                           )}
                         </View>
