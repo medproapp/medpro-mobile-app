@@ -58,6 +58,27 @@ export const AppointmentStep5Screen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [nextFiveSlots, setNextFiveSlots] = useState<{ date: string; time: string; dayName: string }[]>([]);
   const [busySlots, setBusySlots] = useState<{ date: string; startTime: string; endTime: string }[]>([]);
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
+
+  // Toggle day expansion
+  const toggleDayExpansion = (date: string) => {
+    setExpandedDays(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(date)) {
+        newSet.delete(date);
+      } else {
+        newSet.add(date);
+      }
+      return newSet;
+    });
+  };
+
+  // Auto-expand first day when available days load
+  useEffect(() => {
+    if (availableDays.length > 0 && expandedDays.size === 0) {
+      setExpandedDays(new Set([availableDays[0].date]));
+    }
+  }, [availableDays]);
 
   // Load available times on component mount
   useEffect(() => {
@@ -574,57 +595,83 @@ export const AppointmentStep5Screen: React.FC = () => {
               </View>
             )}
 
-            {!loading && availableDays.map((day) => (
-              <View key={day.date} style={styles.dayContainer}>
-                {/* Day Header */}
-                <View style={styles.dayHeader}>
-                  <View style={styles.dayInfo}>
-                    <Text style={styles.dayName}>{day.dayName}</Text>
-                    <Text style={styles.dayNumber}>{day.dayNumber}</Text>
-                    <Text style={styles.dayMonth}>{day.month}</Text>
-                  </View>
-                  <Text style={styles.slotsCount}>
-                    {day.slots.length} horário{day.slots.length !== 1 ? 's' : ''}
-                  </Text>
-                </View>
+            {!loading && availableDays.map((day) => {
+              const isExpanded = expandedDays.has(day.date);
+              const hasSelectedSlot = selectedSlot?.date === day.date;
+              const availableCount = day.slots.filter(s => s.available).length;
 
-                {/* Time Slots Grid */}
-                <View style={styles.slotsGrid}>
-                  {day.slots.map((slot) => (
-                    <TouchableOpacity
-                      key={`${day.date}-${slot.time}`}
-                      style={[
-                        styles.slotCard,
-                        !slot.available && styles.unavailableSlotCard,
-                        slot.busy && styles.busySlotCard,
-                        selectedSlot?.date === day.date && selectedSlot?.time === slot.time && styles.selectedSlotCard,
-                      ]}
-                      onPress={() => slot.available && handleSlotSelect(day.date, slot.time)}
-                      disabled={!slot.available}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[
-                        styles.slotTime,
-                        !slot.available && styles.unavailableSlotText,
-                        slot.busy && styles.busySlotText,
-                        selectedSlot?.date === day.date && selectedSlot?.time === slot.time && styles.selectedSlotText,
-                      ]}>
-                        {formatTime(slot.time)}
-                      </Text>
-                      
-                      {selectedSlot?.date === day.date && selectedSlot?.time === slot.time && (
-                        <MaterialIcons 
-                          name="check-circle" 
-                          size={16} 
-                          color={theme.colors.white}
-                          style={styles.slotCheckIcon} 
-                        />
+              return (
+                <View key={day.date} style={styles.dayContainer}>
+                  {/* Day Header - Collapsible */}
+                  <TouchableOpacity
+                    style={[styles.dayHeader, !isExpanded && styles.dayHeaderCollapsed]}
+                    onPress={() => toggleDayExpansion(day.date)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.dayInfo}>
+                      <Text style={styles.dayName}>{day.dayName}</Text>
+                      <Text style={styles.dayNumber}>{day.dayNumber}</Text>
+                      <Text style={styles.dayMonth}>{day.month}</Text>
+                    </View>
+                    <View style={styles.dayHeaderRight}>
+                      {hasSelectedSlot && (
+                        <View style={styles.selectedBadge}>
+                          <MaterialIcons name="check" size={12} color={theme.colors.white} />
+                          <Text style={styles.selectedBadgeText}>{formatTime(selectedSlot.time)}</Text>
+                        </View>
                       )}
-                    </TouchableOpacity>
-                  ))}
+                      <Text style={styles.slotsCount}>
+                        {availableCount} horário{availableCount !== 1 ? 's' : ''}
+                      </Text>
+                      <FontAwesome
+                        name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                        size={14}
+                        color={theme.colors.textSecondary}
+                        style={styles.chevronIcon}
+                      />
+                    </View>
+                  </TouchableOpacity>
+
+                  {/* Time Slots Grid - Collapsible */}
+                  {isExpanded && (
+                    <View style={styles.slotsGrid}>
+                      {day.slots.map((slot) => (
+                        <TouchableOpacity
+                          key={`${day.date}-${slot.time}`}
+                          style={[
+                            styles.slotCard,
+                            !slot.available && styles.unavailableSlotCard,
+                            slot.busy && styles.busySlotCard,
+                            selectedSlot?.date === day.date && selectedSlot?.time === slot.time && styles.selectedSlotCard,
+                          ]}
+                          onPress={() => slot.available && handleSlotSelect(day.date, slot.time)}
+                          disabled={!slot.available}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[
+                            styles.slotTime,
+                            !slot.available && styles.unavailableSlotText,
+                            slot.busy && styles.busySlotText,
+                            selectedSlot?.date === day.date && selectedSlot?.time === slot.time && styles.selectedSlotText,
+                          ]}>
+                            {formatTime(slot.time)}
+                          </Text>
+
+                          {selectedSlot?.date === day.date && selectedSlot?.time === slot.time && (
+                            <MaterialIcons
+                              name="check-circle"
+                              size={16}
+                              color={theme.colors.white}
+                              style={styles.slotCheckIcon}
+                            />
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
                 </View>
-              </View>
-            ))}
+              );
+            })}
           </View>
 
           {/* Selected Slot Summary */}
@@ -843,6 +890,33 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
+  },
+  dayHeaderCollapsed: {
+    marginBottom: 0,
+    paddingBottom: 0,
+    borderBottomWidth: 0,
+  },
+  dayHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  chevronIcon: {
+    marginLeft: 4,
+  },
+  selectedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.success,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  selectedBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.white,
   },
   dayInfo: {
     alignItems: 'center',
