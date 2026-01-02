@@ -1226,7 +1226,7 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   statsWrapper: {
-    paddingHorizontal: theme.spacing.none,
+    paddingHorizontal: 0,
     paddingTop: theme.spacing.md,
     paddingBottom: theme.spacing.lg,
   },
@@ -1667,7 +1667,6 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     backgroundColor: theme.colors.primary,
-    alignItems: 'center',
     elevation: 8,
     shadowColor: '#000',
     shadowOffset: {

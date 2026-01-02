@@ -11,11 +11,12 @@ import {
   Platform,
   Keyboard,
   StatusBar,
+  ViewStyle,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { StackNavigationProp } from '@react-navigation/stack';
 import Markdown from 'react-native-markdown-display';
 import { theme } from '../../theme';
 import { useAssistantStore, useAssistantActiveSession } from '../../store/assistantStore';
@@ -24,7 +25,7 @@ import { AssistantStackParamList } from '../../types/navigation';
 import { logger } from '@/utils/logger';
 import { logAssistantSessionStarted, logAssistantMessageSent } from '@services/analytics';
 
-type NavigationProp = NativeStackNavigationProp<AssistantStackParamList, 'AssistantChat'>;
+type NavigationProp = StackNavigationProp<AssistantStackParamList, 'AssistantChat'>;
 type ChatRouteProp = RouteProp<AssistantStackParamList, 'AssistantChat'>;
 
 // Markdown styles function
@@ -309,7 +310,7 @@ export const AssistantChatScreen: React.FC = () => {
                   key={index}
                   style={[
                     styles.actionButton,
-                    styles[`${action.style}Button` as keyof typeof styles],
+                    styles[`${action.style}Button` as keyof typeof styles] as ViewStyle,
                   ]}
                   onPress={() => handleActionPress(action)}
                   activeOpacity={0.7}

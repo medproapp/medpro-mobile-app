@@ -64,7 +64,7 @@ export const NotificationsScreen: React.FC = () => {
   const hasUnread = useMemo(() => items.some(isUnread), [items]);
   const hasArchivable = useMemo(() => items.some(item => item.status !== 'archived'), [items]);
   const markAllColor = hasUnread ? theme.colors.white : theme.colors.textSecondary;
-  const archiveAllColor = hasArchivable ? theme.colors.textPrimary : theme.colors.textSecondary;
+  const archiveAllColor = hasArchivable ? theme.colors.text : theme.colors.textSecondary;
   const allCount = useMemo(
     () => Math.max(statusCounts.all - statusCounts.archived, 0),
     [statusCounts.all, statusCounts.archived]
@@ -171,7 +171,7 @@ export const NotificationsScreen: React.FC = () => {
     return 'notifications';
   };
 
-  const renderRightActions = (itemId: number | string) => {
+  const renderRightActions = (itemId: number) => {
     return (
       <TouchableOpacity
         style={styles.archiveAction}
@@ -442,7 +442,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 13,
     fontWeight: '600',
-    color: theme.colors.textPrimary,
+    color: theme.colors.text,
   },
   archiveAllButtonTextDisabled: {
     color: theme.colors.textSecondary,

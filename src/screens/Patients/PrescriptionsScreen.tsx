@@ -15,6 +15,7 @@ import {
   Linking,
 } from 'react-native';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
@@ -54,7 +55,7 @@ const RECORD_TYPES = [
 
 export const PrescriptionsScreen: React.FC = () => {
   const route = useRoute<PrescriptionsRouteProp>();
-  const navigation = useNavigation();
+  const navigation = useNavigation<StackNavigationProp<PatientsStackParamList>>();
   const { patientCpf, patientName } = route.params;
 
   const [allRecords, setAllRecords] = useState<MedicationRecord[]>([]); // Store all records
@@ -522,7 +523,7 @@ export const PrescriptionsScreen: React.FC = () => {
           });
         } else {
           // iOS: Navigate to PDF viewer screen
-          navigation.navigate('PdfViewer' as any, {
+          navigation.navigate('PdfViewer', {
             fileUri,
             fileName: filename,
             title: 'Prescrição',

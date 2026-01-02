@@ -20,7 +20,7 @@ export const RootNavigator: React.FC = () => {
 
   // Analytics: screen tracking refs
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
-  const routeNameRef = useRef<string>();
+  const routeNameRef = useRef<string | undefined>(undefined);
 
   return (
     <NavigationContainer

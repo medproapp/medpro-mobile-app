@@ -16,7 +16,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { StackNavigationProp } from '@react-navigation/stack';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { theme } from '../../theme';
@@ -25,7 +25,7 @@ import { Session } from '../../types/assistant';
 import { AssistantStackParamList } from '../../types/navigation';
 import { logger } from '@/utils/logger';
 
-type NavigationProp = NativeStackNavigationProp<AssistantStackParamList, 'AssistantSessions'>;
+type NavigationProp = StackNavigationProp<AssistantStackParamList, 'AssistantSessions'>;
 
 // Format relative time
 const formatRelativeTime = (dateString: string): string => {

@@ -14,6 +14,9 @@ export interface User {
   firstLogin?: boolean;
   organizationLogoUrl?: string;
   isAdmin?: boolean;
+  crm?: string;
+  phone?: string;
+  specialty?: string;
 }
 
 export interface UserPreferences {

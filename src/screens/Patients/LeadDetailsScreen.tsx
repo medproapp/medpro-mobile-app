@@ -36,7 +36,7 @@ export const LeadDetailsScreen: React.FC = () => {
   useEffect(() => {
     const loadLead = async () => {
       try {
-        const res = await apiService.getLeadDetails(leadId);
+        const res = await apiService.getLeadDetails(String(leadId));
         const data = res?.lead || res;
         setLead({
           id: data?.id ?? leadId,

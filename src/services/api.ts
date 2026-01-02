@@ -1982,7 +1982,7 @@ class ApiService {
     date: string;
     type?: string;
     metadata?: any;
-    requestitens?: any[];
+    requestitens?: any[] | string;
   }): Promise<any> {
     try {
       const response = await this.request('/medication/save', {

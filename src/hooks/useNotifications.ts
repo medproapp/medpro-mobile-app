@@ -12,10 +12,10 @@ import {
   pushDataToNotificationItem,
   NotificationNavigationTarget,
 } from '@/utils/notificationNavigation';
-import type { MainTabParamList } from '@/types/navigation';
+import type { RootStackParamList } from '@/types/navigation';
 
 export const useNotifications = () => {
-  const navigation = useNavigation<NavigationProp<MainTabParamList>>();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const user = useAuthStore(state => state.user);
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
   const loadThreads = useMessagingStore(state => state.loadThreads);
