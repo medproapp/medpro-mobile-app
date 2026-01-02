@@ -1423,20 +1423,18 @@ class ApiService {
     }
   }
 
-  // Get offerings (services/procedures) for appointment creation
-  async getOfferings(offeringType: string = 'SERVICE', isActive: boolean = true) {
-    const params = new URLSearchParams({
-      offering_type: offeringType,
-      is_active: isActive.toString(),
-    });
+  // Get appointment setup data (services + payment coverage) for a practitioner
+  // This endpoint merges org-level and personal offerings
+  async getAppointmentSetup(practitionerEmail: string, includeInactive: boolean = false) {
     try {
-      const result = await this.request(`/offerings?${params}`, {
-        headers: this.getOrgHeaders()
+      const endpoint = `/pract/${encodeURIComponent(practitionerEmail)}/appointment-setup${includeInactive ? '?includeInactive=true' : ''}`;
+      const result = await this.request(endpoint, {
+        headers: this.getOrgHeaders(practitionerEmail)
       });
-      // The offerings endpoint returns the array directly, unlike other endpoints
-      return Array.isArray(result) ? result : [];
+      logger.debug('[API] getAppointmentSetup result:', result);
+      return result;
     } catch (error) {
-      logger.error('[API] getOfferings error:', error);
+      logger.error('[API] getAppointmentSetup error:', error);
       throw error;
     }
   }

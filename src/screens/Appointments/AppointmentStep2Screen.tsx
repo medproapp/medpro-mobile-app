@@ -63,27 +63,34 @@ export const AppointmentStep2Screen: React.FC = () => {
   // Load all services for browsing
   const loadAllServices = useCallback(async () => {
     if (servicesLoaded) return;
+    if (!user?.email) {
+      logger.warn('[AppointmentStep2] No user email available');
+      return;
+    }
 
     setLoading(true);
     try {
-      logger.debug('[AppointmentStep2] Loading all services');
-      
-      const results = await api.getOfferings('SERVICE', true);
-      logger.debug('[AppointmentStep2] Services results:', results);
-      logger.debug('[AppointmentStep2] Results type:', typeof results);
-      logger.debug('[AppointmentStep2] Results direct array check:', Array.isArray(results));
-      
-      if (Array.isArray(results)) {
+      logger.debug('[AppointmentStep2] Loading appointment setup for:', user.email);
+
+      // Use appointment-setup endpoint (same as webapp) to get merged org + personal services
+      const setupData = await api.getAppointmentSetup(user.email);
+      logger.debug('[AppointmentStep2] Appointment setup data:', setupData);
+
+      const services = setupData?.services;
+      if (Array.isArray(services)) {
         // Transform the API data to match our interface
-        const transformedServices = results.map((service: any) => ({
+        // Price comes as { amount: number, currency: string } from appointment-setup
+        const transformedServices = services.map((service: any) => ({
           ...service,
-          price: parseFloat(service.price) || 0, // Convert string price to number
+          price: typeof service.price === 'object'
+            ? (parseFloat(service.price?.amount) || 0)
+            : (parseFloat(service.price) || 0),
         }));
-        logger.debug('[AppointmentStep2] Transformed services:', transformedServices);
+        logger.debug('[AppointmentStep2] Transformed services count:', transformedServices.length);
         setAllServices(transformedServices);
         setServicesLoaded(true);
       } else {
-        logger.debug('[AppointmentStep2] Results is not an array:', results);
+        logger.debug('[AppointmentStep2] No services array in response:', setupData);
       }
     } catch (error) {
       logger.error('[AppointmentStep2] Error loading services:', error);
@@ -91,7 +98,7 @@ export const AppointmentStep2Screen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [servicesLoaded]);
+  }, [servicesLoaded, user?.email]);
 
   // Search services
   const performSearch = useCallback(async (term: string) => {
@@ -104,20 +111,23 @@ export const AppointmentStep2Screen: React.FC = () => {
     setLoading(true);
     try {
       logger.debug('[AppointmentStep2] Searching for:', term);
-      
+
       // Load all services first if not loaded
-      if (allServices.length === 0 && !servicesLoaded) {
-        const results = await api.getOfferings('SERVICE', true);
-        if (Array.isArray(results)) {
-          const transformedServices = results.map((service: any) => ({
+      if (allServices.length === 0 && !servicesLoaded && user?.email) {
+        const setupData = await api.getAppointmentSetup(user.email);
+        const services = setupData?.services;
+        if (Array.isArray(services)) {
+          const transformedServices = services.map((service: any) => ({
             ...service,
-            price: parseFloat(service.price) || 0,
+            price: typeof service.price === 'object'
+              ? (parseFloat(service.price?.amount) || 0)
+              : (parseFloat(service.price) || 0),
           }));
           setAllServices(transformedServices);
           setServicesLoaded(true);
-          
+
           // Filter from the newly loaded services
-          const filteredServices = transformedServices.filter((service: any) => 
+          const filteredServices = transformedServices.filter((service: any) =>
             service.name?.toLowerCase().includes(term.toLowerCase()) ||
             service.description?.toLowerCase().includes(term.toLowerCase()) ||
             service.category?.toLowerCase().includes(term.toLowerCase())
@@ -126,14 +136,14 @@ export const AppointmentStep2Screen: React.FC = () => {
         }
       } else {
         // Filter from existing services
-        const filteredServices = allServices.filter(service => 
+        const filteredServices = allServices.filter(service =>
           service.name?.toLowerCase().includes(term.toLowerCase()) ||
           service.description?.toLowerCase().includes(term.toLowerCase()) ||
           service.category?.toLowerCase().includes(term.toLowerCase())
         );
         setSearchResults(filteredServices);
       }
-      
+
       setHasSearched(true);
       logger.debug('[AppointmentStep2] Search results:', searchResults.length);
     } catch (error) {
@@ -143,7 +153,7 @@ export const AppointmentStep2Screen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [allServices, servicesLoaded, loadAllServices]);
+  }, [allServices, servicesLoaded, user?.email]);
 
   // Handle search input change
   const handleSearchChange = (text: string) => {
