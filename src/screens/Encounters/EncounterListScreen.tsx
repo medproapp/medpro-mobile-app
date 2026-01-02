@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -47,6 +47,7 @@ export const EncounterListScreen: React.FC<EncounterListProps> = ({ route }) => 
   const [filterStatus, setFilterStatus] = useState<EncounterFilterStatus>(
     route?.params?.filterStatus || 'OPEN'
   );
+  const mountedRef = useRef(true);
 
   const fetchEncounters = async (showLoading = true) => {
     try {
@@ -87,18 +88,30 @@ export const EncounterListScreen: React.FC<EncounterListProps> = ({ route }) => 
         })
       );
 
+      if (!mountedRef.current) return;
+
       setEncounters(encountersWithPatients);
     } catch (error) {
       logger.error('Error fetching encounters:', error);
+
+      if (!mountedRef.current) return;
+
       setEncounters([]);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (mountedRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   };
 
   useEffect(() => {
+    mountedRef.current = true;
     fetchEncounters();
+
+    return () => {
+      mountedRef.current = false;
+    };
   }, [filterStatus]);
 
   const handleRefresh = () => {

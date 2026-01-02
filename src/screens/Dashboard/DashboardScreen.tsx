@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -381,6 +381,9 @@ export const DashboardScreen: React.FC = () => {
   const isLoadingPendingCount = useNotificationStore(state => state.isLoadingCount);
   const fetchPendingCount = useNotificationStore(state => state.fetchPendingCount);
 
+  // Track mounted state to prevent state updates after unmount
+  const mountedRef = useRef(true);
+
   const photoUri = useMemo(() => {
     if (!user?.email) {
       return null;
@@ -527,6 +530,9 @@ export const DashboardScreen: React.FC = () => {
       // Count in-progress encounters
       const inProgressCount = inProgressData?.data?.length || 0;
 
+      // Only update state if component is still mounted
+      if (!mountedRef.current) return;
+
       setData({
         nextAppointments: appointments,
         inProgressEncountersCount: inProgressCount
@@ -602,7 +608,10 @@ export const DashboardScreen: React.FC = () => {
       setScheduleSummary(processedSchedule);
     } catch (error) {
       logger.error('Error fetching dashboard data:', error);
-      
+
+      // Only update state if component is still mounted
+      if (!mountedRef.current) return;
+
       // Fallback to mock data if API fails
       const todayStr = toLocalDateString(new Date());
       setData({
@@ -667,13 +676,20 @@ export const DashboardScreen: React.FC = () => {
       });
       setScheduleSummary([]);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (mountedRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   };
 
   useEffect(() => {
+    mountedRef.current = true;
     fetchDashboardData();
+
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   useFocusEffect(

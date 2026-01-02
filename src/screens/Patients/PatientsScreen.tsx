@@ -65,6 +65,7 @@ export const PatientsScreen: React.FC = () => {
   const [page, setPage] = useState(1);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
+  const mountedRef = useRef(true);
 
   const fetchLeadsSafe = async (pageNum: number, limit: number, search: string) => {
     if (typeof (apiService as any).getLeads === 'function') {
@@ -154,6 +155,8 @@ export const PatientsScreen: React.FC = () => {
       const totalPatients = patientsResponse?.data?.total ?? patients.length;
       const totalLeads = leadsTotal;
 
+      if (!mountedRef.current) return;
+
       setData({
         patients: combined,
         totalPatients,
@@ -163,6 +166,9 @@ export const PatientsScreen: React.FC = () => {
       });
     } catch (error) {
       logger.error('Error fetching patients:', error);
+
+      if (!mountedRef.current) return;
+
       setData({
         patients: [],
         totalPatients: 0,
@@ -171,14 +177,21 @@ export const PatientsScreen: React.FC = () => {
         pages: 1,
       });
     } finally {
-      setLoading(false);
-      setRefreshing(false);
-      setSearchLoading(false);
+      if (mountedRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+        setSearchLoading(false);
+      }
     }
   };
 
   useEffect(() => {
+    mountedRef.current = true;
     fetchPatients();
+
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   useFocusEffect(

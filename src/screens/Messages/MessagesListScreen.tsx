@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -90,6 +90,7 @@ export const MessagesListScreen: React.FC = () => {
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
   const [threadPhotos, setThreadPhotos] = useState<Record<string, string | null>>({});
+  const mountedRef = useRef(true);
 
   // Load threads with filtering and search
   const loadThreads = async (filterType: ThreadFilter = 'all', searchTerm: string = '') => {
@@ -99,6 +100,7 @@ export const MessagesListScreen: React.FC = () => {
         params.search = searchTerm;
       }
       const response = await api.getMessageThreads(params);
+      if (!mountedRef.current) return;
       const apiThreads = Array.isArray(response?.data) ? response.data : [];
       setRawThreads(apiThreads);
       setThreads(apiThreads.map(thread => mapThreadToViewModel(thread, threadPhotos[getThreadId(thread)])));
@@ -111,6 +113,7 @@ export const MessagesListScreen: React.FC = () => {
   const loadStats = async () => {
     try {
       const response = await api.getMessagingStats();
+      if (!mountedRef.current) return;
       setStats(response.data);
     } catch (error) {
       logger.error('Error loading stats:', error);
@@ -119,12 +122,18 @@ export const MessagesListScreen: React.FC = () => {
 
   // Initial load
   useEffect(() => {
+    mountedRef.current = true;
     const loadData = async () => {
       setIsLoading(true);
       await Promise.all([loadThreads(filter, searchQuery), loadStats()]);
-      setIsLoading(false);
+      if (mountedRef.current) {
+        setIsLoading(false);
+      }
     };
     loadData();
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   // Handle filter changes
@@ -158,7 +167,9 @@ export const MessagesListScreen: React.FC = () => {
   const onRefresh = async () => {
     setIsRefreshing(true);
     await Promise.all([loadThreads(filter, searchQuery), loadStats()]);
-    setIsRefreshing(false);
+    if (mountedRef.current) {
+      setIsRefreshing(false);
+    }
   };
 
   // Get filtered threads (now handled server-side, so just return all)
@@ -206,6 +217,7 @@ export const MessagesListScreen: React.FC = () => {
 
       api.getThreadParticipants(threadId)
         .then(response => {
+          if (!mountedRef.current) return;
           const participants = Array.isArray(response?.data) ? response.data : [];
           const photo = selectPhoto(participants);
           setThreadPhotos(prev => {
@@ -219,6 +231,7 @@ export const MessagesListScreen: React.FC = () => {
           });
         })
         .catch(error => {
+          if (!mountedRef.current) return;
           logger.error('[MessagesListScreen] Failed to load thread participants photo', { threadId, error });
           setThreadPhotos(prev => ({
             ...prev,
