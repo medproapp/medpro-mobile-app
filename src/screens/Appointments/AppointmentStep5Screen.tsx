@@ -165,16 +165,24 @@ export const AppointmentStep5Screen: React.FC = () => {
     try {
       logger.debug('[AppointmentStep5] Loading available times');
       const duration = getTotalDuration();
-      
+
       // Get next 7 days in local timezone
       const days: DaySlots[] = [];
-      const today = new Date();
+      const now = new Date();
+      const today = new Date(now);
       // Reset time to start of day in local timezone
       today.setHours(0, 0, 0, 0);
-      
+
+      // Calculate next full hour after now (same as webapp logic)
+      const nextFullHourAfterNow = new Date(now);
+      nextFullHourAfterNow.setMinutes(0, 0, 0);
+      nextFullHourAfterNow.setHours(nextFullHourAfterNow.getHours() + 1);
+      logger.debug('[AppointmentStep5] Next full hour cutoff:', nextFullHourAfterNow.toISOString());
+
       for (let i = 0; i < 7; i++) {
         const localDate = new Date(today);
         localDate.setDate(today.getDate() + i);
+        const isToday = i === 0;
         
         // Format date for API (YYYY-MM-DD) in local timezone
         const year = localDate.getFullYear();
@@ -213,16 +221,22 @@ export const AppointmentStep5Screen: React.FC = () => {
                   const localDateString = `${year}-${month}-${day}`;
                   
                   if (localDateString === dateString) {
+                    // For today, filter out slots before next full hour (same as webapp)
+                    if (isToday && localDateTime < nextFullHourAfterNow) {
+                      logger.debug(`[AppointmentStep5] Skipping past slot for today: ${localDateTime.toISOString()}`);
+                      return; // Skip this slot
+                    }
+
                     // This slot belongs to the requested date after timezone conversion
-                    const localTimeString = localDateTime.toLocaleTimeString('pt-BR', { 
-                      hour: '2-digit', 
+                    const localTimeString = localDateTime.toLocaleTimeString('pt-BR', {
+                      hour: '2-digit',
                       minute: '2-digit',
-                      hour12: false 
+                      hour12: false
                     });
-                    
+
                     // Check if this slot conflicts with existing appointments
-                    const duration = getTotalDuration();
-                    const isBusy = isSlotBusyWith(busyList, localDateString, localTimeString + ':00', duration);
+                    const slotDuration = getTotalDuration();
+                    const isBusy = isSlotBusyWith(busyList, localDateString, localTimeString + ':00', slotDuration);
                     
                     slots.push({
                       time: localTimeString,
