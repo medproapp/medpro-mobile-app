@@ -4,3 +4,4 @@ export * from './Card';
 export * from './Loading';
 export * from './InProgressEncountersAlert';
 export * from './CachedImage';
+export * from './ErrorBoundary';
