@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,12 +15,24 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import { Calendar, LocaleConfig, DateData } from 'react-native-calendars';
 import { theme } from '@theme/index';
 import { useAppointmentStore } from '@store/appointmentStore';
 import { useAuthStore } from '@store/authStore';
 import { api } from '@services/api';
 import { DashboardStackParamList } from '@/types/navigation';
 import { logger } from '@/utils/logger';
+
+// Portuguese locale configuration for calendar
+LocaleConfig.locales['pt-br'] = {
+  monthNames: ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'],
+  monthNamesShort: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'],
+  dayNames: ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'],
+  dayNamesShort: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'],
+  today: 'Hoje'
+};
+LocaleConfig.defaultLocale = 'pt-br';
 
 type Step5NavigationProp = StackNavigationProp<DashboardStackParamList, 'AppointmentStep5'>;
 
@@ -59,6 +71,9 @@ export const AppointmentStep5Screen: React.FC = () => {
   const [nextFiveSlots, setNextFiveSlots] = useState<{ date: string; time: string; dayName: string }[]>([]);
   const [busySlots, setBusySlots] = useState<{ date: string; startTime: string; endTime: string }[]>([]);
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [availableDatesInMonth, setAvailableDatesInMonth] = useState<Set<string>>(new Set());
+  const [loadingCalendar, setLoadingCalendar] = useState(false);
 
   // Toggle day expansion
   const toggleDayExpansion = (date: string) => {
@@ -173,8 +188,8 @@ export const AppointmentStep5Screen: React.FC = () => {
     }
   };
 
-  // Load available times for the next 7 days
-  const loadAvailableTimes = async (busyOverride?: { date: string; startTime: string; endTime: string }[]) => {
+  // Load available times for the next 7 days (optionally starting from a specific date)
+  const loadAvailableTimes = async (busyOverride?: { date: string; startTime: string; endTime: string }[], startFromDate?: string) => {
     const busyList = busyOverride ?? busySlots;
     logger.debug('[DEBUG-BUSY] loadAvailableTimes using busy list size:', busyList.length, busyList);
     if (!user?.email || !appointmentData.locationid) {
@@ -184,13 +199,15 @@ export const AppointmentStep5Screen: React.FC = () => {
 
     setLoading(true);
     try {
-      logger.debug('[AppointmentStep5] Loading available times');
+      logger.debug('[AppointmentStep5] Loading available times', startFromDate ? `from ${startFromDate}` : 'from today');
       const duration = getTotalDuration();
 
       // Get next 7 days in local timezone
       const days: DaySlots[] = [];
       const now = new Date();
-      const today = new Date(now);
+
+      // Start from specified date or today
+      const today = startFromDate ? new Date(startFromDate + 'T00:00:00') : new Date(now);
       // Reset time to start of day in local timezone
       today.setHours(0, 0, 0, 0);
 
@@ -200,16 +217,21 @@ export const AppointmentStep5Screen: React.FC = () => {
       nextFullHourAfterNow.setHours(nextFullHourAfterNow.getHours() + 1);
       logger.debug('[AppointmentStep5] Next full hour cutoff:', nextFullHourAfterNow.toISOString());
 
+      // Calculate today's date string for comparison
+      const todayDateString = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
+
       for (let i = 0; i < 7; i++) {
         const localDate = new Date(today);
         localDate.setDate(today.getDate() + i);
-        const isToday = i === 0;
-        
+
         // Format date for API (YYYY-MM-DD) in local timezone
         const year = localDate.getFullYear();
         const month = (localDate.getMonth() + 1).toString().padStart(2, '0');
         const day = localDate.getDate().toString().padStart(2, '0');
         const dateString = `${year}-${month}-${day}`;
+
+        // Check if this date is actually today (for filtering past slots)
+        const isToday = dateString === todayDateString;
         
         try {
           const result = await api.getAvailableTimes(
@@ -451,6 +473,65 @@ export const AppointmentStep5Screen: React.FC = () => {
     setRefreshing(false);
   };
 
+  // Load available dates for a specific month (for calendar view)
+  const loadAvailableDatesForMonth = useCallback(async (year: number, month: number) => {
+    if (!user?.email || !appointmentData.locationid) return;
+
+    setLoadingCalendar(true);
+    try {
+      logger.debug(`[AppointmentStep5] Loading available dates for ${year}-${month}`);
+      const result = await api.getAvailableDates(
+        user.email,
+        appointmentData.locationid,
+        year,
+        month,
+        getTotalDuration()
+      );
+      // API returns array of date strings directly: ["2026-01-03", "2026-01-06", ...]
+      const dates: string[] = result?.data || [];
+      logger.debug(`[AppointmentStep5] Found ${dates.length} available dates:`, dates);
+      setAvailableDatesInMonth(new Set(dates));
+    } catch (error) {
+      logger.error('[AppointmentStep5] Error loading available dates:', error);
+    } finally {
+      setLoadingCalendar(false);
+    }
+  }, [user?.email, appointmentData.locationid, getTotalDuration]);
+
+  // Handle date selection from calendar - load 7 days starting from selected date
+  const handleCalendarDateSelect = useCallback(async (day: DateData) => {
+    setShowCalendar(false);
+    await loadAvailableTimes(busySlots, day.dateString);
+    // Expand the first day
+    setExpandedDays(new Set([day.dateString]));
+  }, [busySlots]);
+
+  // Handle month change in calendar
+  const handleMonthChange = useCallback((month: { year: number; month: number }) => {
+    loadAvailableDatesForMonth(month.year, month.month);
+  }, [loadAvailableDatesForMonth]);
+
+  // Build marked dates object for calendar
+  const markedDates = useMemo(() => {
+    const marked: { [key: string]: any } = {};
+
+    // Mark dates with available slots
+    availableDatesInMonth.forEach(date => {
+      marked[date] = { marked: true, dotColor: theme.colors.success };
+    });
+
+    // Highlight selected date
+    if (selectedSlot?.date) {
+      marked[selectedSlot.date] = {
+        ...marked[selectedSlot.date],
+        selected: true,
+        selectedColor: theme.colors.primary,
+      };
+    }
+
+    return marked;
+  }, [availableDatesInMonth, selectedSlot?.date]);
+
   // Handle slot selection
   const handleSlotSelect = (date: string, time: string) => {
     setSelectedSlot({ date, time });
@@ -564,6 +645,58 @@ export const AppointmentStep5Screen: React.FC = () => {
                   </TouchableOpacity>
                 ))}
               </ScrollView>
+            </View>
+          )}
+
+          {/* Calendar Toggle */}
+          <TouchableOpacity
+            style={styles.calendarToggle}
+            onPress={() => {
+              if (!showCalendar) {
+                const now = new Date();
+                loadAvailableDatesForMonth(now.getFullYear(), now.getMonth() + 1);
+              }
+              setShowCalendar(!showCalendar);
+            }}
+          >
+            <FontAwesome name="calendar" size={16} color={theme.colors.primary} />
+            <Text style={styles.calendarToggleText}>Escolher outra data</Text>
+            <FontAwesome
+              name={showCalendar ? 'chevron-up' : 'chevron-down'}
+              size={14}
+              color={theme.colors.textSecondary}
+            />
+          </TouchableOpacity>
+
+          {/* Calendar */}
+          {showCalendar && (
+            <View style={styles.calendarContainer}>
+              {loadingCalendar && (
+                <View style={styles.calendarLoading}>
+                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                </View>
+              )}
+              <Calendar
+                current={new Date().toISOString().split('T')[0]}
+                minDate={new Date().toISOString().split('T')[0]}
+                onDayPress={handleCalendarDateSelect}
+                onMonthChange={handleMonthChange}
+                markedDates={markedDates}
+                theme={{
+                  backgroundColor: theme.colors.surface,
+                  calendarBackground: theme.colors.surface,
+                  selectedDayBackgroundColor: theme.colors.primary,
+                  selectedDayTextColor: theme.colors.white,
+                  todayTextColor: theme.colors.primary,
+                  dayTextColor: theme.colors.text,
+                  textDisabledColor: theme.colors.textSecondary,
+                  arrowColor: theme.colors.primary,
+                  monthTextColor: theme.colors.text,
+                  textDayFontWeight: '500',
+                  textMonthFontWeight: 'bold',
+                  textDayHeaderFontWeight: '500',
+                }}
+              />
             </View>
           )}
 
@@ -844,6 +977,37 @@ const styles = StyleSheet.create({
   },
   quickSlotsContainer: {
     marginBottom: 8,
+  },
+  calendarToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    padding: theme.spacing.md,
+    borderRadius: 12,
+    marginBottom: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    gap: 8,
+  },
+  calendarToggleText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '500',
+    color: theme.colors.text,
+  },
+  calendarContainer: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 12,
+    marginBottom: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    overflow: 'hidden',
+  },
+  calendarLoading: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 1,
   },
   quickSlotCard: {
     backgroundColor: theme.colors.surface,
