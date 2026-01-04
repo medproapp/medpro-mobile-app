@@ -191,12 +191,13 @@ export const NotificationsScreen: React.FC = () => {
         overshootRight={false}
       >
         <TouchableOpacity
-          style={[styles.card, isUnread(item) && styles.cardUnread]}
+          style={[styles.card, !isUnread(item) && styles.cardRead]}
           activeOpacity={0.85}
           onPress={() => handleNotificationPress(item)}
           accessibilityRole="button"
         >
           <View style={styles.cardRow}>
+            {isUnread(item) && <View style={styles.unreadDot} />}
             <View style={styles.iconWrapper}>
               <MaterialIcons
                 name={getNotificationIcon(item)}
@@ -497,9 +498,15 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  cardUnread: {
-    borderWidth: 1,
-    borderColor: theme.colors.primary,
+  cardRead: {
+    opacity: 0.6,
+  },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: theme.colors.primary,
+    marginRight: 10,
   },
   cardRow: {
     flexDirection: 'row',
