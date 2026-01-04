@@ -181,7 +181,7 @@ export const PatientDashboardScreen: React.FC = () => {
         id: apt.identifier?.toString() || apt.id,
         start: apt.startdate ? `${apt.startdate.split('T')[0]}T${apt.starttime || '00:00:00'}` : apt.start,
         end: apt.enddate || apt.end,
-        type: apt.appointmenttype || apt.type || 'Consulta',
+        type: apt.appointmenttype || apt.type || 'Atendimento',
         status: apt.status,
         location: apt.location,
         notes: apt.note || apt.notes,
@@ -383,7 +383,18 @@ export const PatientDashboardScreen: React.FC = () => {
 
   const formatDateTime = (dateString?: string): string => {
     if (!dateString) return '-';
-    return new Date(dateString).toLocaleString('pt-BR');
+    // Ensure UTC parsing by adding Z if not present, then convert to local
+    let utcString = dateString;
+    if (!dateString.endsWith('Z') && !dateString.includes('+') && !dateString.includes('-', 10)) {
+      utcString = dateString + 'Z';
+    }
+    const date = new Date(utcString);
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${day}/${month}/${year} ${hours}:${minutes}h`;
   };
 
   if (loading) {
@@ -462,9 +473,9 @@ export const PatientDashboardScreen: React.FC = () => {
             <FontAwesome name="calendar" size={12} color={theme.colors.primary} />
           </View>
           <View style={styles.cardContent}>
-            <Text style={styles.cardTitle}>Próxima Consulta</Text>
+            <Text style={styles.cardTitle}>Próximo Atendimento</Text>
             <Text style={styles.cardValue}>
-              {nextAppointment ? formatDateTime(nextAppointment.start).split(' ')[0] : 'Nenhuma'}
+              {nextAppointment ? formatDateTime(nextAppointment.start) : 'Nenhuma'}
             </Text>
           </View>
         </View>
@@ -611,7 +622,7 @@ export const PatientDashboardScreen: React.FC = () => {
                 <Text style={styles.infoValue}>{formatDate(patient.birthDate)}</Text>
               </View>
               <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Último Encontro:</Text>
+                <Text style={styles.infoLabel}>Último Atendimento:</Text>
                 <Text style={styles.infoValue}>
                   {(() => {
                     const encounters = lastEncounter?.data?.data || [];
