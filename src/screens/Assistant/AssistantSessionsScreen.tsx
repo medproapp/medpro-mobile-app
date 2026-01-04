@@ -194,7 +194,7 @@ export const AssistantSessionsScreen: React.FC = () => {
         <Feather name="message-circle" size={64} color={theme.colors.textSecondary} />
         <Text style={styles.emptyTitle}>Nenhuma conversa</Text>
         <Text style={styles.emptyText}>
-          Comece uma nova conversa com o assistente MedPro
+          Comece uma nova conversa com o assistente Medpro.app
         </Text>
         <TouchableOpacity
           style={styles.emptyButton}
@@ -221,7 +221,7 @@ export const AssistantSessionsScreen: React.FC = () => {
           />
           <View style={styles.headerContent}>
             <View style={styles.headerLeft}>
-              <Text style={styles.headerTitle}>Assistente MedPro</Text>
+              <Text style={styles.headerTitle}>Assistente Medpro.app</Text>
               <Text style={styles.headerSubtitle}>
                 {sessions.length} {sessions.length === 1 ? 'conversa' : 'conversas'}
               </Text>

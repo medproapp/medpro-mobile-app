@@ -1,1 +1,1 @@
-export { DuotoneIcon } from './DuotoneIcon';
+export { DuotoneIcon, Icon } from './DuotoneIcon';

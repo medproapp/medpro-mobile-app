@@ -85,7 +85,7 @@ export const AboutScreen: React.FC = () => {
               <FontAwesome name="chevron-left" size={18} color={theme.colors.white} />
             </TouchableOpacity>
             <View style={styles.headerContent}>
-              <Text style={styles.greeting}>Sobre o MedPro</Text>
+              <Text style={styles.greeting}>Sobre o Medpro.app</Text>
               <Text style={styles.subheading}>Informações do aplicativo</Text>
             </View>
           </View>
@@ -103,7 +103,7 @@ export const AboutScreen: React.FC = () => {
               style={styles.appLogo}
               resizeMode="contain"
             />
-            <Text style={styles.appName}>MedPro</Text>
+            <Text style={styles.appName}>Medpro.app</Text>
             <Text style={styles.appTagline}>Profissional</Text>
             <View style={styles.versionBadge}>
               <Text style={styles.versionText}>Versão {APP_VERSION}</Text>
@@ -128,7 +128,7 @@ export const AboutScreen: React.FC = () => {
               <Text style={styles.cardTitle}>Sobre o Aplicativo</Text>
             </View>
             <Text style={styles.descriptionText}>
-              O MedPro Profissional é uma plataforma completa desenvolvida especialmente para
+              O Medpro.app Profissional é uma plataforma completa desenvolvida especialmente para
               profissionais de saúde, oferecendo ferramentas modernas para gestão de pacientes,
               consultas e registros clínicos.
             </Text>
@@ -186,7 +186,7 @@ export const AboutScreen: React.FC = () => {
           {/* Footer */}
           <View style={styles.footer}>
             <Text style={styles.footerText}>
-              © 2025 MedPro. Todos os direitos reservados.
+              © 2025 Medpro.app. Todos os direitos reservados.
             </Text>
             <Text style={styles.footerSubtext}>
               Desenvolvido com ❤️ para profissionais de saúde

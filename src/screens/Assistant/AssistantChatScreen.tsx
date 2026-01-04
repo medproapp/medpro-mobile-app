@@ -403,7 +403,7 @@ export const AssistantChatScreen: React.FC = () => {
     return (
       <View style={styles.welcomeContainer}>
         <Feather name="message-circle" size={48} color={theme.colors.primary} />
-        <Text style={styles.welcomeTitle}>Olá! Sou o Assistente MedPro</Text>
+        <Text style={styles.welcomeTitle}>Olá! Sou o Assistente Medpro.app</Text>
         <Text style={styles.welcomeText}>
           Estou aqui para ajudá-lo com informações sobre pacientes, criar prescrições e muito mais.
           Como posso ajudá-lo hoje?

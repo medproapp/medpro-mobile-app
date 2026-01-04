@@ -59,7 +59,7 @@ export const ForgotPasswordScreen: React.FC = () => {
 
       Alert.alert(
         'Solicitação enviada',
-        'Se o email informado estiver cadastrado na MedPro, você receberá um email com instruções para redefinir sua senha.',
+        'Se o email informado estiver cadastrado no Medpro.app, você receberá um email com instruções para redefinir sua senha.',
         [
         {
           text: 'OK',

@@ -14,6 +14,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { Button, Input, Card } from '@components/common';
+import { DuotoneIcon } from '@components/common/DuotoneIcon';
 import { theme } from '@theme/index';
 import { useAuthStore } from '@store/authStore';
 import { LoginCredentials } from '../../types/auth';
@@ -103,12 +104,12 @@ export const LoginScreen: React.FC = () => {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.header}>
-            <Image 
-              source={require('../../assets/medpro-logo.png')} 
+            <Image
+              source={require('../../assets/medpro-logo.png')}
               style={styles.logo}
               resizeMode="contain"
             />
-            <Text style={styles.title}>MedPro</Text>
+            <Text style={styles.title}>Medpro.app</Text>
             <Text style={styles.subtitle}>
               Acesse sua conta profissional
             </Text>

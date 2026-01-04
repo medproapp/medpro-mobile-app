@@ -81,7 +81,7 @@ export const RegistrationSuccessScreen: React.FC = () => {
           </Text>
 
           <Text style={styles.subtitle}>
-            Você ganhou 15 dias de acesso gratuito para explorar todos os recursos do MedPro para profissionais.
+            Você ganhou 15 dias de acesso gratuito para explorar todos os recursos do Medpro.app para profissionais.
           </Text>
 
           <View style={styles.section}>

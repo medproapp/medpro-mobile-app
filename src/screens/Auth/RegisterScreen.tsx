@@ -259,7 +259,7 @@ export const RegisterScreen: React.FC = () => {
             />
             <Text style={styles.title}>Criar conta profissional</Text>
             <Text style={styles.subtitle}>
-              Cadastre-se para começar a usar a experiência MedPro para profissionais de saúde.
+              Cadastre-se para começar a usar a experiência Medpro.app para profissionais de saúde.
             </Text>
 
             <View style={styles.statusContainer}>

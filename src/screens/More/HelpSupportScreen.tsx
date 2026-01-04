@@ -56,7 +56,7 @@ const FAQ_DATA: FAQItem[] = [
   {
     id: '6',
     question: 'Não recebi notificação de uma consulta',
-    answer: 'Verifique se as notificações estão ativadas nas configurações do seu dispositivo. Em Configurações > Notificações > MedPro, certifique-se de que estão habilitadas.',
+    answer: 'Verifique se as notificações estão ativadas nas configurações do seu dispositivo. Em Configurações > Notificações > Medpro.app, certifique-se de que estão habilitadas.',
     category: 'Técnico',
   },
   {

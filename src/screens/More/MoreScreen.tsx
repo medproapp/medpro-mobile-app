@@ -72,7 +72,7 @@ export const MoreScreen: React.FC = () => {
     },
     {
       id: 'about',
-      title: 'Sobre o MedPro',
+      title: 'Sobre o Medpro.app',
       subtitle: 'Versão 0.8.1',
       icon: 'info-circle',
       iconColor: theme.colors.textSecondary,

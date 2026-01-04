@@ -74,7 +74,7 @@ export const RegistrationWelcomeScreen: React.FC = () => {
             />
             <Text style={styles.title}>Tudo pronto, {name || 'Profissional'}!</Text>
             <Text style={styles.subtitle}>
-              Sua conta foi criada e estamos preparando a melhor experiência pra você começar a atender com o MedPro.
+              Sua conta foi criada e estamos preparando a melhor experiência pra você começar a atender com o Medpro.app.
             </Text>
           </View>
 

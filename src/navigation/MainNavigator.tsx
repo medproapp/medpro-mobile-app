@@ -6,6 +6,7 @@ import { Text, View, StyleSheet, Image } from 'react-native';
 import { getFocusedRouteNameFromRoute, RouteProp } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import { DuotoneIcon } from '@components/common/DuotoneIcon';
 import { DashboardScreen } from '@screens/Dashboard';
 import { NotificationsScreen } from '@screens/Notifications';
 import { EncounterListScreen } from '@screens/Encounters';
@@ -158,19 +159,28 @@ const TabIcon: React.FC<TabIconProps> = ({
     }
   }
 
-  const IconComponent = iconSet === 'FontAwesome' ? FontAwesome : MaterialIcons;
-  
   return (
     <View style={[
       styles.iconContainer,
       focused && styles.iconContainerFocused
     ]}>
-      <IconComponent
-        name={name}
-        size={size}
-        color={focused ? theme.colors.primary : theme.colors.textSecondary}
-        style={focused && styles.iconFocused}
-      />
+      {focused ? (
+        <DuotoneIcon
+          name={name}
+          size={size}
+          primaryColor={theme.colors.primary}
+          secondaryColor={theme.colors.primaryLight}
+          iconSet={iconSet}
+          primaryOpacity={1}
+          secondaryOpacity={0.4}
+        />
+      ) : (
+        <FontAwesome
+          name={name}
+          size={size}
+          color={theme.colors.textSecondary}
+        />
+      )}
       {typeof badgeCount === 'number' && badgeCount > 0 && (
         <View style={styles.badge}>
           <Text style={styles.badgeText}>

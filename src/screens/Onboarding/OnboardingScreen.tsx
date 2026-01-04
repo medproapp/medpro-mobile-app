@@ -149,7 +149,7 @@ export const OnboardingScreen: React.FC = () => {
   }, [resetOnboarding, setUser, user]);
 
   const heroGreeting = useMemo(() => {
-    if (!practitionerName) return 'Bem-vindo ao MedPro';
+    if (!practitionerName) return 'Bem-vindo ao Medpro.app';
     return `Bem-vindo, ${practitionerName}!`;
   }, [practitionerName]);
 
@@ -166,7 +166,7 @@ export const OnboardingScreen: React.FC = () => {
     setCompletionAlertShown(true);
     Alert.alert(
       'Tudo pronto!',
-      'Vamos acessar o painel inicial do MedPro.',
+      'Vamos acessar o painel inicial do Medpro.app.',
       [
         {
           text: 'Ok',
@@ -266,7 +266,7 @@ export const OnboardingScreen: React.FC = () => {
             <View style={styles.stepHeader}>
               <Text style={styles.stepEmoji}>🤖</Text>
               <View style={styles.stepHeaderText}>
-                <Text style={styles.stepTitle}>Assistente IA MedPro</Text>
+                <Text style={styles.stepTitle}>Assistente IA Medpro.app</Text>
                 <Text style={styles.aiBadge}>Em breve</Text>
               </View>
             </View>

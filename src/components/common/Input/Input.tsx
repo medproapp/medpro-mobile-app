@@ -10,6 +10,7 @@ import {
   TextInputProps,
 } from 'react-native';
 import { theme } from '@theme/index';
+import { DuotoneIcon } from '../DuotoneIcon';
 
 export interface InputProps extends Omit<TextInputProps, 'style'> {
   label?: string;
@@ -101,9 +102,13 @@ export const Input: React.FC<InputProps> = ({
             style={styles.rightIconContainer}
             onPress={() => setIsSecure(!isSecure)}
           >
-            <Text style={styles.passwordToggle}>
-              {isSecure ? '👁️' : '🙈'}
-            </Text>
+            <DuotoneIcon
+              name={isSecure ? 'eye' : 'eye-slash'}
+              size={20}
+              primaryColor={theme.colors.textSecondary}
+              primaryOpacity={1}
+              secondaryOpacity={0.3}
+            />
           </TouchableOpacity>
         )}
         
