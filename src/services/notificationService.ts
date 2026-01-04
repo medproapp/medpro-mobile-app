@@ -4,6 +4,27 @@ import api from './api';
 import { useAuthStore } from '@store/authStore';
 import { logger } from '@/utils/logger';
 
+/**
+ * Strip HTML tags from a string for plain text notifications
+ */
+const stripHtml = (html: string): string => {
+  if (!html) return '';
+  // Remove HTML tags
+  let text = html.replace(/<[^>]*>/g, '');
+  // Decode common HTML entities
+  text = text
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'");
+  // Normalize whitespace
+  text = text.replace(/\s+/g, ' ').trim();
+  return text;
+};
+
 // Configure how notifications are handled when app is in foreground
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -218,9 +239,11 @@ class NotificationService {
    */
   private handleNewMessageNotification(data: any): void {
     // Show local notification if app is in foreground
+    // Strip HTML from preview to show plain text in notification
+    const cleanPreview = stripHtml(data.preview || '');
     this.showLocalNotification({
       title: data.sender_name || 'Nova Mensagem',
-      body: data.preview || 'Você recebeu uma nova mensagem',
+      body: cleanPreview || 'Você recebeu uma nova mensagem',
       data: {
         type: 'internal_message',
         thread_id: data.thread_id,

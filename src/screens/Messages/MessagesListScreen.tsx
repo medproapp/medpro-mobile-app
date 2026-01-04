@@ -34,6 +34,27 @@ const getThreadId = (thread: ApiMessageThread): string => {
   return rawId ? String(rawId) : '';
 };
 
+/**
+ * Strip HTML tags from a string for plain text preview
+ */
+const stripHtml = (html: string): string => {
+  if (!html) return '';
+  // Remove HTML tags
+  let text = html.replace(/<[^>]*>/g, '');
+  // Decode common HTML entities
+  text = text
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'");
+  // Normalize whitespace
+  text = text.replace(/\s+/g, ' ').trim();
+  return text;
+};
+
 const mapThreadToViewModel = (thread: ApiMessageThread, photoOverride?: string | null): MessageThreadViewModel => {
   const threadId = getThreadId(thread);
 
@@ -64,7 +85,7 @@ const mapThreadToViewModel = (thread: ApiMessageThread, photoOverride?: string |
       thread.updated_at ||
       thread.created_at,
     created_at: thread.created_at,
-    last_message_preview: thread.last_message_preview ?? '',
+    last_message_preview: stripHtml(thread.last_message_preview ?? ''),
     last_sender_name: lastSender || '',
     unread_count: thread.unread_count ?? 0,
     participants_names: String(participantsNames || '').trim(),

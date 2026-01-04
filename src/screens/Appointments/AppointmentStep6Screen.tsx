@@ -122,14 +122,6 @@ export const AppointmentStep6Screen: React.FC = () => {
         const apptConfigItem = appointmentTypesResult.find((item: any) => item.configitem === "APPT_TYPES_CONFIG");
         const availableAppointmentTypes: Array<{ id: string; name: string }> = [];
 
-        const APPOINTMENT_TYPE_LABELS: Record<string, string> = {
-          ROUTINE: "Agendamento Regular",
-          WALKIN: "Visita não agendada",
-          FOLLOWUP: "Retorno",
-          CHECKUP: "Check-up de Rotina",
-          EMERGENCY: "Emergência",
-        };
-
         if (apptConfigItem && apptConfigItem.configvalue) {
           const savedApptConfigs = typeof apptConfigItem.configvalue === "string"
             ? JSON.parse(apptConfigItem.configvalue)

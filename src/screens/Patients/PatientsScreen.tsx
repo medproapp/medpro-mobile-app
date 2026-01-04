@@ -99,16 +99,19 @@ export const PatientsScreen: React.FC = () => {
       res?.data ||
       [];
 
+    // Filter out leads that have been converted to patients (status = 'converted')
     const items = Array.isArray(payload)
-      ? payload.map((lead: any) => ({
-          type: 'lead' as const,
-          id: lead.id ?? lead.lead_id ?? 0,
-          name: lead.patient_name || lead.name || 'Lead',
-          email: lead.patient_email || lead.email || '',
-          phone: lead.patient_phone || lead.phone || '',
-          cpf: lead.patient_cpf || lead.cpf || '',
-          status: lead.status || 'new',
-        }))
+      ? payload
+          .filter((lead: any) => lead?.status !== 'converted')
+          .map((lead: any) => ({
+            type: 'lead' as const,
+            id: lead.id ?? lead.lead_id ?? 0,
+            name: lead.patient_name || lead.name || 'Lead',
+            email: lead.patient_email || lead.email || '',
+            phone: lead.patient_phone || lead.phone || '',
+            cpf: lead.patient_cpf || lead.cpf || '',
+            status: lead.status || 'new',
+          }))
       : [];
 
     const reportedTotal = res?.total ?? res?.data?.total;
