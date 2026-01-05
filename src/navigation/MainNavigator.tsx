@@ -131,6 +131,7 @@ const TabIcon: React.FC<TabIconProps> = ({
                 width: size,
                 height: size,
                 opacity: focused ? 1 : 0.6,
+                marginBottom: 14,
               }
             ]}
             resizeMode="contain"
@@ -360,14 +361,13 @@ export const MainNavigator: React.FC = () => {
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '600',
-          paddingBottom: 2,
-          marginTop: 4,
-        },
-        tabBarIconStyle: {
           marginTop: 2,
         },
+        tabBarIconStyle: {
+          marginBottom: 0,
+        },
         tabBarItemStyle: {
-          paddingVertical: 4,
+          paddingVertical: 6,
         },
         tabBarButton: (props) => <TabBarButton {...props} />,
       }}
@@ -416,7 +416,7 @@ export const MainNavigator: React.FC = () => {
               focused={focused}
               color={color}
               isCustomImage={true}
-              size={32}
+              size={50}
             />
           ),
         })}
@@ -457,10 +457,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 8,
-    paddingVertical: 6,
     borderRadius: 8,
-    minWidth: 44,
-    minHeight: 40,
+    width: 44,
+    height: 36,
   },
   badge: {
     position: 'absolute',
@@ -497,8 +496,8 @@ const styles = StyleSheet.create({
   },
   focusedIndicator: {
     position: 'absolute',
-    top: -8,
-    width: 24,
+    bottom: -18,
+    width: 36,
     height: 3,
     backgroundColor: theme.colors.primary,
     borderRadius: 2,
