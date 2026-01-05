@@ -967,8 +967,10 @@ export const EncounterDetailsScreen: React.FC = () => {
               </View>
               {encounterAI.labs.map((lab: any, idx: number) => (
                 <View key={idx} style={styles.aiItem}>
-                  <Text style={styles.aiItemText}>{lab.lab_text || lab.name || lab.test}</Text>
-                  {lab.result && <Text style={styles.aiItemSubtext}>Resultado: {lab.result}</Text>}
+                  <Text style={styles.aiItemText}>{lab.test_name || lab.lab_text || lab.name}</Text>
+                  {(lab.result_value_text || lab.result) && (
+                    <Text style={styles.aiItemSubtext}>Resultado: {lab.result_value_text || lab.result}{lab.result_unit ? ` ${lab.result_unit}` : ''}</Text>
+                  )}
                 </View>
               ))}
             </View>

@@ -20,6 +20,7 @@ import { theme } from '@theme/index';
 import { api } from '@services/api';
 import { PatientsStackParamList } from '@/types/navigation';
 import { logger } from '@/utils/logger';
+import { translateClinicalType } from '@/utils/clinical';
 
 type PatientHistoryRouteProp = RouteProp<PatientsStackParamList, 'PatientHistory'>;
 
@@ -382,18 +383,22 @@ export const PatientHistoryScreen: React.FC = () => {
             {(details.clinicalRecords?.length ?? 0) > 0 && (
               <View style={styles.expandedSection}>
                 <Text style={styles.expandedSectionTitle}>Registros Clínicos</Text>
-                {details.clinicalRecords!.slice(0, 3).map((record: any, index: number) => (
-                  <Text key={index} style={styles.expandedItem}>
-                    • {record.clinicalType || 'ServiceRequest'} #{record.clinicalId}
-                  </Text>
-                ))}
+                {details.clinicalRecords!.map((record: any, index: number) => {
+                  const typeLabel = translateClinicalType(record.clinicalType || record.type) || 'Registro';
+                  const recordId = record.clinicalId || record.identifier || record.id;
+                  return (
+                    <Text key={index} style={styles.expandedItem}>
+                      • {typeLabel} #{recordId}
+                    </Text>
+                  );
+                })}
               </View>
             )}
 
             {(details.medications?.length ?? 0) > 0 && (
               <View style={styles.expandedSection}>
                 <Text style={styles.expandedSectionTitle}>Medicações</Text>
-                {details.medications!.slice(0, 3).map((med: any, index: number) => (
+                {details.medications!.map((med: any, index: number) => (
                   <Text key={index} style={styles.expandedItem}>
                     • {med.medRequestItens?.[0]?.productName || `Prescrição #${med.medId}`}
                   </Text>
@@ -404,11 +409,35 @@ export const PatientHistoryScreen: React.FC = () => {
             {(details.diagnostics?.length ?? 0) > 0 && (
               <View style={styles.expandedSection}>
                 <Text style={styles.expandedSectionTitle}>Diagnósticos</Text>
-                {details.diagnostics!.slice(0, 2).map((diag: any, index: number) => (
+                {details.diagnostics!.map((diag: any, index: number) => (
                   <Text key={index} style={styles.expandedItem}>
                     • {diag.conclusion || `Diagnóstico #${diag.identifier}`}
                   </Text>
                 ))}
+              </View>
+            )}
+
+            {(details.attachments?.length ?? 0) > 0 && (
+              <View style={styles.expandedSection}>
+                <Text style={styles.expandedSectionTitle}>Anexos</Text>
+                {details.attachments!.map((attachment: any, index: number) => {
+                  const typeMap: Record<string, string> = {
+                    'MEDREQUEST': 'Prescrição',
+                    'MEDREQUEST-SIGNED': 'Prescrição Assinada',
+                    'REQUEST': 'Solicitação',
+                    'REQUEST-SIGNED': 'Solicitação Assinada',
+                    'REFERRAL': 'Encaminhamento',
+                    'ATESTADO': 'Atestado',
+                    'EXAM_RESULT': 'Resultado de Exame',
+                    'MANUAL': 'Manual',
+                  };
+                  const typeLabel = typeMap[attachment.type] || attachment.type || 'Anexo';
+                  return (
+                    <Text key={index} style={styles.expandedItem}>
+                      • {typeLabel} #{attachment.identifier}
+                    </Text>
+                  );
+                })}
               </View>
             )}
           </View>
