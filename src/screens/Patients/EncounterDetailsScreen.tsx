@@ -1205,6 +1205,29 @@ export const EncounterDetailsScreen: React.FC = () => {
     );
   };
 
+  const translateAttachmentType = (type: string): string => {
+    const typeMap: Record<string, string> = {
+      'MEDREQUEST': 'Prescrição',
+      'MEDREQUEST-SIGNED': 'Prescrição Assinada',
+      'REQUEST': 'Solicitação',
+      'REQUEST-SIGNED': 'Solicitação Assinada',
+      'REFERRAL': 'Encaminhamento',
+      'REFERRAL-SIGNED': 'Encaminhamento Assinado',
+      'ATESTADO': 'Atestado',
+      'ATESTADO-SIGNED': 'Atestado Assinado',
+      'EXAM_RESULT': 'Resultado de Exame',
+      'LAB-RESULT': 'Resultado Lab',
+      'EXAM-REPORT': 'Relatório',
+      'MEDICAL-CERTIFICATE': 'Atestado Médico',
+      'EVB-JPG': 'Imagem',
+      'EVB-PDF': 'PDF Externo',
+      'MANUAL': 'Manual',
+      'RESULT': 'Resultado',
+      'DOC': 'Documento',
+    };
+    return typeMap[type] || type || 'Anexo';
+  };
+
   const renderAttachments = () => {
     const attachments = encounterDetails?.attachments || [];
 
@@ -1215,23 +1238,29 @@ export const EncounterDetailsScreen: React.FC = () => {
           {attachments.length === 0 ? (
             <Text style={styles.emptyMessage}>Nenhum anexo disponível</Text>
           ) : (
-            attachments.map((attachment: any, index: number) => (
-            <TouchableOpacity
-              key={index}
-              style={styles.itemCard}
-              onPress={() => handleAttachmentPress(attachment)}
-            >
-              <View style={styles.itemHeader}>
-                <FontAwesome name="paperclip" size={14} color={theme.colors.textSecondary} />
-                <Text style={styles.itemTitle}>Anexo #{attachment.identifier}</Text>
-                {attachment.externallink && (
-                  <FontAwesome name="external-link" size={11} color={theme.colors.primary} />
-                )}
-              </View>
-              <Text style={styles.itemDate}>{formatDateTime(attachment.date)}</Text>
-              {attachment.filetype && <Text style={styles.itemFileType}>Formato: {attachment.filetype}</Text>}
-            </TouchableOpacity>
-            ))
+            attachments.map((attachment: any, index: number) => {
+              const typeLabel = translateAttachmentType(attachment.type);
+              return (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.itemCard}
+                  onPress={() => handleAttachmentPress(attachment)}
+                >
+                  <View style={styles.itemHeader}>
+                    <FontAwesome name="paperclip" size={14} color={theme.colors.textSecondary} />
+                    <Text style={styles.itemTitle}>Anexo #{attachment.identifier}</Text>
+                    {attachment.externallink && (
+                      <FontAwesome name="external-link" size={11} color={theme.colors.primary} />
+                    )}
+                  </View>
+                  <View style={styles.metaBadge}>
+                    <Text style={styles.metaBadgeText}>{typeLabel}</Text>
+                  </View>
+                  <Text style={styles.itemDate}>{formatDateTime(attachment.date)}</Text>
+                  {attachment.filetype && <Text style={styles.itemFileType}>Formato: {attachment.filetype}</Text>}
+                </TouchableOpacity>
+              );
+            })
           )}
         </View>
       </View>
@@ -1677,6 +1706,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 4,
+    alignSelf: 'flex-start',
   },
   metaBadgeText: {
     fontSize: 11,
