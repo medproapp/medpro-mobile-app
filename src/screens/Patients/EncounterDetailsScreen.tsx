@@ -375,7 +375,7 @@ export const EncounterDetailsScreen: React.FC = () => {
       // Load all encounter data in parallel - handle errors gracefully
       const [clinicalResponse, medicationResponse, diagnosticResponse, imageResponse, attachmentResponse] = await Promise.allSettled([
         api.getEncounterClinicalRecords(encounterId, { limit: 50 }).catch(() => ({ data: [] })),
-        api.getEncounterMedications('', encounterId, { limit: 50 }).catch(() => ({ data: [] })), // CPF not needed for this call
+        api.getEncounterMedications(patientCpf, encounterId, { limit: 50 }).catch(() => ({ data: [] })),
         api.getEncounterDiagnostics(encounterId).catch(() => []),
         api.getEncounterImages(encounterId).catch(() => []),
         api.getEncounterAttachments(encounterId).catch(() => []),
@@ -418,7 +418,9 @@ export const EncounterDetailsScreen: React.FC = () => {
             clinicalMetadata: record?.clinicalMetadata ?? record?.metadata ?? record?.meta ?? null,
           }))
         : [];
-      const medications = medicationResponse.status === 'fulfilled' ? (medicationResponse.value?.data || []) : [];
+      const medications = medicationResponse.status === 'fulfilled'
+        ? (medicationResponse.value?.data?.data || medicationResponse.value?.data || [])
+        : [];
       const diagnostics = diagnosticResponse.status === 'fulfilled' ? (Array.isArray(diagnosticResponse.value) ? diagnosticResponse.value : []) : [];
       const images = imageResponse.status === 'fulfilled' ? (Array.isArray(imageResponse.value) ? imageResponse.value : []) : [];
       const attachments = attachmentResponse.status === 'fulfilled' ? (Array.isArray(attachmentResponse.value) ? attachmentResponse.value : []) : [];
@@ -1101,7 +1103,13 @@ export const EncounterDetailsScreen: React.FC = () => {
   };
 
   const renderPrescriptions = () => {
-    const medications = encounterDetails?.medications || [];
+    const allMedications = encounterDetails?.medications || [];
+
+    // Filter out prescriptions cancelled by recategorization
+    const medications = allMedications.filter((med: any) => {
+      const metadata = med.medMetadata || {};
+      return !metadata.cancelled_by_recategorization;
+    });
 
     return (
       <View style={styles.section}>
@@ -1119,12 +1127,18 @@ export const EncounterDetailsScreen: React.FC = () => {
               <Text style={styles.itemDate}>{formatDateTime(med.medDate)}</Text>
               {med.medRequestItens && med.medRequestItens.length > 0 && (
                 <View style={styles.medicationItems}>
-                  {med.medRequestItens.map((item: any, itemIndex: number) => (
-                    <View key={itemIndex} style={styles.medicationItem}>
-                      <Text style={styles.medicationName}>{item.productName}</Text>
-                      {item.posology && <Text style={styles.medicationDosage}>Posologia: {item.posology}</Text>}
-                    </View>
-                  ))}
+                  {med.medRequestItens.map((item: any, itemIndex: number) => {
+                    const medicationName = item.produto || item.productName || item.medication || item.name || 'Medicamento não especificado';
+                    const dosage = item.posology || item.mododeuso || item.dosage || null;
+                    const presentation = item.apresentacao || item.presentation || null;
+                    return (
+                      <View key={itemIndex} style={styles.medicationItem}>
+                        <Text style={styles.medicationName}>{medicationName}</Text>
+                        {presentation && <Text style={styles.medicationDosage}>Apresentação: {presentation}</Text>}
+                        {dosage && <Text style={styles.medicationDosage}>Modo de uso: {dosage}</Text>}
+                      </View>
+                    );
+                  })}
                 </View>
               )}
             </View>
