@@ -15,7 +15,12 @@ export const translateClinicalType = (value?: string | null): string | null => {
   if (!normalized) return value ?? null;
 
   const dictionary: Dictionary = {
+    // Main clinical record types
     servicerequest: 'Solicitação',
+    request: 'Solicitação',
+    referral: 'Encaminhamento',
+    atestado: 'Atestado',
+    // Other types
     observation: 'Observação',
     consultation: 'Consulta',
     procedure: 'Procedimento',
@@ -52,12 +57,29 @@ export const translateClinicalCategory = (value?: string | null): string | null 
   if (!normalized) return value ?? null;
 
   const dictionary: Dictionary = {
+    // ServiceRequest categories (from ANS ROL)
     lab: 'Laboratório',
-    laboratory: 'Laboratório',
-    imaging: 'Imagem',
-    procedure: 'Procedimento',
-    medication: 'Medicação',
-    observation: 'Observação',
+    img: 'Imagem',
+    procgerais: 'Proc. Gerais',
+    procclin: 'Proc. Clínicos',
+    anatomia: 'Anatomia Patológica',
+    genetica: 'Genética',
+    eletrofi: 'Eletrofisiológicos',
+    endosco: 'Endoscópicos',
+    exames: 'Exames Específicos',
+    nuclear: 'Medicina Nuclear',
+    // Referral categories
+    consultation: 'Consulta',
+    exam: 'Exame',
+    therapy: 'Terapia',
+    surgery: 'Cirurgia',
+    other: 'Outro',
+    // Atestado categories
+    rest: 'Repouso',
+    exercise: 'Atividade Física',
+    travel: 'Viagem',
+    work: 'Trabalho',
+    school: 'Escolar',
   };
 
   return dictionary[normalized] || value || null;

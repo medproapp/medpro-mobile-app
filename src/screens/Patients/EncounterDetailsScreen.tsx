@@ -412,6 +412,7 @@ export const EncounterDetailsScreen: React.FC = () => {
             ...record,
             clinicalId: record?.clinicalId ?? record?.identifier ?? record?.id ?? record?.ID ?? null,
             clinicalType: record?.clinicalType ?? record?.type ?? record?.resourceType ?? null,
+            clinicalCategory: record?.clinicalCategory ?? record?.category ?? null,
             clinicalStatus: record?.clinicalStatus ?? record?.status ?? null,
             clinicalDate: record?.clinicalDate ?? record?.date ?? record?.authoredOn ?? record?.occurrence ?? record?.createdAt ?? null,
             clinicalMetadata: record?.clinicalMetadata ?? record?.metadata ?? record?.meta ?? null,
@@ -1033,7 +1034,27 @@ export const EncounterDetailsScreen: React.FC = () => {
             <Text style={styles.emptyMessage}>Nenhum registro clínico disponível</Text>
           ) : (
             records.map((record: any, index: number) => {
-            const typeLabel = translateClinicalType(record.clinicalType) || translateClinicalType(record.type) || 'Registro Clínico';
+            const typeRaw = record.clinicalType || record.type || '';
+            const typeLabel = translateClinicalType(typeRaw) || 'Registro Clínico';
+
+            // Get category from correct metadata field based on type (matching webapp logic)
+            let metadata = record.clinicalMetadata || record.metadata || {};
+            if (typeof metadata === 'string') {
+              try { metadata = JSON.parse(metadata); } catch { metadata = {}; }
+            }
+            let categoryRaw: string | null = null;
+            const typeLower = typeRaw.toLowerCase();
+            if (typeLower === 'referral') {
+              categoryRaw = metadata.referralCategory || record.clinicalCategory || record.category;
+            } else if (typeLower === 'servicerequest' || typeLower === 'request') {
+              categoryRaw = metadata.servicerequestCategory || record.clinicalCategory || record.category;
+            } else if (typeLower === 'atestado') {
+              categoryRaw = metadata.atestadoCategory || record.clinicalCategory || record.category;
+            } else {
+              categoryRaw = record.clinicalCategory || record.category;
+            }
+            const categoryLabel = translateClinicalCategory(categoryRaw) || null;
+
             const statusLabel = translateClinicalStatus(record.clinicalStatus) || record.clinicalStatus || null;
             const recordId = record.clinicalId || record.identifier || record.id || `registro-${index}`;
 
@@ -1048,6 +1069,20 @@ export const EncounterDetailsScreen: React.FC = () => {
                   <FontAwesome name="file-text-o" size={14} color={theme.colors.info} />
                   <Text style={styles.itemTitle}>{typeLabel} #{recordId}</Text>
                 </View>
+                {(categoryLabel || typeLabel) && (
+                  <View style={styles.itemMetaRow}>
+                    {categoryLabel && (
+                      <View style={styles.metaBadge}>
+                        <Text style={styles.metaBadgeText}>{categoryLabel}</Text>
+                      </View>
+                    )}
+                    {typeLabel && typeLabel !== 'Registro Clínico' && (
+                      <View style={styles.metaBadge}>
+                        <Text style={styles.metaBadgeText}>{typeLabel}</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
                 {record.clinicalDate && (
                   <Text style={styles.itemDate}>{formatDateTime(record.clinicalDate)}</Text>
                 )}
@@ -1616,6 +1651,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.textSecondary,
     marginBottom: 4,
+  },
+  itemMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 6,
+  },
+  metaBadge: {
+    backgroundColor: theme.colors.info + '20',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  metaBadgeText: {
+    fontSize: 11,
+    color: theme.colors.info,
+    fontWeight: '500',
   },
   itemStatus: {
     fontSize: 12,
