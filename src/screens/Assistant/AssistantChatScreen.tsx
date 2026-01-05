@@ -244,6 +244,12 @@ export const AssistantChatScreen: React.FC = () => {
   }, [messages, currentPatient, currentEncounter, handlePrescriptionSign, handlePrescriptionSend, navigateToPatient, navigateToEncounter]);
 
   const renderMessage = useCallback((message: AssistantMessage) => {
+    // Skip empty messages or messages without text content (aligned with webapp fix)
+    const messageText = message.content || '';
+    if (!messageText.trim()) {
+      return null;
+    }
+
     const isUser = message.role === 'user';
     const isError = message.type === 'error';
     const isAudio = message.type === 'audio';
