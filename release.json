@@ -1,0 +1,13 @@
+{
+  "version": "1.0.0",
+  "releaseDate": "2025-01-05",
+  "minSupportedVersion": "1.0.0",
+  "releaseNotes": [
+    "Lançamento inicial do Medpro.app Profissional",
+    "Gestão completa de pacientes e consultas",
+    "Registros clínicos detalhados",
+    "Mensagens internas para equipe",
+    "Assistente IA para profissionais de saúde",
+    "Notificações em tempo real"
+  ]
+}

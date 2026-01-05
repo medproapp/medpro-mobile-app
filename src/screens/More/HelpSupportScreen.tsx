@@ -216,52 +216,16 @@ export const HelpSupportScreen: React.FC = () => {
             <ContactOption
               icon="envelope-o"
               title="Email"
-              subtitle="suporte@medpro.com"
-              onPress={() => handleOpenLink('mailto:suporte@medpro.com')}
-            />
-            <View style={styles.contactDivider} />
-            <ContactOption
-              icon="phone"
-              title="Telefone"
-              subtitle="(11) 3000-0000"
-              onPress={() => handleOpenLink('tel:+551130000000')}
+              subtitle="suporte@medproapp.com.br"
+              onPress={() => handleOpenLink('mailto:suporte@medproapp.com.br')}
             />
             <View style={styles.contactDivider} />
             <ContactOption
               icon="whatsapp"
               title="WhatsApp"
-              subtitle="Atendimento rápido"
-              onPress={() => handleOpenLink('https://wa.me/5511999999999')}
+              subtitle="+55 11 93239-4778"
+              onPress={() => handleOpenLink('https://wa.me/5511932394778')}
             />
-          </View>
-
-          {/* Quick Actions */}
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <FontAwesome name="bolt" size={20} color={theme.colors.primary} />
-              <Text style={styles.cardTitle}>Ações Rápidas</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => Alert.alert('Reportar Bug', 'Funcionalidade em desenvolvimento')}
-              activeOpacity={0.7}
-            >
-              <FontAwesome name="bug" size={16} color={theme.colors.error} />
-              <Text style={styles.actionButtonText}>Reportar um problema</Text>
-              <FontAwesome name="chevron-right" size={12} color={theme.colors.textSecondary} />
-            </TouchableOpacity>
-            <View style={styles.actionDivider} />
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() =>
-                Alert.alert('Sugerir Recurso', 'Funcionalidade em desenvolvimento')
-              }
-              activeOpacity={0.7}
-            >
-              <FontAwesome name="lightbulb-o" size={16} color={theme.colors.warning} />
-              <Text style={styles.actionButtonText}>Sugerir novo recurso</Text>
-              <FontAwesome name="chevron-right" size={12} color={theme.colors.textSecondary} />
-            </TouchableOpacity>
           </View>
 
           {/* FAQ by Category */}
@@ -291,7 +255,7 @@ export const HelpSupportScreen: React.FC = () => {
             </Text>
             <TouchableOpacity
               style={styles.helpButton}
-              onPress={() => handleOpenLink('mailto:suporte@medpro.com')}
+              onPress={() => handleOpenLink('mailto:suporte@medproapp.com.br')}
               activeOpacity={0.7}
             >
               <FontAwesome name="envelope" size={16} color={theme.colors.white} />
