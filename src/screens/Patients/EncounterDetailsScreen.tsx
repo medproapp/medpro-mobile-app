@@ -212,7 +212,30 @@ const formatStatusLabel = (status?: string | null): string | null => {
   if (!status || typeof status !== 'string') return null;
   const trimmed = status.trim();
   if (!trimmed) return null;
-  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+
+  switch (trimmed.toLowerCase()) {
+    case 'in-progress':
+      return 'Em Andamento';
+    case 'on-hold':
+      return 'Pausado';
+    case 'complete':
+    case 'completed':
+    case 'finished':
+      return 'Finalizado';
+    case 'cancelled':
+    case 'canceled':
+      return 'Cancelado';
+    case 'entered-in-error':
+      return 'Erro de Entrada';
+    case 'planned':
+      return 'Planejado';
+    case 'arrived':
+      return 'Chegou';
+    case 'triaged':
+      return 'Triagem';
+    default:
+      return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  }
 };
 
 const quillDeltaToPlainText = (input: unknown): string => {
@@ -905,7 +928,8 @@ export const EncounterDetailsScreen: React.FC = () => {
               </View>
               {encounterAI.diagnoses.map((diag: any, idx: number) => (
                 <View key={idx} style={styles.aiItem}>
-                  <Text style={styles.aiItemText}>{diag.code || diag.name || diag.description}</Text>
+                  <Text style={styles.aiItemText}>{diag.diagnosis_text || diag.code || diag.name || diag.description}</Text>
+                  {diag.status && <Text style={styles.aiItemSubtext}>Status: {diag.status}</Text>}
                 </View>
               ))}
             </View>
@@ -922,7 +946,7 @@ export const EncounterDetailsScreen: React.FC = () => {
               </View>
               {encounterAI.medications.map((med: any, idx: number) => (
                 <View key={idx} style={styles.aiItem}>
-                  <Text style={styles.aiItemText}>{med.name || med.productName}</Text>
+                  <Text style={styles.aiItemText}>{med.medication_text || med.name || med.productName}</Text>
                   {med.dosage && <Text style={styles.aiItemSubtext}>Dosagem: {med.dosage}</Text>}
                 </View>
               ))}
@@ -940,7 +964,7 @@ export const EncounterDetailsScreen: React.FC = () => {
               </View>
               {encounterAI.labs.map((lab: any, idx: number) => (
                 <View key={idx} style={styles.aiItem}>
-                  <Text style={styles.aiItemText}>{lab.name || lab.test}</Text>
+                  <Text style={styles.aiItemText}>{lab.lab_text || lab.name || lab.test}</Text>
                   {lab.result && <Text style={styles.aiItemSubtext}>Resultado: {lab.result}</Text>}
                 </View>
               ))}
@@ -958,7 +982,7 @@ export const EncounterDetailsScreen: React.FC = () => {
               </View>
               {encounterAI.procedures.map((proc: any, idx: number) => (
                 <View key={idx} style={styles.aiItem}>
-                  <Text style={styles.aiItemText}>{proc.name || proc.description}</Text>
+                  <Text style={styles.aiItemText}>{proc.procedure_text || proc.name || proc.description}</Text>
                 </View>
               ))}
             </View>

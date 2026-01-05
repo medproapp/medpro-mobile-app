@@ -65,17 +65,25 @@ export const EncounterViewScreen: React.FC = () => {
   };
 
   const translateStatus = (status: string): string => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'in-progress':
         return 'Em Andamento';
       case 'on-hold':
         return 'Pausado';
+      case 'complete':
       case 'completed':
+      case 'finished':
         return 'Finalizado';
       case 'cancelled':
         return 'Cancelado';
       case 'entered-in-error':
         return 'Erro de Entrada';
+      case 'planned':
+        return 'Planejado';
+      case 'arrived':
+        return 'Chegou';
+      case 'triaged':
+        return 'Triagem';
       default:
         return status || 'N/A';
     }
