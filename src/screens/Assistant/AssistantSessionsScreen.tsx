@@ -156,30 +156,29 @@ export const AssistantSessionsScreen: React.FC = () => {
         overshootRight={false}
       >
         <TouchableOpacity
-          style={[styles.sessionItem, isActive && styles.sessionItemActive]}
+          style={[styles.card, !isActive && styles.cardInactive]}
           onPress={() => handleSessionPress(item)}
           onLongPress={() => handleRenamePress(item)}
-          activeOpacity={0.7}
+          activeOpacity={0.85}
         >
-          <View style={styles.sessionIcon}>
-            <Feather
-              name="message-circle"
-              size={20}
-              color={isActive ? theme.colors.primary : theme.colors.textSecondary}
-            />
+          <View style={styles.cardRow}>
+            {isActive && <View style={styles.activeDot} />}
+            <View style={styles.iconWrapper}>
+              <Feather
+                name="message-circle"
+                size={20}
+                color={isActive ? theme.colors.primary : theme.colors.textSecondary}
+              />
+            </View>
+            <View style={styles.cardContent}>
+              <Text style={styles.cardTitle} numberOfLines={2}>
+                {item.title || 'Nova conversa'}
+              </Text>
+              <Text style={styles.cardDate}>
+                {formatRelativeTime(item.updatedAt || item.createdAt)}
+              </Text>
+            </View>
           </View>
-          <View style={styles.sessionContent}>
-            <Text
-              style={[styles.sessionTitle, isActive && styles.sessionTitleActive]}
-              numberOfLines={1}
-            >
-              {item.title || 'Nova conversa'}
-            </Text>
-            <Text style={styles.sessionTime}>
-              {formatRelativeTime(item.updatedAt || item.createdAt)}
-            </Text>
-          </View>
-          <Feather name="chevron-right" size={20} color={theme.colors.textSecondary} />
         </TouchableOpacity>
       </Swipeable>
     );
@@ -389,76 +388,83 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
   },
   listContent: {
-    padding: theme.spacing.md,
+    padding: theme.spacing.lg,
   },
   listContentEmpty: {
     flex: 1,
   },
-  sessionItem: {
+  card: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  cardInactive: {
+    opacity: 0.6,
+  },
+  cardRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-    borderRadius: 12,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.sm,
-    ...theme.shadows.small,
   },
-  sessionItemActive: {
-    borderWidth: 2,
-    borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.primaryLight + '10',
+  activeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: theme.colors.primary,
+    marginRight: 10,
   },
-  sessionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: theme.colors.primaryLight + '20',
+  iconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: theme.spacing.md,
+    backgroundColor: theme.colors.primaryLight,
+    marginRight: 12,
   },
-  sessionContent: {
+  cardContent: {
     flex: 1,
   },
-  sessionTitle: {
-    fontSize: 16,
+  cardTitle: {
+    fontSize: 15,
     fontWeight: '600',
     color: theme.colors.text,
-    marginBottom: 2,
+    marginBottom: 4,
   },
-  sessionTitleActive: {
-    color: theme.colors.primary,
-  },
-  sessionTime: {
-    fontSize: 12,
+  cardDate: {
+    fontSize: 11,
     color: theme.colors.textSecondary,
   },
   swipeActionsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: theme.spacing.sm,
+    marginBottom: 12,
+    marginLeft: 8,
   },
   renameAction: {
     backgroundColor: theme.colors.info,
     justifyContent: 'center',
     alignItems: 'center',
     width: 80,
-    height: '100%',
-    borderTopLeftRadius: 12,
-    borderBottomLeftRadius: 12,
+    borderRadius: 16,
   },
   deleteAction: {
     backgroundColor: theme.colors.error,
     justifyContent: 'center',
     alignItems: 'center',
     width: 80,
-    height: '100%',
-    borderTopRightRadius: 12,
-    borderBottomRightRadius: 12,
+    borderRadius: 16,
+    marginLeft: 4,
   },
   actionText: {
     color: theme.colors.white,
     fontSize: 12,
+    fontWeight: '600',
     marginTop: 4,
   },
   emptyContainer: {
