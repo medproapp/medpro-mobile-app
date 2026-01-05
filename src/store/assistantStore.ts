@@ -403,7 +403,8 @@ export const useAssistantStore = create<AssistantStore>()(
           // Auto-rename session if it's "Nova conversa" and this is the first message
           const session = sessions.find(s => s.id === sessionId);
           if (session?.title === 'Nova conversa') {
-            const newTitle = content.trim().substring(0, 50);
+            // Use backend-suggested title if available, otherwise fallback to truncated user message
+            const newTitle = response.suggestedTitle || content.trim().substring(0, 50);
             get().renameSession(sessionId, newTitle);
           }
 

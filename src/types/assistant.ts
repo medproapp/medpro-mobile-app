@@ -216,6 +216,7 @@ export interface MessagesResponse {
 export interface PostMessageResponse {
   userMessage: SessionMessage;
   assistantMessage: SessionMessage;
+  suggestedTitle?: string;
   context?: {
     patientId?: string;
     encounterId?: string;
