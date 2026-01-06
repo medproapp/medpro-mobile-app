@@ -58,7 +58,6 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.medproapp.prof.app",
-      "buildNumber": "0.8.1",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Este aplicativo precisa acessar o microfone para gravar áudios dos encontros médicos.",
