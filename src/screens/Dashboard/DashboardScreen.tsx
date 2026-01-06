@@ -375,13 +375,14 @@ const formatScheduleTimeRange = (start?: string, end?: string, baseDate?: Date) 
 };
 
 export const DashboardScreen: React.FC = () => {
-  const { user, token } = useAuthStore();
+  const { user, token, refreshUserData } = useAuthStore();
   const navigation = useNavigation<DashboardNavigationProp>();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [scheduleSummary, setScheduleSummary] = useState<ScheduleSummaryDay[]>([]);
   const [todayStats, setTodayStats] = useState({ total: 0, pending: 0, confirmed: 0 });
+  const [photoCacheKey, setPhotoCacheKey] = useState<number>(Date.now());
   const pendingCount = useNotificationStore(state => state.pendingCount);
   const isLoadingPendingCount = useNotificationStore(state => state.isLoadingCount);
   const fetchPendingCount = useNotificationStore(state => state.fetchPendingCount);
@@ -690,6 +691,8 @@ export const DashboardScreen: React.FC = () => {
 
   useEffect(() => {
     mountedRef.current = true;
+    // Refresh user data (organization, etc.) on app start
+    refreshUserData();
     fetchDashboardData();
 
     return () => {
@@ -705,6 +708,10 @@ export const DashboardScreen: React.FC = () => {
 
   const handleRefresh = () => {
     setRefreshing(true);
+    // Update cache key to force photo refresh
+    setPhotoCacheKey(Date.now());
+    // Refresh user data (organization, etc.)
+    refreshUserData();
     fetchDashboardData();
     fetchPendingCount();
   };
@@ -763,6 +770,7 @@ export const DashboardScreen: React.FC = () => {
                 fallbackIcon="user"
                 fallbackIconSize={24}
                 fallbackIconColor={theme.colors.white}
+                cacheKey={photoCacheKey}
               />
               <View style={styles.headerContent}>
                 <Text style={styles.greeting}>{getTimeBasedGreeting()},</Text>
@@ -916,6 +924,7 @@ export const DashboardScreen: React.FC = () => {
                               fallbackIcon="user"
                               fallbackIconSize={18}
                               fallbackIconColor={theme.colors.primary}
+                              cacheKey={photoCacheKey}
                             />
                             <View style={styles.appointmentContent}>
                               <View style={styles.timeRow}>

@@ -37,6 +37,7 @@ interface AuthStore extends AuthState {
   refreshAccessToken: () => Promise<boolean>;
   shouldRefreshToken: () => boolean;
   ensureValidToken: () => Promise<boolean>;
+  refreshUserData: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthStore>()(
@@ -426,6 +427,49 @@ export const useAuthStore = create<AuthStore>()(
         }
 
         return true;
+      },
+
+      // Refresh user data from API (organization, etc.)
+      refreshUserData: async () => {
+        const { user, isAuthenticated } = get();
+
+        if (!isAuthenticated || !user?.email) {
+          return;
+        }
+
+        try {
+          const apiModule = await import('../services/api');
+          const api = apiModule.default;
+
+          // Fetch fresh organization data
+          const orgData = await api.getUserToOrg(user.email);
+          if (orgData && orgData.length > 0) {
+            const org = orgData.find((o: Organization) => o?.groupStatus === 'active') || orgData[0];
+            const updatedUser = {
+              ...user,
+              organization:
+                (typeof org.org_name === 'string' && org.org_name.trim().length > 0 && org.org_name.trim()) ||
+                (typeof org.group_name === 'string' && org.group_name.trim().length > 0 && org.group_name.trim()) ||
+                user.organization,
+              organizationId:
+                (typeof org.managingEntity === 'string' && org.managingEntity.trim().length > 0 && org.managingEntity.trim()) ||
+                user.organizationId,
+              groupId: typeof org.groupId === 'string' ? org.groupId : user.groupId,
+              groupRole:
+                (typeof org.group_role === 'string' && org.group_role.trim().length > 0 && org.group_role.trim()) ||
+                user.groupRole,
+              userRole:
+                (typeof org.user_role === 'string' && org.user_role.trim().length > 0 && org.user_role.trim()) ||
+                user.userRole,
+              isAdmin:
+                user.isAdmin || (typeof org.admin !== 'undefined' && (Number(org.admin) === 1 || org.admin === true)),
+            };
+            set({ user: updatedUser });
+            logger.debug('User data refreshed successfully');
+          }
+        } catch (error) {
+          logger.warn('Could not refresh user data:', error);
+        }
       },
     }),
     {

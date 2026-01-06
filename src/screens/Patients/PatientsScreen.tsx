@@ -64,6 +64,7 @@ export const PatientsScreen: React.FC = () => {
   const [searchText, setSearchText] = useState('');
   const [page, setPage] = useState(1);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [photoCacheKey, setPhotoCacheKey] = useState<number>(Date.now());
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
 
@@ -206,6 +207,8 @@ export const PatientsScreen: React.FC = () => {
   const handleRefresh = () => {
     setRefreshing(true);
     setPage(1);
+    // Update cache key to force photo refresh
+    setPhotoCacheKey(Date.now());
     fetchPatients(1, searchText);
   };
 
@@ -265,6 +268,7 @@ export const PatientsScreen: React.FC = () => {
                 fallbackIcon={item.gender === 'female' ? 'female' : 'male'}
                 fallbackIconSize={26}
                 fallbackIconColor={theme.colors.white}
+                cacheKey={photoCacheKey}
               />
             ) : (
               <View style={[styles.patientAvatar, styles.leadAvatar]}>

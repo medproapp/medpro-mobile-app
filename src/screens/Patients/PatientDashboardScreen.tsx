@@ -102,6 +102,7 @@ export const PatientDashboardScreen: React.FC = () => {
   const [lastEncounter, setLastEncounter] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [photoCacheKey, setPhotoCacheKey] = useState<number>(Date.now());
   const [activeSection, setActiveSection] = useState<'overview' | 'history' | 'medical'>('overview');
   const [clinicalRecordsCount, setClinicalRecordsCount] = useState<number | null>(null);
   const [prescriptionsCount, setPrescriptionsCount] = useState<number | null>(null);
@@ -347,6 +348,8 @@ export const PatientDashboardScreen: React.FC = () => {
     }
 
     setRefreshing(true);
+    // Update cache key to force photo refresh
+    setPhotoCacheKey(Date.now());
     await loadData();
     setRefreshing(false);
   };
@@ -441,6 +444,7 @@ export const PatientDashboardScreen: React.FC = () => {
                 fallbackIcon={patient.gender === 'female' ? 'female' : 'male'}
                 fallbackIconSize={24}
                 fallbackIconColor={theme.colors.white}
+                cacheKey={photoCacheKey}
               />
               <View style={styles.headerContent}>
                 <Text style={styles.greeting}>Paciente</Text>

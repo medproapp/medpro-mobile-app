@@ -11,6 +11,8 @@ interface CachedImageProps extends Omit<ImageProps, 'source'> {
   fallbackIcon?: string;
   fallbackIconSize?: number;
   fallbackIconColor?: string;
+  /** Optional cache key to force re-fetching when value changes (e.g., timestamp on refresh) */
+  cacheKey?: string | number;
 }
 
 /**
@@ -39,6 +41,7 @@ export const CachedImage: React.FC<CachedImageProps> = ({
   fallbackIcon = 'user',
   fallbackIconSize = 24,
   fallbackIconColor = theme.colors.white,
+  cacheKey,
   style,
   contentFit = 'cover',
   transition = 200,
@@ -55,9 +58,15 @@ export const CachedImage: React.FC<CachedImageProps> = ({
     );
   }
 
+  // Build effective URI with cache key appended for cache busting
+  // When cacheKey changes, the URL changes, forcing expo-image to re-fetch
+  const effectiveUri = cacheKey
+    ? `${uri}${uri.includes('?') ? '&' : '?'}_ck=${cacheKey}`
+    : uri;
+
   return (
     <Image
-      source={{ uri, headers }}
+      source={{ uri: effectiveUri, headers }}
       style={style}
       contentFit={contentFit}
       transition={transition}
