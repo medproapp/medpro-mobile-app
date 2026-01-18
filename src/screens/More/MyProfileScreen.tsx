@@ -16,6 +16,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import * as ImagePicker from 'expo-image-picker';
 import { theme } from '@theme/index';
+import { ResponsiveContainer } from '@components/common';
 import { apiService, API_BASE_URL } from '@services/api';
 import { useAuthStore } from '@store/authStore';
 import { PractitionerProfile, PractitionerProfileField } from '@/types/practitioner';
@@ -567,6 +568,7 @@ export const MyProfileScreen: React.FC = () => {
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
+            <ResponsiveContainer>
             <View style={[styles.card, styles.readOnlyCard]}>
               <View style={styles.readOnlyHeader}>
                 <View style={styles.readOnlyIconWrapper}>
@@ -764,6 +766,7 @@ export const MyProfileScreen: React.FC = () => {
                 </>
               )}
             </TouchableOpacity>
+            </ResponsiveContainer>
           </ScrollView>
         )}
 
