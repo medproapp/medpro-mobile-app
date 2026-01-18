@@ -38,7 +38,7 @@ import { ClinicalRecordDetailsScreen } from '@screens/Patients/ClinicalRecordDet
 import { PdfViewerScreen } from '@screens/Patients/PdfViewerScreen';
 import { LeadDetailsScreen } from '@screens/Patients/LeadDetailsScreen';
 import { LeadCreateScreen } from '@screens/Patients/LeadCreateScreen';
-import { MoreScreen, MyProfileScreen, AboutScreen, HelpSupportScreen } from '@screens/More';
+import { MoreScreen, MyProfileScreen, AboutScreen, HelpSupportScreen, DeleteAccountScreen, PackagesScreen } from '@screens/More';
 import { MessagesListScreen, ConversationScreen, NewMessageScreen } from '@screens/Messages';
 import { AssistantSessionsScreen, AssistantChatScreen } from '@screens/Assistant';
 import { MainTabParamList, DashboardStackParamList, PatientsStackParamList, MessagesStackParamList, MoreStackParamList, AssistantStackParamList } from '../types/navigation';
@@ -340,8 +340,10 @@ const MoreStackNavigator: React.FC = () => {
     >
       <MoreStack.Screen name="MoreHome" component={MoreScreen} />
       <MoreStack.Screen name="MyProfile" component={MyProfileScreen} />
+      <MoreStack.Screen name="Packages" component={PackagesScreen} options={{ title: 'Pacotes' }} />
       <MoreStack.Screen name="About" component={AboutScreen} />
       <MoreStack.Screen name="HelpSupport" component={HelpSupportScreen} />
+      <MoreStack.Screen name="DeleteAccount" component={DeleteAccountScreen} />
     </MoreStack.Navigator>
   );
 };

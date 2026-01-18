@@ -27,8 +27,10 @@ export type MainTabParamList = {
 export type MoreStackParamList = {
   MoreHome: undefined;
   MyProfile: undefined;
+  Packages: undefined;
   About: undefined;
   HelpSupport: undefined;
+  DeleteAccount: undefined;
 };
 
 // Dashboard Stack

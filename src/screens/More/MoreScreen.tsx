@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
+import { ResponsiveContainer } from '@components/common';
 import { useAuthStore } from '@store/authStore';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -53,10 +54,30 @@ export const MoreScreen: React.FC = () => {
     {
       id: 'profile',
       title: 'Meu Perfil',
-      subtitle: 'Informações pessoais e configurações',
+      subtitle: 'Informacoes pessoais e configuracoes',
       icon: 'user-md',
       iconColor: theme.colors.primary,
       onPress: () => navigation.navigate('MyProfile'),
+      showChevron: true,
+      section: 'account',
+    },
+    {
+      id: 'packages',
+      title: 'Pacotes',
+      subtitle: 'Comprar pacotes de IA e recursos extras',
+      icon: 'shopping-cart',
+      iconColor: theme.colors.success,
+      onPress: () => navigation.navigate('Packages'),
+      showChevron: true,
+      section: 'account',
+    },
+    {
+      id: 'deleteAccount',
+      title: 'Encerrar Conta',
+      subtitle: 'Excluir permanentemente sua conta',
+      icon: 'user-times',
+      iconColor: theme.colors.error,
+      onPress: () => navigation.navigate('DeleteAccount'),
       showChevron: true,
       section: 'account',
     },
@@ -160,11 +181,12 @@ export const MoreScreen: React.FC = () => {
         </View>
 
         {/* Options List */}
-        <ScrollView 
+        <ScrollView
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
+          <ResponsiveContainer>
           <View style={styles.optionsContainer}>
             {sections.map((section) => {
               const sectionOptions = moreOptions.filter(
@@ -185,6 +207,7 @@ export const MoreScreen: React.FC = () => {
               );
             })}
           </View>
+          </ResponsiveContainer>
         </ScrollView>
       </View>
     </>
