@@ -1898,6 +1898,53 @@ class ApiService {
     }
   }
 
+  // === ACCOUNT MANAGEMENT ===
+
+  /**
+   * Get account data counts for deletion preview
+   * @param practId The practitioner email/ID
+   * @returns Counts of data that will be deleted
+   */
+  async getAccountNumbers(practId: string): Promise<{
+    relatedUsers: number;
+    practitioners: number;
+    linkedPatients: number;
+    timeslots: number;
+    schedules: number;
+    practServiceTypes: number;
+    practServiceCategories: number;
+    appointments: number;
+    organization: number;
+    entityGroup: number;
+    groupMembers: number;
+    locations: number;
+  }> {
+    try {
+      const result = await this.request(`/pract/getaccountnumbers/${encodeURIComponent(practId)}`);
+      return result;
+    } catch (error) {
+      logger.error('[API] getAccountNumbers error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Permanently delete user account and all associated data
+   * @param practId The practitioner email/ID
+   * @returns Deletion result
+   */
+  async deleteAccount(practId: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const result = await this.request(`/pract/removeaccount/${encodeURIComponent(practId)}`, {
+        method: 'DELETE',
+      });
+      return result;
+    } catch (error) {
+      logger.error('[API] deleteAccount error:', error);
+      throw error;
+    }
+  }
+
   /**
    * Download attachment blob data
    * @param blobname The blob filename to download
