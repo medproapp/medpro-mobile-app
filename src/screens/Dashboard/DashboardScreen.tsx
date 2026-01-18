@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import { Card, Loading, InProgressEncountersAlert, CachedImage } from '@components/common';
+import { Card, Loading, InProgressEncountersAlert, CachedImage, ResponsiveContainer } from '@components/common';
 import { theme } from '@theme/index';
 import { useAuthStore } from '@store/authStore';
 import { apiService, API_BASE_URL } from '@services/api';
@@ -806,16 +806,16 @@ export const DashboardScreen: React.FC = () => {
           style={styles.scrollContainer}
           contentContainerStyle={styles.scrollContent}
           refreshControl={
-            <RefreshControl 
-              refreshing={refreshing} 
+            <RefreshControl
+              refreshing={refreshing}
               onRefresh={handleRefresh}
               colors={[theme.colors.primary]}
               tintColor={theme.colors.primary}
             />
           }
         >
-
-        {/* Quick Stats */}
+          <ResponsiveContainer>
+          {/* Quick Stats */}
         <View style={styles.statsWrapper}>
           <View style={styles.statsHeaderRow}>
             <Text style={styles.statsHeading}>Agenda de hoje</Text>
@@ -1081,8 +1081,9 @@ export const DashboardScreen: React.FC = () => {
               </View>
             )}
           </Card>
+          </ResponsiveContainer>
         </ScrollView>
-        
+
         {/* Floating Action Button */}
         <TouchableOpacity 
           style={styles.fab}

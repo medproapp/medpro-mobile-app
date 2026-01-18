@@ -20,6 +20,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { theme } from '../../theme';
+import { useDeviceType } from '@/hooks/useDeviceType';
 import { useAssistantStore } from '../../store/assistantStore';
 import { Session } from '../../types/assistant';
 import { AssistantStackParamList } from '../../types/navigation';
@@ -47,6 +48,7 @@ const formatRelativeTime = (dateString: string): string => {
 export const AssistantSessionsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
+  const { isTablet } = useDeviceType();
 
   const {
     sessions,
@@ -252,25 +254,28 @@ export const AssistantSessionsScreen: React.FC = () => {
         )}
 
         {/* Session List */}
-        <FlatList
-          data={sessions}
-          keyExtractor={(item) => item.id}
-          renderItem={renderSessionItem}
-          ListEmptyComponent={renderEmptyState}
-          contentContainerStyle={[
-            styles.listContent,
-            sessions.length === 0 && styles.listContentEmpty,
-          ]}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[theme.colors.primary]}
-              tintColor={theme.colors.primary}
-            />
-          }
-          showsVerticalScrollIndicator={false}
-        />
+        <View style={{ flex: 1 }}>
+          <FlatList
+            data={sessions}
+            keyExtractor={(item) => item.id}
+            renderItem={renderSessionItem}
+            ListEmptyComponent={renderEmptyState}
+            contentContainerStyle={[
+              styles.listContent,
+              sessions.length === 0 && styles.listContentEmpty,
+              isTablet && { maxWidth: 700, alignSelf: 'center', width: '100%' },
+            ]}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={[theme.colors.primary]}
+                tintColor={theme.colors.primary}
+              />
+            }
+            showsVerticalScrollIndicator={false}
+          />
+        </View>
 
         {/* Rename Modal */}
         <Modal

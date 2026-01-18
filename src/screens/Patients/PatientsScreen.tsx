@@ -17,6 +17,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Card, Loading, CachedImage } from '@components/common';
+import { useDeviceType } from '@/hooks/useDeviceType';
 import { theme } from '@theme/index';
 import { useAuthStore } from '@store/authStore';
 import { apiService } from '@services/api';
@@ -58,6 +59,7 @@ interface PatientsData {
 export const PatientsScreen: React.FC = () => {
   const { user, token } = useAuthStore();
   const navigation = useNavigation<PatientsNavigationProp>();
+  const { isTablet } = useDeviceType();
   const [data, setData] = useState<PatientsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -365,7 +367,7 @@ export const PatientsScreen: React.FC = () => {
             data={data?.patients || []}
             renderItem={renderPatientItem}
             keyExtractor={(item, index) => item.type === 'patient' ? item.cpf : `lead-${item.id || index}`}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, isTablet && { maxWidth: 700, alignSelf: 'center', width: '100%' }]}
             ListHeaderComponent={
               <>
                 {/* Quick Stats */}

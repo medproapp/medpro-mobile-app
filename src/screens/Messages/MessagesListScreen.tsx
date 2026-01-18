@@ -16,6 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
+import { useDeviceType } from '@/hooks/useDeviceType';
 import api from '../../services/api';
 import { MessageThreadItem, type MessageThreadViewModel } from './MessageThreadItem';
 import { useAuthStore } from '@store/authStore';
@@ -98,7 +99,8 @@ const mapThreadToViewModel = (thread: ApiMessageThread, photoOverride?: string |
 export const MessagesListScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<MessagesStackParamList>>();
   const { user } = useAuthStore();
-  
+  const { isTablet } = useDeviceType();
+
   // State
   const [rawThreads, setRawThreads] = useState<ApiMessageThread[]>([]);
   const [threads, setThreads] = useState<MessageThreadViewModel[]>([]);
@@ -399,27 +401,30 @@ export const MessagesListScreen: React.FC = () => {
           </View>
 
           {/* List */}
-          <FlatList
-            data={filteredThreads}
-            renderItem={renderThread}
-            keyExtractor={(item, index) =>
-              item.identifier ? item.identifier : `thread-${index}`
-            }
-            refreshControl={
-              <RefreshControl 
-                refreshing={isRefreshing} 
-                onRefresh={onRefresh}
-                colors={[theme.colors.primary]}
-                tintColor={theme.colors.primary}
-              />
-            }
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <FontAwesome name="inbox" size={64} color={theme.colors.textSecondary} />
-                <Text style={styles.emptyText}>Nenhuma mensagem</Text>
-              </View>
-            }
-          />
+          <View style={{ flex: 1 }}>
+            <FlatList
+              data={filteredThreads}
+              renderItem={renderThread}
+              keyExtractor={(item, index) =>
+                item.identifier ? item.identifier : `thread-${index}`
+              }
+              contentContainerStyle={isTablet ? { maxWidth: 700, alignSelf: 'center', width: '100%' } : undefined}
+              refreshControl={
+                <RefreshControl
+                  refreshing={isRefreshing}
+                  onRefresh={onRefresh}
+                  colors={[theme.colors.primary]}
+                  tintColor={theme.colors.primary}
+                />
+              }
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <FontAwesome name="inbox" size={64} color={theme.colors.textSecondary} />
+                  <Text style={styles.emptyText}>Nenhuma mensagem</Text>
+                </View>
+              }
+            />
+          </View>
         </View>
       </View>
     </>
