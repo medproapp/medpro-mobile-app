@@ -48,7 +48,8 @@
             "useFrameworks": "static"
           }
         }
-      ]
+      ],
+      "react-native-iap"
     ],
     "splash": {
       "image": "./assets/medpro-logo.png",
@@ -86,7 +87,7 @@
       "bundler": "metro"
     },
     "extra": {
-      "apiBaseUrl": "https://server.medproapp.dev",
+      "apiBaseUrl": "http://192.168.2.30:3000",
       "eas": {
         "projectId": "bc8e5697-2118-45bb-9c81-8f7a7fa10ab3"
       }
