@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,29 +11,39 @@ import {
   Platform,
   Alert,
   Modal,
-  FlatList,
+  SectionList,
   SafeAreaView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
 import { useMessagingStore } from '@store/messagingStore';
-import { Contact } from '@/types/messaging';
+import { Contact, MessagingContact, MessagingContactsResponse } from '@/types/messaging';
+import { messagingService } from '@/services/messagingService';
 import { logger } from '@/utils/logger';
+
+// Section data type for SectionList
+interface ContactSection {
+  title: string;
+  icon: string;
+  backgroundColor: string;
+  data: (Contact | MessagingContact)[];
+}
 
 // Contact Picker Modal Component
 interface ContactPickerModalProps {
   visible: boolean;
   onClose: () => void;
   onConfirm: () => void;
-  contacts: Contact[];
+  contacts: Contact[]; // Legacy format for patients
+  messagingContacts: MessagingContactsResponse | null; // New format for staff
   selectedContacts: Contact[];
   isLoading: boolean;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   contactsType: 'staff' | 'patients';
   onTypeChange: (type: 'staff' | 'patients') => void;
-  onContactToggle: (contact: Contact) => void;
+  onContactToggle: (contact: Contact | MessagingContact) => void;
 }
 
 const ContactPickerModal: React.FC<ContactPickerModalProps> = ({
@@ -41,6 +51,7 @@ const ContactPickerModal: React.FC<ContactPickerModalProps> = ({
   onClose,
   onConfirm,
   contacts,
+  messagingContacts,
   selectedContacts,
   isLoading,
   searchQuery,
@@ -49,13 +60,62 @@ const ContactPickerModal: React.FC<ContactPickerModalProps> = ({
   onTypeChange,
   onContactToggle,
 }) => {
-  const filteredContacts = contacts.filter(contact =>
-    contact.display_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    contact.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter function for search
+  const filterBySearch = (contact: Contact | MessagingContact) => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      contact.display_name?.toLowerCase().includes(query) ||
+      contact.email?.toLowerCase().includes(query)
+    );
+  };
 
-  const isSelected = (contact: Contact) =>
-    selectedContacts.some(c => c.user_id === contact.user_id);
+  // Build sections based on contact type
+  const sections: ContactSection[] = React.useMemo(() => {
+    if (contactsType === 'staff' && messagingContacts) {
+      const orgMembers = (messagingContacts.organization_members || []).filter(filterBySearch);
+      const connectedPracts = (messagingContacts.connected_practitioners || []).filter(filterBySearch);
+
+      const result: ContactSection[] = [];
+
+      if (orgMembers.length > 0) {
+        result.push({
+          title: `Sua Organização (${orgMembers.length})`,
+          icon: 'building',
+          backgroundColor: '#fff3cd',
+          data: orgMembers,
+        });
+      }
+
+      if (connectedPracts.length > 0) {
+        result.push({
+          title: `Profissionais Conectados (${connectedPracts.length})`,
+          icon: 'link',
+          backgroundColor: '#d1ecf1',
+          data: connectedPracts,
+        });
+      }
+
+      return result;
+    } else {
+      // Legacy format for patients
+      const filteredContacts = contacts.filter(filterBySearch);
+      if (filteredContacts.length > 0) {
+        return [{
+          title: `Contatos (${filteredContacts.length})`,
+          icon: 'users',
+          backgroundColor: theme.colors.surface,
+          data: filteredContacts,
+        }];
+      }
+      return [];
+    }
+  }, [contactsType, messagingContacts, contacts, searchQuery]);
+
+  const isSelected = (contact: Contact | MessagingContact) =>
+    selectedContacts.some(c => c.email === contact.email);
+
+  const totalContacts = sections.reduce((sum, s) => sum + s.data.length, 0);
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
@@ -138,31 +198,50 @@ const ContactPickerModal: React.FC<ContactPickerModalProps> = ({
             <Text style={modalStyles.loadingText}>Carregando contatos...</Text>
           </View>
         ) : (
-          <FlatList
-            data={filteredContacts}
-            keyExtractor={(item, index) => item.user_id || `contact-${index}`}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[
-                  modalStyles.contactItem,
-                  isSelected(item) && modalStyles.contactItemSelected
-                ]}
-                onPress={() => onContactToggle(item)}
-              >
-                <View style={modalStyles.contactInfo}>
-                  <Text style={modalStyles.contactName}>{item.display_name}</Text>
-                  <Text style={modalStyles.contactEmail}>{item.email}</Text>
-                </View>
-                <View style={[
-                  modalStyles.checkbox,
-                  isSelected(item) && modalStyles.checkboxSelected
-                ]}>
-                  {isSelected(item) && (
-                    <FontAwesome name="check" size={12} color={theme.colors.white} />
-                  )}
-                </View>
-              </TouchableOpacity>
+          <SectionList
+            sections={sections}
+            keyExtractor={(item, index) => item.email || `contact-${index}`}
+            renderSectionHeader={({ section }) => (
+              <View style={[modalStyles.sectionHeader, { backgroundColor: section.backgroundColor }]}>
+                <FontAwesome name={section.icon} size={14} color={theme.colors.text} />
+                <Text style={modalStyles.sectionTitle}>{section.title}</Text>
+              </View>
             )}
+            renderItem={({ item, section }) => {
+              const isConnected = section.title.includes('Conectados');
+              const groupName = (item as MessagingContact).group_name;
+              return (
+                <TouchableOpacity
+                  style={[
+                    modalStyles.contactItem,
+                    isSelected(item) && modalStyles.contactItemSelected
+                  ]}
+                  onPress={() => onContactToggle(item)}
+                >
+                  <View style={modalStyles.contactInfo}>
+                    <View style={modalStyles.contactNameRow}>
+                      <Text style={modalStyles.contactName}>{item.display_name}</Text>
+                      {isConnected && groupName && (
+                        <View style={modalStyles.groupBadge}>
+                          <Text style={modalStyles.groupBadgeText} numberOfLines={1}>
+                            {groupName}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={modalStyles.contactEmail}>{item.email}</Text>
+                  </View>
+                  <View style={[
+                    modalStyles.checkbox,
+                    isSelected(item) && modalStyles.checkboxSelected
+                  ]}>
+                    {isSelected(item) && (
+                      <FontAwesome name="check" size={12} color={theme.colors.white} />
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            }}
             ListEmptyComponent={
               <View style={modalStyles.emptyContainer}>
                 <FontAwesome name="users" size={48} color={theme.colors.textSecondary} />
@@ -171,7 +250,8 @@ const ContactPickerModal: React.FC<ContactPickerModalProps> = ({
                 </Text>
               </View>
             }
-            contentContainerStyle={filteredContacts.length === 0 ? { flex: 1 } : undefined}
+            contentContainerStyle={totalContacts === 0 ? { flex: 1 } : undefined}
+            stickySectionHeadersEnabled
           />
         )}
       </SafeAreaView>
@@ -202,10 +282,34 @@ export const NewMessageScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [contactsType, setContactsType] = useState<'staff' | 'patients'>('staff');
 
+  // Local state for messaging contacts (new endpoint for staff)
+  const [messagingContacts, setMessagingContacts] = useState<MessagingContactsResponse | null>(null);
+  const [isLoadingMessagingContacts, setIsLoadingMessagingContacts] = useState(false);
+
   // Load contacts when type changes
   useEffect(() => {
-    loadContacts({ type: contactsType });
+    if (contactsType === 'staff') {
+      // Use new messaging contacts endpoint for staff
+      loadMessagingContactsData();
+    } else {
+      // Use legacy endpoint for patients
+      loadContacts({ type: contactsType });
+    }
   }, [contactsType]);
+
+  // Load messaging contacts (org members + connected practitioners)
+  const loadMessagingContactsData = useCallback(async () => {
+    setIsLoadingMessagingContacts(true);
+    try {
+      const data = await messagingService.loadMessagingContacts();
+      setMessagingContacts(data);
+    } catch (err) {
+      logger.error('[NewMessageScreen] Error loading messaging contacts:', err);
+      setMessagingContacts({ organization_members: [], connected_practitioners: [] });
+    } finally {
+      setIsLoadingMessagingContacts(false);
+    }
+  }, []);
 
   // Clear selections when leaving screen
   useEffect(() => {
@@ -214,12 +318,28 @@ export const NewMessageScreen: React.FC = () => {
     };
   }, []);
 
-  const handleContactToggle = (contact: Contact) => {
-    const isSelected = selectedContacts.some(c => c.user_id === contact.user_id);
+  // Convert MessagingContact to Contact format for selection
+  const convertToContact = (contact: Contact | MessagingContact): Contact => {
+    if ('user_id' in contact) {
+      return contact as Contact;
+    }
+    // Convert MessagingContact to Contact
+    return {
+      user_id: contact.email, // Use email as user_id
+      email: contact.email,
+      display_name: contact.display_name,
+      role: contact.role,
+      same_organization: true, // Default for messaging contacts
+    };
+  };
+
+  const handleContactToggle = (contact: Contact | MessagingContact) => {
+    const contactAsContact = convertToContact(contact);
+    const isSelected = selectedContacts.some(c => c.email === contact.email);
     if (isSelected) {
-      removeSelectedContact(contact.user_id);
+      removeSelectedContact(contactAsContact.user_id);
     } else {
-      addSelectedContact(contact);
+      addSelectedContact(contactAsContact);
     }
   };
 
@@ -366,8 +486,9 @@ export const NewMessageScreen: React.FC = () => {
           onClose={() => setShowContactPicker(false)}
           onConfirm={() => setShowContactPicker(false)}
           contacts={contacts}
+          messagingContacts={messagingContacts}
           selectedContacts={selectedContacts}
-          isLoading={isLoadingContacts}
+          isLoading={contactsType === 'staff' ? isLoadingMessagingContacts : isLoadingContacts}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           contactsType={contactsType}
@@ -479,6 +600,12 @@ const modalStyles = StyleSheet.create({
   contactInfo: {
     flex: 1,
   },
+  contactNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
   contactName: {
     fontSize: 16,
     fontWeight: '500',
@@ -488,6 +615,32 @@ const modalStyles = StyleSheet.create({
     fontSize: 13,
     color: theme.colors.textSecondary,
     marginTop: 2,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    gap: theme.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  groupBadge: {
+    backgroundColor: '#17a2b8',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    maxWidth: 100,
+  },
+  groupBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: theme.colors.white,
   },
   checkbox: {
     width: 24,

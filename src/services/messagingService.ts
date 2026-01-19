@@ -1,14 +1,15 @@
 import { api } from './api';
-import { 
-  NewMessageData, 
-  MessageThread, 
-  Message, 
-  Contact, 
+import {
+  NewMessageData,
+  MessageThread,
+  Message,
+  Contact,
   MessageStats,
   PaginationParams,
   ThreadsFilter,
   ContactsFilter,
-  MessagingApiResponse 
+  MessagingApiResponse,
+  MessagingContactsResponse
 } from '../types/messaging';
 import { logger } from '@/utils/logger';
 
@@ -188,6 +189,33 @@ class MessagingService {
       throw new Error(response.error || 'Failed to load contacts');
     } catch (error) {
       logger.error('[MessagingService] Error loading contacts:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Load messaging contacts (org members + connected practitioners via groups)
+   * This is the new filtered endpoint for the new message screen
+   */
+  async loadMessagingContacts(search?: string): Promise<MessagingContactsResponse> {
+    try {
+      logger.debug('[MessagingService] loadMessagingContacts -> calling API', { search });
+
+      const response = await api.getMessagingContacts(search);
+
+      logger.debug('[MessagingService] loadMessagingContacts <- API response', {
+        hasData: !!response?.data,
+        orgMembersCount: response?.data?.organization_members?.length,
+        connectedCount: response?.data?.connected_practitioners?.length,
+      });
+
+      if (response.data) {
+        return response.data;
+      }
+
+      throw new Error(response.error || 'Failed to load messaging contacts');
+    } catch (error) {
+      logger.error('[MessagingService] Error loading messaging contacts:', error);
       throw error;
     }
   }

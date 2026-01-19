@@ -12,7 +12,8 @@ import {
   MessageStats,
   PaginationParams,
   ThreadsFilter,
-  ContactsFilter
+  ContactsFilter,
+  MessagingContactsResponse
 } from '../types/messaging';
 import {
   PreAppointmentApiResponse,
@@ -808,6 +809,16 @@ class ApiService {
     });
 
     return this.request(`/api/internal-comm/contacts?${queryParams}`);
+  }
+
+  // Get messaging contacts (org members + connected practitioners via groups)
+  async getMessagingContacts(search?: string): Promise<MessagingApiResponse<MessagingContactsResponse>> {
+    const queryParams = new URLSearchParams();
+    if (search) {
+      queryParams.append('search', search);
+    }
+    const queryString = queryParams.toString();
+    return this.request(`/api/internal-comm/messaging-contacts${queryString ? `?${queryString}` : ''}`);
   }
 
   // Get messaging statistics

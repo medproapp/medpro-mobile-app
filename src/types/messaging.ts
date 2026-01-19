@@ -109,6 +109,20 @@ export interface ContactsFilter {
   type?: 'staff' | 'patients';
 }
 
+// New messaging contacts structure (org members + connected practitioners)
+export interface MessagingContact {
+  email: string;
+  fullname: string;
+  role?: string;
+  display_name: string;
+  group_name?: string; // Only for connected practitioners
+}
+
+export interface MessagingContactsResponse {
+  organization_members: MessagingContact[];
+  connected_practitioners: MessagingContact[];
+}
+
 // Zustand Store State
 export interface MessagingState {
   // Data
