@@ -155,9 +155,12 @@ class MessagingService {
   async loadContacts(params: ContactsFilter & PaginationParams = {}, forceRefresh = false): Promise<Contact[]> {
     try {
       //logger.debug('[MessagingService] Loading contacts with params:', params);
-      
+
+      // Skip cache when type is specified (staff vs patients) or searching
+      const skipCache = !!params.type || !!params.search;
+
       // Use cache if available and not forcing refresh
-      if (!forceRefresh && !this.shouldRefreshCache() && this.cache.contacts.length > 0 && !params.search) {
+      if (!forceRefresh && !skipCache && !this.shouldRefreshCache() && this.cache.contacts.length > 0) {
         //logger.debug('[MessagingService] Using cached contacts');
         return this.cache.contacts;
       }
@@ -170,18 +173,18 @@ class MessagingService {
         hasData: !!response?.data,
         count: response?.data?.length,
       });
-      
+
       if (response.data) {
-        // Update cache only for unfiltered requests
-        if (!params.search && (!params.offset || params.offset === 0)) {
+        // Update cache only for unfiltered requests (no type, no search, no offset)
+        if (!params.type && !params.search && (!params.offset || params.offset === 0)) {
           this.cache.contacts = response.data;
           this.updateCacheTimestamp();
         }
-        
+
         //logger.debug('[MessagingService] Loaded contacts:', response.data.length);
         return response.data;
       }
-      
+
       throw new Error(response.error || 'Failed to load contacts');
     } catch (error) {
       logger.error('[MessagingService] Error loading contacts:', error);
