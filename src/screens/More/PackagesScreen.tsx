@@ -188,12 +188,13 @@ export const PackagesScreen: React.FC = () => {
   );
 
   const renderActivePurchases = () => {
-    if (purchases.length === 0) return null;
+    const iapPurchases = purchases.filter(pkg => pkg.source === 'apple_iap');
+    if (iapPurchases.length === 0) return null;
 
     return (
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>PACOTES ATIVOS</Text>
-        {purchases.map((pkg, index) => (
+        {iapPurchases.map((pkg, index) => (
           <View key={`${pkg.source}-${index}`} style={styles.purchaseCard}>
             <View style={styles.purchaseHeader}>
               <View style={styles.purchaseInfo}>
