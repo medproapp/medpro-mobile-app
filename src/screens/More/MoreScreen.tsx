@@ -16,6 +16,7 @@ import { useAuthStore } from '@store/authStore';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { MoreStackParamList } from '@/types/navigation';
+import release from '../../../release.json';
 
 interface MoreOption {
   id: string;
@@ -94,7 +95,7 @@ export const MoreScreen: React.FC = () => {
     {
       id: 'about',
       title: 'Sobre o Medpro.app',
-      subtitle: 'Versão 0.8.1',
+      subtitle: `Versão ${release.version}`,
       icon: 'info-circle',
       iconColor: theme.colors.textSecondary,
       onPress: () => navigation.navigate('About'),
