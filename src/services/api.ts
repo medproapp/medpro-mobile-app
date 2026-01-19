@@ -783,7 +783,8 @@ class ApiService {
   }
 
   // Send a new message or reply
-  async sendMessage(data: NewMessageData): Promise<MessagingApiResponse<{ message_id: string; thread_id: string }>> {
+  // Backend returns { success, message_id, thread_id, message } at root level
+  async sendMessage(data: NewMessageData): Promise<{ success: boolean; message_id: string; thread_id: string; message?: string; error?: string; data?: { message_id: string; thread_id: string } }> {
     return this.request('/api/internal-comm/messages', {
       method: 'POST',
       body: data,
@@ -803,6 +804,7 @@ class ApiService {
       limit: (params.limit || 50).toString(),
       offset: (params.offset || 0).toString(),
       ...(params.search && { search: params.search }),
+      ...(params.type && { type: params.type }),
     });
 
     return this.request(`/api/internal-comm/contacts?${queryParams}`);

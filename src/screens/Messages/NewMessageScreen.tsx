@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
@@ -11,7 +10,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
-  ScrollView,
+  Modal,
+  FlatList,
+  SafeAreaView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
@@ -20,56 +21,168 @@ import { useMessagingStore } from '@store/messagingStore';
 import { Contact } from '@/types/messaging';
 import { logger } from '@/utils/logger';
 
-interface ContactItemProps {
-  contact: Contact;
-  isSelected: boolean;
-  onPress: () => void;
+// Contact Picker Modal Component
+interface ContactPickerModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  contacts: Contact[];
+  selectedContacts: Contact[];
+  isLoading: boolean;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
+  contactsType: 'staff' | 'patients';
+  onTypeChange: (type: 'staff' | 'patients') => void;
+  onContactToggle: (contact: Contact) => void;
 }
 
-const ContactItem: React.FC<ContactItemProps> = ({ contact, isSelected, onPress }) => {
+const ContactPickerModal: React.FC<ContactPickerModalProps> = ({
+  visible,
+  onClose,
+  onConfirm,
+  contacts,
+  selectedContacts,
+  isLoading,
+  searchQuery,
+  onSearchChange,
+  contactsType,
+  onTypeChange,
+  onContactToggle,
+}) => {
+  const filteredContacts = contacts.filter(contact =>
+    contact.display_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    contact.email.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const isSelected = (contact: Contact) =>
+    selectedContacts.some(c => c.user_id === contact.user_id);
+
   return (
-    <TouchableOpacity 
-      style={[styles.contactItem, isSelected && styles.contactItemSelected]}
-      onPress={onPress}
-    >
-      <View style={styles.contactInfo}>
-        <Text style={styles.contactName}>{contact.display_name}</Text>
-        <Text style={styles.contactEmail}>{contact.email}</Text>
-        {contact.role && (
-          <Text style={styles.contactRole}>{contact.role}</Text>
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+      <SafeAreaView style={modalStyles.container}>
+        {/* Modal Header */}
+        <View style={modalStyles.header}>
+          <TouchableOpacity onPress={onClose} style={modalStyles.closeButton}>
+            <FontAwesome name="times" size={20} color={theme.colors.text} />
+          </TouchableOpacity>
+          <Text style={modalStyles.title}>Selecionar Destinatário</Text>
+          <TouchableOpacity onPress={onConfirm} style={modalStyles.confirmButton}>
+            <Text style={modalStyles.confirmText}>OK</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Type Toggle */}
+        <View style={modalStyles.toggleContainer}>
+          <TouchableOpacity
+            style={[
+              modalStyles.toggleButton,
+              contactsType === 'staff' && modalStyles.toggleButtonActive
+            ]}
+            onPress={() => onTypeChange('staff')}
+          >
+            <FontAwesome
+              name="user-md"
+              size={14}
+              color={contactsType === 'staff' ? theme.colors.white : theme.colors.primary}
+            />
+            <Text style={[
+              modalStyles.toggleText,
+              contactsType === 'staff' && modalStyles.toggleTextActive
+            ]}>
+              Equipe
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              modalStyles.toggleButton,
+              contactsType === 'patients' && modalStyles.toggleButtonActive
+            ]}
+            onPress={() => onTypeChange('patients')}
+          >
+            <FontAwesome
+              name="users"
+              size={14}
+              color={contactsType === 'patients' ? theme.colors.white : theme.colors.primary}
+            />
+            <Text style={[
+              modalStyles.toggleText,
+              contactsType === 'patients' && modalStyles.toggleTextActive
+            ]}>
+              Pacientes
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Search */}
+        <View style={modalStyles.searchContainer}>
+          <FontAwesome name="search" size={16} color={theme.colors.textSecondary} />
+          <TextInput
+            style={modalStyles.searchInput}
+            placeholder={contactsType === 'staff' ? 'Buscar na equipe...' : 'Buscar pacientes...'}
+            value={searchQuery}
+            onChangeText={onSearchChange}
+            placeholderTextColor={theme.colors.textSecondary}
+            autoCapitalize="none"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => onSearchChange('')}>
+              <FontAwesome name="times-circle" size={16} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Contacts List */}
+        {isLoading ? (
+          <View style={modalStyles.loadingContainer}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <Text style={modalStyles.loadingText}>Carregando contatos...</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={filteredContacts}
+            keyExtractor={(item, index) => item.user_id || `contact-${index}`}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[
+                  modalStyles.contactItem,
+                  isSelected(item) && modalStyles.contactItemSelected
+                ]}
+                onPress={() => onContactToggle(item)}
+              >
+                <View style={modalStyles.contactInfo}>
+                  <Text style={modalStyles.contactName}>{item.display_name}</Text>
+                  <Text style={modalStyles.contactEmail}>{item.email}</Text>
+                </View>
+                <View style={[
+                  modalStyles.checkbox,
+                  isSelected(item) && modalStyles.checkboxSelected
+                ]}>
+                  {isSelected(item) && (
+                    <FontAwesome name="check" size={12} color={theme.colors.white} />
+                  )}
+                </View>
+              </TouchableOpacity>
+            )}
+            ListEmptyComponent={
+              <View style={modalStyles.emptyContainer}>
+                <FontAwesome name="users" size={48} color={theme.colors.textSecondary} />
+                <Text style={modalStyles.emptyText}>
+                  {searchQuery ? 'Nenhum contato encontrado' : 'Nenhum contato disponível'}
+                </Text>
+              </View>
+            }
+            contentContainerStyle={filteredContacts.length === 0 ? { flex: 1 } : undefined}
+          />
         )}
-      </View>
-      {isSelected && (
-        <FontAwesome 
-          name="check-circle" 
-          size={20} 
-          color={theme.colors.primary} 
-        />
-      )}
-    </TouchableOpacity>
+      </SafeAreaView>
+    </Modal>
   );
 };
 
-interface SelectedContactBadgeProps {
-  contact: Contact;
-  onRemove: () => void;
-}
-
-const SelectedContactBadge: React.FC<SelectedContactBadgeProps> = ({ contact, onRemove }) => {
-  return (
-    <View style={styles.selectedBadge}>
-      <Text style={styles.selectedBadgeText}>{contact.display_name}</Text>
-      <TouchableOpacity onPress={onRemove} style={styles.removeBadge}>
-        <FontAwesome name="times" size={12} color={theme.colors.white} />
-      </TouchableOpacity>
-    </View>
-  );
-};
-
+// Main Screen Component
 export const NewMessageScreen: React.FC = () => {
   const navigation = useNavigation();
-  
-  // Messaging store
+
   const {
     contacts,
     selectedContacts,
@@ -82,28 +195,26 @@ export const NewMessageScreen: React.FC = () => {
     sendMessage,
   } = useMessagingStore();
 
-  // Local state
   const [subject, setSubject] = useState('');
   const [content, setContent] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
   const [isSending, setIsSending] = useState(false);
-  
-  // Filtered contacts based on search
-  const filteredContacts = contacts.filter(contact => 
-    contact.display_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    contact.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const [showContactPicker, setShowContactPicker] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [contactsType, setContactsType] = useState<'staff' | 'patients'>('staff');
 
-  // Load contacts on mount
+  // Load contacts when type changes
   useEffect(() => {
-    loadContacts();
+    loadContacts({ type: contactsType });
+  }, [contactsType]);
+
+  // Clear selections when leaving screen
+  useEffect(() => {
     return () => {
-      clearSelectedContacts(); // Clear selections when leaving screen
+      clearSelectedContacts();
     };
   }, []);
 
-  // Handle contact selection
-  const handleContactPress = (contact: Contact) => {
+  const handleContactToggle = (contact: Contact) => {
     const isSelected = selectedContacts.some(c => c.user_id === contact.user_id);
     if (isSelected) {
       removeSelectedContact(contact.user_id);
@@ -112,9 +223,7 @@ export const NewMessageScreen: React.FC = () => {
     }
   };
 
-  // Handle send message
   const handleSendMessage = async () => {
-    // Validation
     if (selectedContacts.length === 0) {
       Alert.alert('Erro', 'Selecione pelo menos um destinatário');
       return;
@@ -131,7 +240,7 @@ export const NewMessageScreen: React.FC = () => {
     setIsSending(true);
 
     try {
-      const result = await sendMessage({
+      await sendMessage({
         recipients: selectedContacts.map(c => c.user_id),
         subject: subject.trim(),
         content: content.trim(),
@@ -139,19 +248,15 @@ export const NewMessageScreen: React.FC = () => {
         priority: 'normal',
       });
 
-      Alert.alert(
-        'Sucesso', 
-        'Mensagem enviada com sucesso!',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              clearSelectedContacts();
-              navigation.goBack();
-            }
+      Alert.alert('Sucesso', 'Mensagem enviada com sucesso!', [
+        {
+          text: 'OK',
+          onPress: () => {
+            clearSelectedContacts();
+            navigation.goBack();
           }
-        ]
-      );
+        }
+      ]);
     } catch (error) {
       logger.error('[NewMessageScreen] Error sending message:', error);
       Alert.alert('Erro', 'Não foi possível enviar a mensagem. Tente novamente.');
@@ -160,123 +265,80 @@ export const NewMessageScreen: React.FC = () => {
     }
   };
 
-  // Render contact item
-  const renderContact = ({ item }: { item: Contact }) => (
-    <ContactItem
-      contact={item}
-      isSelected={selectedContacts.some(c => c.user_id === item.user_id)}
-      onPress={() => handleContactPress(item)}
-    />
-  );
+  const canSend = selectedContacts.length > 0 && subject.trim() && content.trim() && !isSending;
 
   return (
     <>
       <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
-      <KeyboardAvoidingView 
-        style={styles.container} 
+      <KeyboardAvoidingView
+        style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <FontAwesome name="arrow-left" size={20} color={theme.colors.white} />
           </TouchableOpacity>
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>Nova Mensagem</Text>
-          </View>
-          <TouchableOpacity 
-            style={[
-              styles.sendHeaderButton,
-              (!subject.trim() || !content.trim() || selectedContacts.length === 0 || isSending) 
-                && styles.sendHeaderButtonDisabled
-            ]}
+          <Text style={styles.headerTitle}>Nova Mensagem</Text>
+          <TouchableOpacity
+            style={[styles.sendButton, !canSend && styles.sendButtonDisabled]}
             onPress={handleSendMessage}
-            disabled={!subject.trim() || !content.trim() || selectedContacts.length === 0 || isSending}
+            disabled={!canSend}
           >
             {isSending ? (
               <ActivityIndicator size="small" color={theme.colors.white} />
             ) : (
-              <Text style={styles.sendHeaderButtonText}>Enviar</Text>
+              <Text style={styles.sendButtonText}>Enviar</Text>
             )}
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
-          {/* Recipients Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Para:</Text>
-            
-            {/* Selected Recipients */}
-            {selectedContacts.length > 0 && (
-              <View style={styles.selectedContainer}>
-                {selectedContacts.map(contact => (
-                  <SelectedContactBadge
-                    key={contact.user_id}
-                    contact={contact}
-                    onRemove={() => removeSelectedContact(contact.user_id)}
-                  />
-                ))}
-              </View>
-            )}
-
-            {/* Search Contacts */}
-            <View style={styles.searchContainer}>
-              <FontAwesome name="search" size={16} color={theme.colors.textSecondary} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Buscar contatos..."
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholderTextColor={theme.colors.textSecondary}
-              />
-            </View>
-
-            {/* Contacts List */}
-            <View style={styles.contactsList}>
-              {isLoadingContacts ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="small" color={theme.colors.primary} />
-                  <Text style={styles.loadingText}>Carregando contatos...</Text>
-                </View>
-              ) : filteredContacts.length === 0 ? (
-                <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>
-                    {searchQuery ? 'Nenhum contato encontrado' : 'Nenhum contato disponível'}
+        {/* Content */}
+        <View style={styles.content}>
+          {/* Recipients Row */}
+          <View style={styles.recipientsRow}>
+            <Text style={styles.fieldLabel}>Para:</Text>
+            <View style={styles.recipientsContainer}>
+              {selectedContacts.map((contact, index) => (
+                <View key={contact.user_id || `selected-${index}`} style={styles.recipientChip}>
+                  <Text style={styles.recipientChipText} numberOfLines={1}>
+                    {contact.display_name}
                   </Text>
+                  <TouchableOpacity
+                    onPress={() => removeSelectedContact(contact.user_id)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <FontAwesome name="times" size={12} color={theme.colors.white} />
+                  </TouchableOpacity>
                 </View>
-              ) : (
-                <FlatList
-                  data={filteredContacts}
-                  renderItem={renderContact}
-                  keyExtractor={item => item.user_id}
-                  scrollEnabled={false}
-                  showsVerticalScrollIndicator={false}
-                />
-              )}
+              ))}
+              <TouchableOpacity
+                style={styles.addRecipientButton}
+                onPress={() => setShowContactPicker(true)}
+              >
+                <FontAwesome name="plus" size={12} color={theme.colors.primary} />
+                <Text style={styles.addRecipientText}>Adicionar</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
-          {/* Subject Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Assunto:</Text>
+          {/* Subject Row */}
+          <View style={styles.subjectRow}>
+            <Text style={styles.fieldLabel}>Assunto:</Text>
             <TextInput
               style={styles.subjectInput}
               value={subject}
               onChangeText={setSubject}
-              placeholder="Digite o assunto da mensagem..."
+              placeholder="Digite o assunto..."
               placeholderTextColor={theme.colors.textSecondary}
               maxLength={200}
             />
           </View>
 
-          {/* Message Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Mensagem:</Text>
+          {/* Message Input */}
+          <View style={styles.messageContainer}>
             <TextInput
-              style={styles.contentInput}
+              style={styles.messageInput}
               value={content}
               onChangeText={setContent}
               placeholder="Digite sua mensagem..."
@@ -285,23 +347,174 @@ export const NewMessageScreen: React.FC = () => {
               maxLength={2000}
               textAlignVertical="top"
             />
-            <Text style={styles.characterCount}>
-              {content.length}/2000 caracteres
-            </Text>
           </View>
-        </ScrollView>
 
-        {/* Error message */}
+          {/* Character count */}
+          <Text style={styles.charCount}>{content.length}/2000</Text>
+        </View>
+
+        {/* Error */}
         {error && (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
+
+        {/* Contact Picker Modal */}
+        <ContactPickerModal
+          visible={showContactPicker}
+          onClose={() => setShowContactPicker(false)}
+          onConfirm={() => setShowContactPicker(false)}
+          contacts={contacts}
+          selectedContacts={selectedContacts}
+          isLoading={isLoadingContacts}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          contactsType={contactsType}
+          onTypeChange={setContactsType}
+          onContactToggle={handleContactToggle}
+        />
       </KeyboardAvoidingView>
     </>
   );
 };
 
+// Modal Styles
+const modalStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  closeButton: {
+    padding: theme.spacing.sm,
+  },
+  title: {
+    ...theme.typography.h3,
+    fontSize: 17,
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  confirmButton: {
+    padding: theme.spacing.sm,
+  },
+  confirmText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  toggleButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.xs,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  },
+  toggleButtonActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  toggleText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  toggleTextActive: {
+    color: theme.colors.white,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    height: 44,
+    backgroundColor: theme.colors.surface,
+    borderRadius: 22,
+    gap: theme.spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: theme.colors.text,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+  },
+  loadingText: {
+    color: theme.colors.textSecondary,
+    fontSize: 14,
+  },
+  contactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  contactItemSelected: {
+    backgroundColor: theme.colors.primary + '08',
+  },
+  contactInfo: {
+    flex: 1,
+  },
+  contactName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: theme.colors.text,
+  },
+  contactEmail: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    marginTop: 2,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: theme.colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxSelected: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+  },
+});
+
+// Main Screen Styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -314,163 +527,116 @@ const styles = StyleSheet.create({
     paddingTop: StatusBar.currentHeight || 44,
     paddingBottom: theme.spacing.md,
     paddingHorizontal: theme.spacing.md,
-    shadowColor: theme.colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
   },
   backButton: {
     padding: theme.spacing.sm,
-    marginRight: theme.spacing.sm,
-  },
-  headerContent: {
-    flex: 1,
   },
   headerTitle: {
-    ...theme.typography.h3,
-    color: theme.colors.white,
+    flex: 1,
     fontSize: 18,
     fontWeight: '600',
+    color: theme.colors.white,
+    marginLeft: theme.spacing.sm,
   },
-  sendHeaderButton: {
+  sendButton: {
     backgroundColor: theme.colors.white + '20',
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
     borderRadius: 16,
   },
-  sendHeaderButtonDisabled: {
-    opacity: 0.5,
+  sendButtonDisabled: {
+    opacity: 0.4,
   },
-  sendHeaderButtonText: {
+  sendButtonText: {
     color: theme.colors.white,
     fontWeight: '600',
     fontSize: 14,
   },
   content: {
     flex: 1,
-  },
-  section: {
     padding: theme.spacing.md,
+  },
+  recipientsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingBottom: theme.spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
   },
-  sectionTitle: {
-    ...theme.typography.body,
-    fontWeight: '600',
-    color: theme.colors.text,
-    marginBottom: theme.spacing.sm,
+  fieldLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: theme.colors.textSecondary,
+    width: 65,
+    marginTop: 8,
   },
-  selectedContainer: {
+  recipientsContainer: {
+    flex: 1,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: theme.spacing.sm,
-    gap: theme.spacing.xs,
+    gap: 8,
   },
-  selectedBadge: {
+  recipientChip: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: theme.colors.primary,
     borderRadius: 16,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
+    paddingVertical: 6,
+    paddingLeft: 12,
+    paddingRight: 8,
+    gap: 6,
+    maxWidth: '70%',
   },
-  selectedBadgeText: {
+  recipientChipText: {
     color: theme.colors.white,
     fontSize: 14,
     fontWeight: '500',
+    flexShrink: 1,
   },
-  removeBadge: {
-    marginLeft: theme.spacing.xs,
-    padding: 2,
-  },
-  searchContainer: {
+  addRecipientButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-    borderRadius: 8,
-    paddingHorizontal: theme.spacing.sm,
-    marginBottom: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    borderStyle: 'dashed',
+    borderRadius: 16,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    gap: 6,
   },
-  searchInput: {
-    flex: 1,
-    marginLeft: theme.spacing.sm,
-    height: 40,
-    color: theme.colors.text,
-  },
-  contactsList: {
-    maxHeight: 200,
-  },
-  contactItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.xs,
-    borderRadius: 8,
-  },
-  contactItemSelected: {
-    backgroundColor: theme.colors.primary + '10',
-  },
-  contactInfo: {
-    flex: 1,
-  },
-  contactName: {
-    ...theme.typography.body,
-    fontWeight: '600',
-    color: theme.colors.text,
-  },
-  contactEmail: {
-    ...theme.typography.caption,
-    color: theme.colors.textSecondary,
-    fontSize: 12,
-  },
-  contactRole: {
-    ...theme.typography.caption,
+  addRecipientText: {
     color: theme.colors.primary,
-    fontSize: 11,
-    marginTop: 2,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  subjectRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
   subjectInput: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: 8,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    color: theme.colors.text,
+    flex: 1,
     fontSize: 16,
-  },
-  contentInput: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: 8,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
     color: theme.colors.text,
-    fontSize: 16,
-    minHeight: 120,
+    paddingVertical: 4,
   },
-  characterCount: {
-    ...theme.typography.caption,
+  messageContainer: {
+    flex: 1,
+    marginTop: theme.spacing.md,
+  },
+  messageInput: {
+    flex: 1,
+    fontSize: 16,
+    color: theme.colors.text,
+    lineHeight: 24,
+  },
+  charCount: {
+    fontSize: 12,
     color: theme.colors.textSecondary,
     textAlign: 'right',
-    marginTop: theme.spacing.xs,
-  },
-  loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: theme.spacing.md,
-  },
-  loadingText: {
-    marginLeft: theme.spacing.sm,
-    color: theme.colors.textSecondary,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    padding: theme.spacing.md,
-  },
-  emptyText: {
-    color: theme.colors.textSecondary,
-    fontSize: 14,
+    marginTop: theme.spacing.sm,
   },
   errorContainer: {
     backgroundColor: theme.colors.error,

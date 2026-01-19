@@ -106,6 +106,7 @@ export interface ThreadsFilter {
 export interface ContactsFilter {
   search?: string;
   organization?: string;
+  type?: 'staff' | 'patients';
 }
 
 // Zustand Store State

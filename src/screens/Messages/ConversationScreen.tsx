@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,8 +12,11 @@ import {
   Platform,
   Alert,
   RefreshControl,
+  Image,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
-import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
+import { useRoute, useNavigation, useFocusEffect, RouteProp } from '@react-navigation/native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { theme } from '@theme/index';
 import { useMessagingStore } from '@store/messagingStore';
@@ -44,7 +47,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, on
     const date = new Date(dateString);
     const now = new Date();
     const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
-    
+
     if (diffInHours < 1) {
       return 'Agora';
     } else if (diffInHours < 24) {
@@ -76,10 +79,10 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, on
           {formatMessageTime(message.created_at)}
         </Text>
         {isOwnMessage && (
-          <FontAwesome 
-            name="check" 
-            size={12} 
-            color={isOwnMessage ? theme.colors.white + '80' : theme.colors.textSecondary} 
+          <FontAwesome
+            name="check"
+            size={12}
+            color={isOwnMessage ? theme.colors.white + '80' : theme.colors.textSecondary}
           />
         )}
       </View>
@@ -100,7 +103,7 @@ export const ConversationScreen: React.FC = () => {
   const navigation = useNavigation();
   const { threadId, threadSubject } = route.params;
   const { user } = useAuthStore();
-  
+
   // Messaging store
   const {
     messages,
@@ -120,12 +123,46 @@ export const ConversationScreen: React.FC = () => {
   const [ucByMessage, setUcByMessage] = useState<Record<string, number>>({});
   const [ucTotal, setUcTotal] = useState<number>(0);
   const [ucLoaded, setUcLoaded] = useState<boolean>(false);
-  
+
   const flatListRef = useRef<FlatList>(null);
-  
+
   // Get messages for this thread
   const threadMessages = messages[threadId] || [];
-  
+
+  // Get the other participant's name (exclude current user)
+  const getOtherParticipantName = (): string => {
+    const currentUserName = user?.name || user?.email || '';
+
+    // Try to get from currentThread participants array
+    if (currentThread?.participants && currentThread.participants.length > 0) {
+      const otherParticipants = currentThread.participants.filter(
+        (p) => p.id !== user?.id && p.email !== user?.email
+      );
+      if (otherParticipants.length > 0) {
+        return otherParticipants.map(p => p.displayName).filter(Boolean).join(', ');
+      }
+    }
+
+    // Try to get from participants_names (string format from API) and filter out current user
+    const participantsNames = (currentThread as any)?.participants_names;
+    if (participantsNames && typeof participantsNames === 'string') {
+      // Split by comma and filter out current user's name
+      const names = participantsNames.split(',').map((n: string) => n.trim());
+      const otherNames = names.filter((name: string) =>
+        name.toLowerCase() !== currentUserName.toLowerCase() &&
+        name.toLowerCase() !== user?.email?.toLowerCase()
+      );
+      if (otherNames.length > 0) {
+        return otherNames.join(', ');
+      }
+    }
+
+    // Fallback to thread subject
+    return threadSubject;
+  };
+
+  const otherParticipantName = getOtherParticipantName();
+
   // Debug logging for messages
   useEffect(() => {
     if (threadMessages.length > 0) {
@@ -171,6 +208,44 @@ export const ConversationScreen: React.FC = () => {
       selectThread(null);
     };
   }, [threadId, threadSubject]);
+
+  // Auto-refresh when app comes to foreground (e.g., after notification)
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        logger.debug('[ConversationScreen] App became active, refreshing messages');
+        loadMessages(threadId);
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+    };
+  }, [threadId, loadMessages]);
+
+  // Auto-refresh when screen gains focus (e.g., navigating back)
+  useFocusEffect(
+    useCallback(() => {
+      logger.debug('[ConversationScreen] Screen focused, refreshing messages');
+      loadMessages(threadId);
+    }, [threadId, loadMessages])
+  );
+
+  // Polling: auto-refresh every 15 seconds while screen is active
+  useEffect(() => {
+    const pollInterval = setInterval(() => {
+      if (AppState.currentState === 'active') {
+        logger.debug('[ConversationScreen] Polling refresh');
+        loadMessages(threadId);
+      }
+    }, 15000);
+
+    return () => {
+      clearInterval(pollInterval);
+    };
+  }, [threadId, loadMessages]);
 
   // Load UC ledger for this thread (current month), best-effort
   useEffect(() => {
@@ -227,7 +302,7 @@ export const ConversationScreen: React.FC = () => {
   // Handle send message
   const handleSendMessage = async () => {
     if (!messageText.trim()) return;
-    
+
     const content = messageText.trim();
     setMessageText('');
     setIsSending(true);
@@ -262,7 +337,7 @@ export const ConversationScreen: React.FC = () => {
       logger.warn('[ConversationScreen] Cannot mark message as read: messageId is undefined');
       return;
     }
-    
+
     try {
       await markAsRead(messageId);
     } catch (error) {
@@ -274,8 +349,8 @@ export const ConversationScreen: React.FC = () => {
   const renderMessage = ({ item }: { item: Message }) => {
     const isOwnMessage = item.sender_id === user?.id;
     return (
-      <MessageBubble 
-        message={item} 
+      <MessageBubble
+        message={item}
         isOwnMessage={isOwnMessage}
         onMarkAsRead={() => handleMarkAsRead(item.message_id)}
         ucUnits={ucByMessage[item.message_id]}
@@ -296,25 +371,33 @@ export const ConversationScreen: React.FC = () => {
   return (
     <>
       <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
-      <KeyboardAvoidingView 
-        style={styles.container} 
+      <KeyboardAvoidingView
+        style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <FontAwesome name="arrow-left" size={20} color={theme.colors.white} />
-          </TouchableOpacity>
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle} numberOfLines={1}>
-              {threadSubject}
-            </Text>
-            <Text style={styles.headerSubtitle}>
-              {threadMessages.length} mensagens{ucLoaded && ucTotal > 0 ? ` • UC mês: ${ucTotal}` : ''}
-            </Text>
+        {/* Header with gradient background - app standard */}
+        <View style={styles.headerBackground}>
+          {/* Background Logo */}
+          <Image
+            source={require('../../assets/medpro-logo.png')}
+            style={styles.backgroundLogo}
+            resizeMode="contain"
+          />
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+            >
+              <FontAwesome name="arrow-left" size={20} color={theme.colors.white} />
+            </TouchableOpacity>
+            <View style={styles.headerContent}>
+              <Text style={styles.headerTitle} numberOfLines={1}>
+                {otherParticipantName}
+              </Text>
+              <Text style={styles.headerSubtitle} numberOfLines={1}>
+                {threadSubject}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -332,8 +415,8 @@ export const ConversationScreen: React.FC = () => {
               : `message-${index}`
           }
           refreshControl={
-            <RefreshControl 
-              refreshing={isRefreshing} 
+            <RefreshControl
+              refreshing={isRefreshing}
               onRefresh={handleRefresh}
               colors={[theme.colors.primary]}
               tintColor={theme.colors.primary}
@@ -362,7 +445,7 @@ export const ConversationScreen: React.FC = () => {
               maxLength={2000}
               editable={!isSending}
             />
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[
                 styles.sendButton,
                 (!messageText.trim() || isSending) && styles.sendButtonDisabled
@@ -405,22 +488,43 @@ const styles = StyleSheet.create({
     marginTop: 10,
     color: theme.colors.textSecondary,
   },
-  header: {
+  headerBackground: {
     backgroundColor: theme.colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
     paddingTop: StatusBar.currentHeight || 44,
     paddingBottom: theme.spacing.md,
-    paddingHorizontal: theme.spacing.md,
     shadowColor: theme.colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 4,
+    position: 'relative',
+    overflow: 'hidden',
+    zIndex: 1,
+  },
+  backgroundLogo: {
+    position: 'absolute',
+    right: -20,
+    top: '50%',
+    width: 100,
+    height: 100,
+    opacity: 0.1,
+    transform: [{ translateY: -50 }],
+    tintColor: theme.colors.white,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
   },
   backButton: {
     padding: theme.spacing.sm,
-    marginRight: theme.spacing.sm,
+    marginRight: theme.spacing.xs,
   },
   headerContent: {
     flex: 1,
@@ -428,12 +532,12 @@ const styles = StyleSheet.create({
   headerTitle: {
     ...theme.typography.h3,
     color: theme.colors.white,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '600',
   },
   headerSubtitle: {
     ...theme.typography.caption,
-    color: theme.colors.white + 'CC',
+    color: theme.colors.white + 'AA',
     fontSize: 12,
     marginTop: 2,
   },
@@ -519,23 +623,29 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surface,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
-    padding: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
   },
   inputWrapper: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     backgroundColor: theme.colors.background,
-    borderRadius: 24,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    minHeight: 44,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingLeft: theme.spacing.md,
+    paddingRight: 6,
+    paddingVertical: 6,
+    minHeight: 52,
   },
   textInput: {
     flex: 1,
     color: theme.colors.text,
     fontSize: 16,
     maxHeight: 100,
-    paddingRight: theme.spacing.sm,
+    minHeight: 40,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 8,
+    textAlignVertical: 'center',
   },
   sendButton: {
     backgroundColor: theme.colors.primary,
@@ -544,10 +654,10 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
+    marginLeft: theme.spacing.sm,
   },
   sendButtonDisabled: {
-    backgroundColor: theme.colors.textSecondary,
-    opacity: 0.5,
+    backgroundColor: theme.colors.textSecondary + '40',
   },
   emptyContainer: {
     flex: 1,

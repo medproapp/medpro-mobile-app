@@ -224,23 +224,30 @@ class MessagingService {
    */
   async sendMessage(data: NewMessageData): Promise<{ message_id: string; thread_id: string }> {
     try {
-      // logger.debug('[MessagingService] Sending message:', { 
-      //   recipients: data.recipients, 
+      // logger.debug('[MessagingService] Sending message:', {
+      //   recipients: data.recipients,
       //   subject: data.subject,
       //   hasContent: !!data.content,
-      //   threadId: data.thread_id 
+      //   threadId: data.thread_id
       // });
 
       const response = await api.sendMessage(data);
-      
-      if (response.data) {
+
+      // Backend returns { success, message_id, thread_id } at root level (not wrapped in data)
+      if (response.success && response.message_id) {
         // Invalidate relevant caches after sending
         this.invalidateCache(['threads', 'messages']);
-        
-        //logger.debug('[MessagingService] Message sent successfully:', response.data);
+
+        //logger.debug('[MessagingService] Message sent successfully:', response.message_id);
+        return { message_id: response.message_id, thread_id: response.thread_id };
+      }
+
+      // Fallback for wrapped response format
+      if (response.data) {
+        this.invalidateCache(['threads', 'messages']);
         return response.data;
       }
-      
+
       throw new Error(response.error || 'Failed to send message');
     } catch (error) {
       logger.error('[MessagingService] Error sending message:', error);
