@@ -143,6 +143,11 @@ class ApiService {
     }
   }
 
+  async get<T = any>(endpoint: string): Promise<{ data: T }> {
+    const data = await this.request<T>(endpoint);
+    return { data };
+  }
+
   // Dashboard endpoints
   async getDashboardAppointments(email: string) {
     return this.request(`/api/dashboard/stats/appointments/${email}`);

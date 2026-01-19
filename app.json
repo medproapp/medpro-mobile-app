@@ -87,7 +87,7 @@
       "bundler": "metro"
     },
     "extra": {
-      "apiBaseUrl": "http://192.168.2.30:3000",
+      "apiBaseUrl": "https://server.medproapp.com.br",
       "eas": {
         "projectId": "bc8e5697-2118-45bb-9c81-8f7a7fa10ab3"
       }
